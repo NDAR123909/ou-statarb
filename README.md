@@ -188,18 +188,6 @@ the same record in real time, with nothing at risk.
 | regime gate on a broken spread | same PnL as naive at about a third of the drawdown |
 | paper-trade replay, JPM/GS | about +4% over a decade, Sharpe near 0.15 after fills |
 
-## Why this isn't slop
-
-The short version is that it tries hard to disprove itself. There's a stated
-economic mechanism, and it gets tested with an ADF check before any trade rather
-than assumed. The estimators are validated against ground truth before I trust
-them on data. Nothing is evaluated on the window it was fit on; the in-sample fit
-is frozen and the walk-forward goes further. Costs and slippage are charged on
-every position change, and the Kalman backtest pays for both legs, including the
-small daily rebalance as β drifts. Results are reported as distributions instead
-of one hand-picked equity curve. And the code is upfront about where it breaks,
-with tests covering the parts that are easy to get wrong.
-
 ## Quickstart
 
 ```bash
