@@ -1,23 +1,22 @@
-# OU stat-arb: pairs trading with a Kalman-filtered hedge ratio
+# Ornstein-Uhlenbeck Pairs Trading with a Kalman-Filtered Hedge Ratio
 
-[![tests](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/ci.yml)
+[![tests](https://github.com/NDAR123909/ou-statarb/actions/workflows/ci.yml/badge.svg)](https://github.com/NDAR123909/ou-statarb/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
-<sub>Replace `OWNER/REPO` in the badge URLs above with your GitHub path once you push.</sub>
-
-This is a pairs-trading research framework built around one idea borrowed from
-physics: the spread between two related stocks behaves a lot like a particle on
+This is a pairs-trading research framework built around this borrowed idea from
+physics that the spread between two related stocks behaves a lot like a particle on
 a spring. Pull it away from rest and a restoring force drags it back. That is the
 Ornstein-Uhlenbeck process, written down in 1930 to describe a Brownian particle
 sitting in a potential well, and it turns out to be a reasonable model for the
 gap between two cointegrated assets.
 
-One disclaimer before anything else, because it matters. The headline Sharpe
-numbers below come from synthetic data that I built to be cointegrated. They show
-the code is correct, not that there is money lying around on the floor. When I
-ran the same pipeline on real prices the picture got a lot more sober, and that
-turned out to be the most useful part of the project. I get to it further down.
+First off, a very important disclaimer before proceeding with anything else. 
+The headline Sharpe numbers below come from synthetic data that I built to be 
+cointegrated. They show that the code is correct, not that there is money just 
+lying around on the floor to be collected. When I ran the same pipeline on real 
+prices, the overall picture became less inflated, which funny enough turned out to be 
+the most useful part of the project. I expound more on that further below.
 
 ## The one picture to start with
 
