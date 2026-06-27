@@ -277,7 +277,7 @@ afford to lose.
 
 This is a learning and portfolio project, not financial advice.
 
-## Where I'd take it next
+## Moving forward
 
 The first round of extensions is now in the repo: Johansen baskets, proportional
 sizing with a regime gate, and the paper-trading bridge. What I have not done yet,
@@ -293,4 +293,4 @@ time.
 
 ## License
 
-MIT, see [LICENSE](LICENSE). Replace `<YOUR NAME>` before you publish.
+MIT, see [LICENSE](LICENSE). 
