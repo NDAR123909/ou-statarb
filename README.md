@@ -11,8 +11,8 @@ Ornstein-Uhlenbeck process, written down in 1930 to describe a Brownian particle
 sitting in a potential well, and it turns out to be a reasonable model for the
 gap between two cointegrated assets.
 
-First off, a very important disclaimer before proceeding with anything else. 
-The headline Sharpe numbers below come from synthetic data that I built to be 
+First off, let me begin with a very important disclaimer before proceeding with anything 
+else. The headline Sharpe numbers below come from synthetic data that I built to be 
 cointegrated. They show that the code is correct, not that there is money just 
 lying around on the floor to be collected. When I ran the same pipeline on real 
 prices, the overall picture became less inflated, which funny enough turned out to be 
