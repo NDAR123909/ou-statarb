@@ -1,0 +1,29 @@
+name: broker smoke test
+
+# Exercises AlpacaPaperBroker against the real paper API using the repo's
+# Alpaca secrets. Runs on manual dispatch, and automatically when the broker
+# or this test changes on a development branch.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "claude/**" ]
+    paths:
+      - statarb/broker.py
+      - deploy/broker_smoke.py
+      - .github/workflows/broker-smoke.yml
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[live]"
+      - name: Run smoke test
+        env:
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: python deploy/broker_smoke.py

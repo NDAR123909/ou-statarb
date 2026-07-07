@@ -1,0 +1,64 @@
+name: live paper trading
+
+# The daily heartbeat of the track record. Runs after the US close every
+# weekday (21:35 UTC is post-close in both EDT and EST — the DST slop is
+# accepted per the plan), executes the strategy step then the snapshot, and
+# commits track_record/. The git history of those commits IS the timestamp;
+# never rewrite history on track_record/.
+#
+# NOTE: GitHub only fires cron schedules from the default branch, so the
+# schedule goes live when this file lands on main. workflow_dispatch works on
+# any branch and is the manual/off-schedule entry point.
+
+on:
+  schedule:
+    - cron: "35 21 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: live-paper-trading
+  cancel-in-progress: false
+
+jobs:
+  trade-and-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -e ".[live]"
+
+      - name: Run strategy (post-close decisions; orders fill at next open)
+        env:
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: python deploy/run_strategy.py track_record
+
+      - name: Snapshot account into track_record/
+        env:
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: python deploy/snapshot.py track_record
+
+      - name: Commit and push track record
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add track_record/
+          if git diff --cached --quiet; then
+            echo "nothing to commit (holiday or no changes)"
+            exit 0
+          fi
+          git commit -m "track record: $(date -u +%F) equity + positions"
+          # a concurrent push (e.g. a manual dispatch) should rebase, never force
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

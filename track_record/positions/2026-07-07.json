@@ -1,0 +1,14 @@
+{
+  "date": "2026-07-07",
+  "taken_at_utc": "2026-07-07T21:23:24.459801+00:00",
+  "account": {
+    "equity": 100000.0,
+    "cash": 100000.0,
+    "long_market_value": 0.0,
+    "short_market_value": 0.0,
+    "buying_power": 400000.0,
+    "last_equity": 100000.0
+  },
+  "positions": [],
+  "fills": []
+}
