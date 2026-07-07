@@ -1,9 +1,16 @@
 name: broker smoke test
 
-# Manual-only: exercises AlpacaPaperBroker against the real paper API using
-# the repo's Alpaca secrets. Run it after any change to statarb/broker.py.
+# Exercises AlpacaPaperBroker against the real paper API using the repo's
+# Alpaca secrets. Runs on manual dispatch, and automatically when the broker
+# or this test changes on a development branch.
 on:
   workflow_dispatch:
+  push:
+    branches: [ "claude/**" ]
+    paths:
+      - statarb/broker.py
+      - deploy/broker_smoke.py
+      - .github/workflows/broker-smoke.yml
 
 jobs:
   smoke:
