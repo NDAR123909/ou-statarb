@@ -1,0 +1,9 @@
+numpy>=1.24
+pandas>=2.0
+statsmodels>=0.14
+scipy>=1.10
+matplotlib>=3.7
+# optional, only for live data and paper trading:
+# yfinance>=0.2
+# pytest>=7.0  # to run the test suite
+# alpaca-py>=0.20   # for examples/paper_trade.py with real paper keys
