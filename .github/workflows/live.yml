@@ -21,6 +21,7 @@ on:
       - .github/workflows/live.yml
       - deploy/run_strategy.py
       - deploy/snapshot.py
+      - .gitignore
 
 permissions:
   contents: write
