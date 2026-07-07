@@ -222,6 +222,14 @@ class AlpacaPaperBroker(Broker):
         """Current date in the exchange's timezone (America/New_York)."""
         return self._trade.get_clock().timestamp.date()
 
+    def is_trading_day(self) -> bool:
+        """True if the exchange holds (or held) a session today. Holidays gate
+        the daily workflow: no session, no strategy run, no snapshot row."""
+        from alpaca.trading.requests import GetCalendarRequest
+        today = self.trading_date()
+        cal = self._trade.get_calendar(GetCalendarRequest(start=today, end=today))
+        return any(c.date == today for c in cal)
+
     def submit(self, symbol: str, qty: float) -> Fill:
         """
         Submit a market DAY order for whole shares and wait for the fill.
