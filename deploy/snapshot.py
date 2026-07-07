@@ -100,8 +100,15 @@ def take_snapshot(broker, root: Path) -> dict:
 def main() -> int:
     from statarb.broker import AlpacaPaperBroker
 
-    root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("track_record")
+    args = [a for a in sys.argv[1:] if a != "--force"]
+    force = "--force" in sys.argv[1:]
+    root = Path(args[0]) if args else Path("track_record")
+
     broker = AlpacaPaperBroker()          # raises loudly on bad/missing keys
+    if not force and not broker.is_trading_day():
+        print(f"{broker.trading_date()}: not a trading day, no snapshot "
+              "(pass --force to override)")
+        return 0
     row = take_snapshot(broker, root)
     print("snapshot written:", row)
     return 0
