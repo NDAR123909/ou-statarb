@@ -14,14 +14,6 @@ on:
   schedule:
     - cron: "35 21 * * 1-5"
   workflow_dispatch:
-  # TEMPORARY validation trigger — remove after the end-to-end check is green.
-  push:
-    branches: [ "claude/**" ]
-    paths:
-      - .github/workflows/live.yml
-      - deploy/run_strategy.py
-      - deploy/snapshot.py
-      - .gitignore
 
 permissions:
   contents: write

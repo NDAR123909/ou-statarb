@@ -112,8 +112,13 @@ later.
 
 ## Known gaps / gotchas
 
-- `AlpacaPaperBroker` in `broker.py` is unexercised against the real API —
-  expect signature/response-shape fixes on first contact.
+- `AlpacaPaperBroker` was exercised against the real paper API on 2026-07-07
+  (broker-smoke workflow + first live run, both green). Notes from first
+  contact: the account's data plan is free-tier, so latest trades fall back to
+  the IEX feed while historical daily bars come from SIP (the broker records
+  which in `last_feed_used`); market orders submitted post-close rest as
+  ACCEPTED and fill at the next open — the normal path for the 21:35 UTC
+  workflow, surfaced as `Fill(filled=False)` and reconciled next run.
 - Corporate actions (mergers, spinoffs) are unhandled; the z-stop limits damage
   but an event filter before entry is a wanted improvement.
 - Borrow is modeled flat at 50 bps/yr; real locate rates are per-name. Fine for
