@@ -62,7 +62,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add track_record/ LOG.md
+          git add track_record/
+          # LOG.md only exists after the first Monday entry; don't fail before then
+          if [ -f LOG.md ]; then git add LOG.md; fi
           if git diff --cached --quiet; then
             echo "nothing to commit (holiday or no changes)"
             exit 0
