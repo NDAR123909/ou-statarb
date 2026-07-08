@@ -313,3 +313,88 @@ def test_report_handles_missing_csv(tmp_path):
     assert stats["n_days"] == 0
     assert (tmp_path / "README.md").exists()
     assert (tmp_path / "equity.svg").exists()
+
+
+# --------------------------------------------------------------------------- #
+#  Weekly research log (Phase 2.5)                                            #
+# --------------------------------------------------------------------------- #
+import json as _json
+from deploy.report_weekly import (
+    append_entry, weekly_metrics, _last_entry_date, ENTRY_MARKER,
+)
+
+
+def _weekly_fixture(tmp_path):
+    """A track_record/ with 6 business days (Mon 2026-07-06 .. Mon 2026-07-13)
+    and a few orders. Returns (root, log_path)."""
+    root = tmp_path / "track_record"
+    (root / "orders").mkdir(parents=True)
+    dates = pd.bdate_range("2026-07-06", periods=6).strftime("%Y-%m-%d")
+    eq = [100_000, 100_200, 99_800, 100_500, 100_300, 100_900]
+    pd.DataFrame({
+        "date": dates, "equity": eq, "cash": eq,
+        "long_market_value": 0.0, "short_market_value": 0.0,
+        "gross_leverage": [0, 1.2, 1.2, 1.5, 1.5, 1.3],
+        "buying_power": [e * 4 for e in eq], "n_positions": 1,
+        "n_fills": [0, 2, 0, 0, 0, 2],
+    }).to_csv(root / "equity.csv", index=False)
+    (root / "orders" / f"{dates[1]}.json").write_text(
+        _json.dumps([{"action": "entry"}, {"action": "entry"}]))
+    (root / "orders" / f"{dates[2]}.json").write_text(
+        _json.dumps([{"action": "stop"}, {"action": "stop"}]))
+    return root, tmp_path / "LOG.md"
+
+
+def test_weekly_skips_non_monday(tmp_path):
+    root, log = _weekly_fixture(tmp_path)
+    assert append_entry(root, log, "2026-07-07") is False   # Tuesday
+    assert not log.exists()
+    assert append_entry(root, log, "2026-07-07", force=True) is True  # forced
+
+
+def test_weekly_appends_on_monday_and_is_idempotent(tmp_path):
+    root, log = _weekly_fixture(tmp_path)
+    assert append_entry(root, log, "2026-07-13") is True    # Monday
+    assert append_entry(root, log, "2026-07-13") is False   # no duplicate
+    text = log.read_text()
+    assert text.count(ENTRY_MARKER) == 1
+    assert _last_entry_date(text) == "2026-07-13"
+    assert "# Weekly research log" in text                  # header once
+    assert "no market commentary" in text
+
+
+def test_weekly_metrics_objective_counts(tmp_path):
+    root, _ = _weekly_fixture(tmp_path)
+    m = weekly_metrics(root, "2026-07-13", None)
+    assert m["trades"] == 2
+    assert m["stops"] == 2
+    assert m["fills"] == 4                                  # 2 + 2 over the week
+    assert m["snapshots_this_week"] == 6
+    # inception 100_000 -> 100_900
+    assert abs(m["weekly_return_pct"] - 0.90) < 1e-6
+    assert abs(m["cumulative_return_pct"] - 0.90) < 1e-6
+    # trough 99_800 vs prior peak 100_200 => -0.399%
+    assert m["max_drawdown_pct"] < 0
+    assert m["manual_intervention"] == []                   # not a git repo here
+
+
+def test_weekly_second_week_window_is_non_overlapping(tmp_path):
+    root, log = _weekly_fixture(tmp_path)
+    append_entry(root, log, "2026-07-13")                   # first entry
+    # extend the record by a second week
+    dates2 = pd.bdate_range("2026-07-14", periods=5).strftime("%Y-%m-%d")
+    eq2 = [101_100, 101_000, 101_400, 101_200, 101_800]
+    df = pd.read_csv(root / "equity.csv", dtype={"date": str})
+    add = pd.DataFrame({
+        "date": dates2, "equity": eq2, "cash": eq2,
+        "long_market_value": 0.0, "short_market_value": 0.0,
+        "gross_leverage": 1.1, "buying_power": [e * 4 for e in eq2],
+        "n_positions": 1, "n_fills": [0, 2, 0, 0, 0]})
+    pd.concat([df, add], ignore_index=True).to_csv(root / "equity.csv", index=False)
+    # next Monday is 2026-07-20
+    assert append_entry(root, log, "2026-07-20") is True
+    m = weekly_metrics(root, "2026-07-20", "2026-07-13")
+    # baseline is last equity <= 2026-07-13 (100_900); end is 101_800
+    assert abs(m["weekly_return_pct"] - (101_800 / 100_900 - 1) * 100) < 1e-6
+    assert m["fills"] == 2                                  # only the new week's fills
+    assert log.read_text().count(ENTRY_MARKER) == 2

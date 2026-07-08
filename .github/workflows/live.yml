@@ -53,11 +53,16 @@ jobs:
       - name: Regenerate track-record report
         run: python deploy/report.py track_record
 
+      # Weekly research log — self-gated to Mondays, objective metrics only,
+      # idempotent. No-op (and no commit) on any other weekday.
+      - name: Append weekly research log (Mondays)
+        run: python deploy/report_weekly.py track_record LOG.md
+
       - name: Commit and push track record
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add track_record/
+          git add track_record/ LOG.md
           if git diff --cached --quiet; then
             echo "nothing to commit (holiday or no changes)"
             exit 0
