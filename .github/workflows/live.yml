@@ -49,6 +49,10 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
         run: python deploy/snapshot.py track_record
 
+      # Reporting only — reads the committed record, no broker calls, no keys.
+      - name: Regenerate track-record report
+        run: python deploy/report.py track_record
+
       - name: Commit and push track record
         run: |
           git config user.name "github-actions[bot]"

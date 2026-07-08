@@ -249,3 +249,67 @@ def test_state_roundtrip(tmp_path):
     s2 = load_state(p)
     assert s2["last_run"] == "2026-07-07"
     assert s2["blocked"]["KO/PEP"] == -1
+
+
+# --------------------------------------------------------------------------- #
+#  Report generator (Phase 2)                                                 #
+# --------------------------------------------------------------------------- #
+from deploy.report import generate, compute_stats, SHARPE_NOISE_DAYS
+
+
+def _equity_df(equities, start="2026-07-06"):
+    dates = pd.bdate_range(start, periods=len(equities)).strftime("%Y-%m-%d")
+    return pd.DataFrame({
+        "date": dates, "equity": equities, "cash": equities,
+        "long_market_value": 0.0, "short_market_value": 0.0,
+        "gross_leverage": 1.0, "buying_power": [e * 4 for e in equities],
+        "n_positions": 0, "n_fills": 0,
+    })
+
+
+def test_report_one_day_flags_sharpe_noise(tmp_path):
+    _equity_df([100_000.0]).to_csv(tmp_path / "equity.csv", index=False)
+    stats = generate(tmp_path)
+    assert stats["n_days"] == 1
+    assert stats["sharpe"] is None            # no variation yet
+    assert stats["sharpe_is_noise"]
+    readme = (tmp_path / "README.md").read_text()
+    assert "0.44" in readme                   # backtest baseline always shown
+    assert (tmp_path / "equity.svg").exists()
+
+
+def test_report_short_history_is_noise(tmp_path):
+    eq = list(100_000 + np.cumsum(np.full(10, 5.0)))    # 10 days, trending
+    _equity_df(eq).to_csv(tmp_path / "equity.csv", index=False)
+    stats = generate(tmp_path)
+    assert stats["n_days"] == 10 < SHARPE_NOISE_DAYS
+    assert stats["sharpe"] is not None
+    assert stats["sharpe_is_noise"]
+    assert "NOISE" in (tmp_path / "README.md").read_text()
+
+
+def test_report_long_history_not_noise_and_shows_gap(tmp_path):
+    rng = np.random.default_rng(0)
+    eq = list(100_000 * np.cumprod(1 + rng.normal(0.0002, 0.003, 65)))
+    _equity_df(eq).to_csv(tmp_path / "equity.csv", index=False)
+    stats = generate(tmp_path)
+    assert stats["n_days"] == 65 >= SHARPE_NOISE_DAYS
+    assert not stats["sharpe_is_noise"]
+    readme = (tmp_path / "README.md").read_text()
+    assert "NOISE" not in readme
+    assert "gap" in readme.lower()
+
+
+def test_report_drawdown_and_return(tmp_path):
+    # up to 110k then down to 99k: known drawdown from the peak
+    _equity_df([100_000, 110_000, 99_000]).to_csv(tmp_path / "equity.csv", index=False)
+    stats = compute_stats(pd.read_csv(tmp_path / "equity.csv", dtype={"date": str}))
+    assert abs(stats["total_return_pct"] - (-1.0)) < 1e-6
+    assert abs(stats["max_drawdown_pct"] - (-10.0)) < 1e-6   # 110k -> 99k
+
+
+def test_report_handles_missing_csv(tmp_path):
+    stats = generate(tmp_path)               # no equity.csv at all
+    assert stats["n_days"] == 0
+    assert (tmp_path / "README.md").exists()
+    assert (tmp_path / "equity.svg").exists()
