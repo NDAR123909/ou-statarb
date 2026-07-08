@@ -46,8 +46,8 @@ Check that:
 - **Commits are append-only.** Each day adds rows/files; earlier rows are never
   edited. Compare any two consecutive commits:
   ```bash
-  git log --oneline -- track_record/ | tail -r        # oldest first
-  git show <commit> -- track_record/equity.csv        # only new rows appear
+  git log --reverse --oneline -- track_record/         # oldest first
+  git show <commit> -- track_record/equity.csv         # only new rows appear
   ```
 - **Commit timestamps line up with US market days.** The workflow runs ~21:35
   UTC on weekdays; commits should cluster there and skip weekends/holidays.
