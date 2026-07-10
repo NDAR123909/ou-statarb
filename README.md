@@ -4,7 +4,7 @@
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
-This is a pairs-trading research framework built around this borrowed idea from
+This is a pairs-trading research algorithm built around this borrowed idea from
 physics that the spread between two related stocks behaves a lot like a particle on
 a spring. Pull it away from rest and a restoring force drags it back. That is the
 Ornstein-Uhlenbeck process, written down in 1930 to describe a Brownian particle
