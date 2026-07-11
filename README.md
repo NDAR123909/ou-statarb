@@ -8,7 +8,7 @@ This is a pairs-trading research algorithm built around this borrowed idea from
 physics that the spread between two related stocks behaves a lot like a particle on
 a spring, and that pulling it away from rest and a restoring force drags it back. That is the
 Ornstein-Uhlenbeck process, written down in 1930 to describe a Brownian particle
-sitting in a potential well, and it turns out to be a reasonable model for the
+sitting in a potential well, and it turns out to be a fairly applicable model for the
 gap between two cointegrated assets.
 
 First off, a very important disclaimer before proceeding with anything else. 
@@ -18,19 +18,19 @@ lying around on the floor to be collected. When I ran the same pipeline on real
 prices, the overall picture became less inflated, which funny enough turned out to be 
 the most useful part of the project. I expound more on that further below.
 
-## The one picture to start with
+## Important note to begin with
 
 A hedge ratio is not a constant. It drifts as the two companies underneath it
-change. A single OLS estimate (red) picks one number and is wrong almost
-everywhere. The Kalman filter (blue) re-estimates it every day from past data and
-stays close to the truth (green).
+change. A single OLS estimate (in red) picks one number and is wrong almost
+everywhere. The Kalman filter (in blue) re-estimates it every day from past data and
+stays close to the truth (in green).
 
 ![Kalman dynamic hedge ratio](figures/kalman_report.png)
 
-## Why a spread might mean-revert
+## Why a spread might mean-revert to begin with
 
-Two companies with similar risk exposures, say two refiners or a stock and its
-sector ETF, get pushed around by the same shocks, so they tend to drift together.
+Let's say that two companies with similar risk exposures, like two refiners or a stock and its
+sector ETF, get pushed around by the same shocks, so that they tend to drift together.
 The gap between them has no particular reason to run off forever. When it widens,
 substitution and arbitrage tend to reel it back in. That pull is the θ in
 
