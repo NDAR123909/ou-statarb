@@ -6,7 +6,7 @@
 
 This is a pairs-trading research algorithm built around this borrowed idea from
 physics that the spread between two related stocks behaves a lot like a particle on
-a spring. Pull it away from rest and a restoring force drags it back. That is the
+a spring, and that pulling it away from rest and a restoring force drags it back. That is the
 Ornstein-Uhlenbeck process, written down in 1930 to describe a Brownian particle
 sitting in a potential well, and it turns out to be a reasonable model for the
 gap between two cointegrated assets.
