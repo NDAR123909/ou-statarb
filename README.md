@@ -21,7 +21,7 @@ the most useful part of the project. I expound more on that further below.
 ## Important note to begin with
 
 A hedge ratio is not a constant. It drifts as the two companies underneath it
-change. A single OLS estimate (in red) picks one number and is wrong almost
+change. Referring to the top-most figure, a single OLS estimate (in red) picks one number and is wrong almost
 everywhere. The Kalman filter (in blue) re-estimates it every day from past data and
 stays close to the truth (in green).
 
