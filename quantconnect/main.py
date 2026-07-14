@@ -307,6 +307,13 @@ class OUPairsPortfolio(QCAlgorithm):
                         continue
                     g = self.risk_per_pair * nav / dvol   # $ per unit spread
                     g = min(g, 0.25 * nav)                # single-pair cap
+                    # both legs plus BIL must fit inside 2x buying power;
+                    # the gross cap alone can't see how big THIS entry is
+                    add = (1 + abs(st.beta)) * g / nav
+                    total = sum(abs(h.holdings_value)
+                                for h in self.portfolio.values()) / nav
+                    if total + add > 1.9:
+                        continue
                     self.set_holdings(sa, side * g / nav)
                     self.set_holdings(sb, -side * st.beta * g / nav)
                     st.hold = 0
