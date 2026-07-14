@@ -198,6 +198,15 @@ the same record in real time, with nothing at risk.
 | regime gate on a broken spread | same PnL as naive at about a third of the drawdown |
 | paper-trade replay, JPM/GS | about +4% over a decade, Sharpe near 0.15 after fills |
 
+There is also an independently-run verification of the portfolio algorithm:
+[a public QuantConnect backtest](https://www.quantconnect.cloud/backtest/5619d7c9998bdb7638055166b9450c01/?theme=chrome)
+of `quantconnect/main.py` on 44 sector pairs, 2019 to mid-2026, executed on
+LEAN's infrastructure rather than mine. The pairs overlay nets about +0.7%/yr
+after all costs — real but small, which is the honest state of the daily-bars
+pairs edge in this era (QuantConnect scores it Sharpe −0.59 against the T-bill
+hurdle; most of the account's +20% total return is parked-cash yield). The
+numbers are unflattering and that is the point of linking them.
+
 ## Why this isn't slop
 
 The short version is that it tries hard to disprove itself. There's a stated

@@ -17,6 +17,18 @@ dollar-neutral. LEAN's brokerage model handles fills and slippage.
 3. Backtest it. Read the out-of-sample stretch, not just the headline return.
 4. Edit `CANDIDATES` only for pairs with an economic story you can defend.
 
+## Where the results stand
+
+The full 2019 to mid-2026 backtest of this algorithm is public:
+[Measured Magenta Mosquito on QuantConnect](https://www.quantconnect.cloud/backtest/5619d7c9998bdb7638055166b9450c01/?theme=chrome).
+Net +20.3%, max drawdown 6.3%, pairs overlay about +0.7%/yr after all costs,
+QC Sharpe −0.59 against the T-bill hurdle. The Strategies hub requires backtest
+Sharpe ≥ 0.4 to publish, and this strategy cannot honestly clear that on this
+era's data — tuning until it did would be curve-fitting, so the static link
+above is the record instead. The publish flow below is kept for a future
+version that earns its way past the gate (or a competition, like CUATS, that
+scores forward performance instead of a backtest).
+
 ## Publishing to the Strategies hub (the public track record)
 
 The Strategies hub re-runs published strategies daily, so everything after the
