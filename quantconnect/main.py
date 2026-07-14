@@ -50,28 +50,90 @@ class OUPairsPortfolio(QCAlgorithm):
       split-half beta-stability check. Pairs that fail go flat immediately.
     """
 
-    # sector-restricted candidate pairs (edit to taste; keep it restricted)
+    # Sector-restricted candidate pairs (edit to taste; keep it restricted).
+    # Breadth is the honest Sharpe lever — many small independent bets — so
+    # the list covers ~25 industry groups, but every pair still has to argue
+    # its way past the weekly ADF + stability gate before it trades.
     CANDIDATES = [
         ("V", "MA"),        # payment networks
         ("KO", "PEP"),      # beverages
         ("XOM", "CVX"),     # oil majors
+        ("COP", "EOG"),     # E&P
+        ("VLO", "MPC"),     # refiners
+        ("SLB", "HAL"),     # oil services
         ("HD", "LOW"),      # home improvement
         ("UPS", "FDX"),     # parcels
         ("GS", "MS"),       # investment banks
+        ("JPM", "BAC"),     # money-center banks
+        ("USB", "PNC"),     # super-regional banks
+        ("BK", "STT"),      # custody banks
         ("UNP", "CSX"),     # rails
         ("MCD", "YUM"),     # restaurants
+        ("TXN", "ADI"),     # analog semis
+        ("AMAT", "LRCX"),   # semi equipment
+        ("MRK", "PFE"),     # pharma
+        ("ABBV", "BMY"),    # pharma
+        ("SYK", "BSX"),     # medical devices
+        ("TRV", "CB"),      # commercial insurance
+        ("ALL", "PGR"),     # personal-lines insurance
+        ("MET", "PRU"),     # life insurance
+        ("DUK", "SO"),      # regulated utilities
+        ("AEP", "XEL"),     # regulated utilities
+        ("VZ", "T"),        # telecom
+        ("LMT", "NOC"),     # defense primes
+        ("ROST", "TJX"),    # off-price retail
+        ("DG", "DLTR"),     # dollar stores
+        ("CME", "ICE"),     # exchanges
+        ("GM", "F"),        # autos
+        ("APD", "LIN"),     # industrial gases
+        ("DOW", "LYB"),     # commodity chemicals
+        ("CL", "KMB"),      # household products
+        ("AMT", "CCI"),     # tower REITs
+        ("PSA", "EXR"),     # storage REITs
+        ("EQIX", "DLR"),    # data-center REITs
+        ("ADP", "PAYX"),    # payroll processors
+        ("WM", "RSG"),      # waste
+        ("SPGI", "MCO"),    # rating agencies
+        ("MO", "PM"),       # tobacco
+        ("DHI", "LEN"),     # homebuilders
+        ("PHM", "TOL"),     # homebuilders
+        ("MAR", "HLT"),     # hotels
+        ("DAL", "UAL"),     # airlines
     ]
 
     def initialize(self):
+        # No end date: the backtest runs to the present, and once published to
+        # the Strategies hub QuantConnect re-runs it daily so everything after
+        # the publication date is verifiable out-of-sample. Default brokerage
+        # model kept as-is — Strategies submissions must not override models.
         self.set_start_date(2019, 1, 1)
-        self.set_end_date(2024, 1, 1)
         self.set_cash(1_000_000)
         self.set_benchmark("SPY")
-        self.set_brokerage_model(BrokerageName.ALPHA_STREAMS)
+
+        # One ticker, one pair. set_holdings() sizes positions absolutely,
+        # so two pairs sharing a leg silently overwrite each other and a
+        # flatten on one kills the other's hedge. Drop later duplicates.
+        seen, disjoint = set(), []
+        for pair in self.CANDIDATES:
+            if seen.isdisjoint(pair):
+                disjoint.append(pair)
+                seen.update(pair)
+            else:
+                self.log(f"dropping {pair}: shares a ticker with an earlier pair")
+        self.CANDIDATES = disjoint
 
         tickers = sorted({t for p in self.CANDIDATES for t in p})
         self.syms = {t: self.add_equity(t, Resolution.DAILY).symbol
                      for t in tickers}
+
+        # Idle cash earns nothing in a LEAN backtest while a real brokerage
+        # sweeps it into interest, which makes any low-vol market-neutral
+        # book look like Sharpe -3 against the risk-free hurdle. Park spare
+        # cash in 1-3 month T-bills (BIL) so the curve shows what a live
+        # account would actually earn. Disclosed in the published version
+        # notes: the equity curve is T-bill yield plus the pairs overlay.
+        self.bil = self.add_equity("BIL", Resolution.DAILY).symbol
+        self.cash_target = 0.80
 
         # parameters
         self.lookback = 378          # ~18m fit window
@@ -80,9 +142,14 @@ class OUPairsPortfolio(QCAlgorithm):
         self.stop_z = 3.5
         self.max_hold_mult = 3.0
         self.max_beta_drift = 0.30
-        self.risk_per_pair = 0.0010  # 10 bps of NAV daily risk per pair
-        self.max_pairs = 6
-        self.max_gross = 3.0         # portfolio gross leverage cap
+        self.risk_per_pair = 0.0010  # 10 bps of NAV daily risk per pair;
+                                     # breadth carries the risk budget now
+        self.max_pairs = 12
+        self.max_gross = 0.9         # pairs-only gross cap (BIL excluded).
+                                     # Worst case 0.9 + one late entry ~0.28
+                                     # + 0.80 BIL = ~1.98 gross, just inside
+                                     # 2x equity buying power — do not raise
+                                     # one of these without shrinking another
 
         self.pairs = {p: PairState() for p in self.CANDIDATES}
 
@@ -101,6 +168,11 @@ class OUPairsPortfolio(QCAlgorithm):
         if hist.empty or "close" not in hist.columns:
             return None
         closes = hist["close"].unstack(level=0).dropna()
+        # A ticker that hadn't listed yet (DOW pre-2019 spinoff) comes back
+        # with no column at all, not an empty one — indexing it raises.
+        if (self.syms[a] not in closes.columns
+                or self.syms[b] not in closes.columns):
+            return None
         if len(closes) < self.lookback // 2:
             return None
         la = np.log(closes[self.syms[a]].values)
@@ -118,10 +190,12 @@ class OUPairsPortfolio(QCAlgorithm):
         if abs(b1 - b2) > self.max_beta_drift * max(abs(beta), 1e-9):
             return None
 
-        try:
-            adf_p = adfuller(spread, autolag="AIC")[1]
-        except Exception:
+        # adfuller raises on degenerate input; a flat spread is the only way
+        # real price history gets there, so gate on variance instead of
+        # try/except (the Strategies hub rejects code containing try/except).
+        if np.std(spread) < 1e-12:
             return None
+        adf_p = adfuller(spread, autolag="AIC")[1]
         if adf_p >= self.adf_pmax:
             return None
 
@@ -171,12 +245,27 @@ class OUPairsPortfolio(QCAlgorithm):
                 or self.portfolio[self.syms[b]].invested)
 
     def _gross_leverage(self):
+        # BIL is cash parking, not a bet; counting it would eat the pairs cap
         nav = self.portfolio.total_portfolio_value
-        gross = sum(abs(h.holdings_value) for h in self.portfolio.values())
+        gross = sum(abs(h.holdings_value) for h in self.portfolio.values()
+                    if h.symbol != self.bil)
         return gross / nav if nav > 0 else 0.0
+
+    def _park_cash(self, data):
+        """Keep idle cash swept into BIL, rebalancing only on meaningful
+        drift so the parking position doesn't generate order churn."""
+        if not data.contains_key(self.bil):
+            return
+        nav = self.portfolio.total_portfolio_value
+        if nav <= 0:
+            return
+        w = self.portfolio[self.bil].holdings_value / nav
+        if abs(w - self.cash_target) > 0.02:
+            self.set_holdings(self.bil, self.cash_target)
 
     def on_data(self, data):
         nav = self.portfolio.total_portfolio_value
+        self._park_cash(data)
         for pair, st in self.pairs.items():
             if not st.active or st.beta is None:
                 continue
@@ -217,7 +306,14 @@ class OUPairsPortfolio(QCAlgorithm):
                     if dvol <= 0:
                         continue
                     g = self.risk_per_pair * nav / dvol   # $ per unit spread
-                    g = min(g, 0.5 * nav)                 # single-pair cap
+                    g = min(g, 0.25 * nav)                # single-pair cap
+                    # both legs plus BIL must fit inside 2x buying power;
+                    # the gross cap alone can't see how big THIS entry is
+                    add = (1 + abs(st.beta)) * g / nav
+                    total = sum(abs(h.holdings_value)
+                                for h in self.portfolio.values()) / nav
+                    if total + add > 1.9:
+                        continue
                     self.set_holdings(sa, side * g / nav)
                     self.set_holdings(sb, -side * st.beta * g / nav)
                     st.hold = 0
