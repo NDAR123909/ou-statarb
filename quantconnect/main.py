@@ -60,21 +60,17 @@ class OUPairsPortfolio(QCAlgorithm):
         ("XOM", "CVX"),     # oil majors
         ("COP", "EOG"),     # E&P
         ("VLO", "MPC"),     # refiners
-        ("PSX", "VLO"),     # refiners
         ("SLB", "HAL"),     # oil services
         ("HD", "LOW"),      # home improvement
         ("UPS", "FDX"),     # parcels
         ("GS", "MS"),       # investment banks
         ("JPM", "BAC"),     # money-center banks
-        ("BAC", "C"),       # money-center banks
         ("USB", "PNC"),     # super-regional banks
         ("BK", "STT"),      # custody banks
         ("UNP", "CSX"),     # rails
-        ("CSX", "NSC"),     # rails
         ("MCD", "YUM"),     # restaurants
         ("TXN", "ADI"),     # analog semis
         ("AMAT", "LRCX"),   # semi equipment
-        ("KLAC", "LRCX"),   # semi equipment
         ("MRK", "PFE"),     # pharma
         ("ABBV", "BMY"),    # pharma
         ("SYK", "BSX"),     # medical devices
@@ -85,7 +81,6 @@ class OUPairsPortfolio(QCAlgorithm):
         ("AEP", "XEL"),     # regulated utilities
         ("VZ", "T"),        # telecom
         ("LMT", "NOC"),     # defense primes
-        ("GD", "NOC"),      # defense primes
         ("ROST", "TJX"),    # off-price retail
         ("DG", "DLTR"),     # dollar stores
         ("CME", "ICE"),     # exchanges
@@ -114,6 +109,18 @@ class OUPairsPortfolio(QCAlgorithm):
         self.set_start_date(2019, 1, 1)
         self.set_cash(1_000_000)
         self.set_benchmark("SPY")
+
+        # One ticker, one pair. set_holdings() sizes positions absolutely,
+        # so two pairs sharing a leg silently overwrite each other and a
+        # flatten on one kills the other's hedge. Drop later duplicates.
+        seen, disjoint = set(), []
+        for pair in self.CANDIDATES:
+            if seen.isdisjoint(pair):
+                disjoint.append(pair)
+                seen.update(pair)
+            else:
+                self.log(f"dropping {pair}: shares a ticker with an earlier pair")
+        self.CANDIDATES = disjoint
 
         tickers = sorted({t for p in self.CANDIDATES for t in p})
         self.syms = {t: self.add_equity(t, Resolution.DAILY).symbol
