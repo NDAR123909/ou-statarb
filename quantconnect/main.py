@@ -50,16 +50,60 @@ class OUPairsPortfolio(QCAlgorithm):
       split-half beta-stability check. Pairs that fail go flat immediately.
     """
 
-    # sector-restricted candidate pairs (edit to taste; keep it restricted)
+    # Sector-restricted candidate pairs (edit to taste; keep it restricted).
+    # Breadth is the honest Sharpe lever — many small independent bets — so
+    # the list covers ~25 industry groups, but every pair still has to argue
+    # its way past the weekly ADF + stability gate before it trades.
     CANDIDATES = [
         ("V", "MA"),        # payment networks
         ("KO", "PEP"),      # beverages
         ("XOM", "CVX"),     # oil majors
+        ("COP", "EOG"),     # E&P
+        ("VLO", "MPC"),     # refiners
+        ("PSX", "VLO"),     # refiners
+        ("SLB", "HAL"),     # oil services
         ("HD", "LOW"),      # home improvement
         ("UPS", "FDX"),     # parcels
         ("GS", "MS"),       # investment banks
+        ("JPM", "BAC"),     # money-center banks
+        ("BAC", "C"),       # money-center banks
+        ("USB", "PNC"),     # super-regional banks
+        ("BK", "STT"),      # custody banks
         ("UNP", "CSX"),     # rails
+        ("CSX", "NSC"),     # rails
         ("MCD", "YUM"),     # restaurants
+        ("TXN", "ADI"),     # analog semis
+        ("AMAT", "LRCX"),   # semi equipment
+        ("KLAC", "LRCX"),   # semi equipment
+        ("MRK", "PFE"),     # pharma
+        ("ABBV", "BMY"),    # pharma
+        ("SYK", "BSX"),     # medical devices
+        ("TRV", "CB"),      # commercial insurance
+        ("ALL", "PGR"),     # personal-lines insurance
+        ("MET", "PRU"),     # life insurance
+        ("DUK", "SO"),      # regulated utilities
+        ("AEP", "XEL"),     # regulated utilities
+        ("VZ", "T"),        # telecom
+        ("LMT", "NOC"),     # defense primes
+        ("GD", "NOC"),      # defense primes
+        ("ROST", "TJX"),    # off-price retail
+        ("DG", "DLTR"),     # dollar stores
+        ("CME", "ICE"),     # exchanges
+        ("GM", "F"),        # autos
+        ("APD", "LIN"),     # industrial gases
+        ("DOW", "LYB"),     # commodity chemicals
+        ("CL", "KMB"),      # household products
+        ("AMT", "CCI"),     # tower REITs
+        ("PSA", "EXR"),     # storage REITs
+        ("EQIX", "DLR"),    # data-center REITs
+        ("ADP", "PAYX"),    # payroll processors
+        ("WM", "RSG"),      # waste
+        ("SPGI", "MCO"),    # rating agencies
+        ("MO", "PM"),       # tobacco
+        ("DHI", "LEN"),     # homebuilders
+        ("PHM", "TOL"),     # homebuilders
+        ("MAR", "HLT"),     # hotels
+        ("DAL", "UAL"),     # airlines
     ]
 
     def initialize(self):
@@ -82,7 +126,7 @@ class OUPairsPortfolio(QCAlgorithm):
         # account would actually earn. Disclosed in the published version
         # notes: the equity curve is T-bill yield plus the pairs overlay.
         self.bil = self.add_equity("BIL", Resolution.DAILY).symbol
-        self.cash_target = 0.85
+        self.cash_target = 0.80
 
         # parameters
         self.lookback = 378          # ~18m fit window
@@ -91,11 +135,14 @@ class OUPairsPortfolio(QCAlgorithm):
         self.stop_z = 3.5
         self.max_hold_mult = 3.0
         self.max_beta_drift = 0.30
-        self.risk_per_pair = 0.0025  # 25 bps of NAV daily risk per pair
-        self.max_pairs = 6
-        self.max_gross = 1.0         # pairs-only gross cap (BIL excluded);
-                                     # 0.85 BIL + 1.0 pairs stays inside 2x
-                                     # equity buying power with room to spare
+        self.risk_per_pair = 0.0010  # 10 bps of NAV daily risk per pair;
+                                     # breadth carries the risk budget now
+        self.max_pairs = 12
+        self.max_gross = 0.9         # pairs-only gross cap (BIL excluded).
+                                     # Worst case 0.9 + one late entry ~0.28
+                                     # + 0.80 BIL = ~1.98 gross, just inside
+                                     # 2x equity buying power — do not raise
+                                     # one of these without shrinking another
 
         self.pairs = {p: PairState() for p in self.CANDIDATES}
 
