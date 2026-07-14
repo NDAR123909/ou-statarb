@@ -75,6 +75,15 @@ class OUPairsPortfolio(QCAlgorithm):
         self.syms = {t: self.add_equity(t, Resolution.DAILY).symbol
                      for t in tickers}
 
+        # Idle cash earns nothing in a LEAN backtest while a real brokerage
+        # sweeps it into interest, which makes any low-vol market-neutral
+        # book look like Sharpe -3 against the risk-free hurdle. Park spare
+        # cash in 1-3 month T-bills (BIL) so the curve shows what a live
+        # account would actually earn. Disclosed in the published version
+        # notes: the equity curve is T-bill yield plus the pairs overlay.
+        self.bil = self.add_equity("BIL", Resolution.DAILY).symbol
+        self.cash_target = 0.85
+
         # parameters
         self.lookback = 378          # ~18m fit window
         self.adf_pmax = 0.05
@@ -82,9 +91,11 @@ class OUPairsPortfolio(QCAlgorithm):
         self.stop_z = 3.5
         self.max_hold_mult = 3.0
         self.max_beta_drift = 0.30
-        self.risk_per_pair = 0.0010  # 10 bps of NAV daily risk per pair
+        self.risk_per_pair = 0.0025  # 25 bps of NAV daily risk per pair
         self.max_pairs = 6
-        self.max_gross = 3.0         # portfolio gross leverage cap
+        self.max_gross = 1.0         # pairs-only gross cap (BIL excluded);
+                                     # 0.85 BIL + 1.0 pairs stays inside 2x
+                                     # equity buying power with room to spare
 
         self.pairs = {p: PairState() for p in self.CANDIDATES}
 
@@ -175,12 +186,27 @@ class OUPairsPortfolio(QCAlgorithm):
                 or self.portfolio[self.syms[b]].invested)
 
     def _gross_leverage(self):
+        # BIL is cash parking, not a bet; counting it would eat the pairs cap
         nav = self.portfolio.total_portfolio_value
-        gross = sum(abs(h.holdings_value) for h in self.portfolio.values())
+        gross = sum(abs(h.holdings_value) for h in self.portfolio.values()
+                    if h.symbol != self.bil)
         return gross / nav if nav > 0 else 0.0
+
+    def _park_cash(self, data):
+        """Keep idle cash swept into BIL, rebalancing only on meaningful
+        drift so the parking position doesn't generate order churn."""
+        if not data.contains_key(self.bil):
+            return
+        nav = self.portfolio.total_portfolio_value
+        if nav <= 0:
+            return
+        w = self.portfolio[self.bil].holdings_value / nav
+        if abs(w - self.cash_target) > 0.02:
+            self.set_holdings(self.bil, self.cash_target)
 
     def on_data(self, data):
         nav = self.portfolio.total_portfolio_value
+        self._park_cash(data)
         for pair, st in self.pairs.items():
             if not st.active or st.beta is None:
                 continue
@@ -221,7 +247,7 @@ class OUPairsPortfolio(QCAlgorithm):
                     if dvol <= 0:
                         continue
                     g = self.risk_per_pair * nav / dvol   # $ per unit spread
-                    g = min(g, 0.5 * nav)                 # single-pair cap
+                    g = min(g, 0.25 * nav)                # single-pair cap
                     self.set_holdings(sa, side * g / nav)
                     self.set_holdings(sb, -side * st.beta * g / nav)
                     st.hold = 0

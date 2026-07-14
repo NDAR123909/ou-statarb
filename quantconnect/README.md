@@ -25,6 +25,13 @@ that bit us: no try/except blocks anywhere in the code, no brokerage/fee model
 overrides, backtest must finish in under an hour without runtime or
 buying-power errors. `main.py` complies as committed — keep it that way.
 
+Because LEAN backtests pay no interest on idle cash, a low-vol market-neutral
+book scores a deeply negative Sharpe against the risk-free hurdle no matter
+how it trades. `main.py` therefore parks spare cash in BIL (1-3 month
+T-bills), which is what a real brokerage account earns anyway. Disclose it in
+the strategy description: the equity curve is T-bill yield plus the pairs
+overlay, and the pairs risk budget is 25 bps of NAV per pair per day.
+
 1. Run a full backtest of the project (start 2019, no end date).
 2. On quantconnect.com go to Strategies -> Publish Strategy, pick the project
    and that backtest, review the generated name/description, publish.
