@@ -63,11 +63,13 @@ class OUPairsPortfolio(QCAlgorithm):
     ]
 
     def initialize(self):
+        # No end date: the backtest runs to the present, and once published to
+        # the Strategies hub QuantConnect re-runs it daily so everything after
+        # the publication date is verifiable out-of-sample. Default brokerage
+        # model kept as-is — Strategies submissions must not override models.
         self.set_start_date(2019, 1, 1)
-        self.set_end_date(2024, 1, 1)
         self.set_cash(1_000_000)
         self.set_benchmark("SPY")
-        self.set_brokerage_model(BrokerageName.ALPHA_STREAMS)
 
         tickers = sorted({t for p in self.CANDIDATES for t in p})
         self.syms = {t: self.add_equity(t, Resolution.DAILY).symbol
@@ -118,10 +120,12 @@ class OUPairsPortfolio(QCAlgorithm):
         if abs(b1 - b2) > self.max_beta_drift * max(abs(beta), 1e-9):
             return None
 
-        try:
-            adf_p = adfuller(spread, autolag="AIC")[1]
-        except Exception:
+        # adfuller raises on degenerate input; a flat spread is the only way
+        # real price history gets there, so gate on variance instead of
+        # try/except (the Strategies hub rejects code containing try/except).
+        if np.std(spread) < 1e-12:
             return None
+        adf_p = adfuller(spread, autolag="AIC")[1]
         if adf_p >= self.adf_pmax:
             return None
 
