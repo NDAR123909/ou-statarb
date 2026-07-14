@@ -161,6 +161,11 @@ class OUPairsPortfolio(QCAlgorithm):
         if hist.empty or "close" not in hist.columns:
             return None
         closes = hist["close"].unstack(level=0).dropna()
+        # A ticker that hadn't listed yet (DOW pre-2019 spinoff) comes back
+        # with no column at all, not an empty one — indexing it raises.
+        if (self.syms[a] not in closes.columns
+                or self.syms[b] not in closes.columns):
+            return None
         if len(closes) < self.lookback // 2:
             return None
         la = np.log(closes[self.syms[a]].values)
