@@ -92,6 +92,19 @@ def log(msg: str) -> None:
           flush=True)
 
 
+_LEDGER_PATH = "deploy/ltp_ledger.jsonl"
+
+
+def ledger(event: str, **fields) -> None:
+    """Append one decision record. Every enter/exit/stop/skip lands here with
+    enough context that the phase-1 post-mortem is a pandas one-liner:
+    pd.read_json('deploy/ltp_ledger.jsonl', lines=True)."""
+    rec = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+           "event": event, **fields}
+    with open(_LEDGER_PATH, "a") as f:
+        f.write(json.dumps(rec, default=float) + "\n")
+
+
 # ---------------------------------------------------------------- state io --
 def load_state(path: str) -> dict:
     p = Path(path)
@@ -177,6 +190,10 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict) -> None:
         if k not in keep_keys and v.get("side", 0) != 0:
             state["pairs"][k] = {**v, "flatten": True}
     log(f"refit: active {sorted(k.replace('BINANCE_PERP_', '').replace('_USDT', '') for k in keep_keys)}")
+    ledger("refit", passed=int(len(passed)), tested=int(len(table)),
+           active=sorted(keep_keys),
+           bands={k: {"entry_z": f["entry_z"], "exit_z": f["exit_z"],
+                      "half_life": f["half_life"]} for k, f in fits.items()})
 
 
 # ------------------------------------------------------------------ trading --
@@ -211,6 +228,7 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
     if dd >= cfg.dd_halt:
         log(f"KILL SWITCH: drawdown {dd:.1%} >= {cfg.dd_halt:.0%} — "
             f"flattening everything and halting (contest DQ is at 20%)")
+        ledger("kill_switch", nav=nav, peak=state["peak_equity"], drawdown=dd)
         flatten_everything(broker, state, nav, dry)
         state["halted"] = True
         return
@@ -267,6 +285,8 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
             add = (1 + abs(pair["beta"])) * g
             if gross + add > cfg.max_gross_mult * nav:
                 log(f"  {short_name}: entry skipped, gross cap")
+                ledger("skip", pair=short_name, reason="gross_cap", z=z,
+                       gross=gross, add=add, nav=nav)
                 continue
             qa = broker.round_qty(a, g / prices[a])
             qb = broker.round_qty(b, abs(pair["beta"]) * g / prices[b])
@@ -274,10 +294,16 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                     or not broker.meets_min_notional(a, qa, prices[a])
                     or not broker.meets_min_notional(b, qb, prices[b])):
                 log(f"  {short_name}: below min notional at NAV {nav:.0f}, skipped")
+                ledger("skip", pair=short_name, reason="min_notional", z=z,
+                       qa=qa, qb=qb, nav=nav)
                 continue
             ts = int(time.time())
             log(f"  {short_name}: ENTER {'long' if want > 0 else 'short'} spread "
                 f"z={z:+.2f} g={g:.1f} USDT")
+            ledger("enter", pair=short_name, side=want, z=z, g=g,
+                   qa=qa, qb=qb, price_a=prices[a], price_b=prices[b],
+                   beta=pair["beta"], entry_z=pair["entry_z"],
+                   half_life=pair["half_life"], nav=nav, dry=dry)
             if not dry:
                 broker.place_market(a, "BUY" if want > 0 else "SELL",
                                     "LONG" if want > 0 else "SHORT",
@@ -298,11 +324,17 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
             reverted = abs(z) < pair["exit_z"]
             if stopped:
                 log(f"  {short_name}: Z-STOP z={z:+.2f}, closing + blocking side")
+                ledger("stop", pair=short_name, side=side, z=z,
+                       hold_bars=pair["hold"], price_a=prices[a],
+                       price_b=prices[b], nav=nav, dry=dry)
                 leg_close(broker, pair, nav, dry)
                 pair["blocked"] = +1 if side > 0 else -1
             elif reverted or stale:
-                log(f"  {short_name}: EXIT z={z:+.2f} "
-                    f"({'reverted' if reverted else 'max hold'})")
+                why = "reverted" if reverted else "max_hold"
+                log(f"  {short_name}: EXIT z={z:+.2f} ({why})")
+                ledger("exit", pair=short_name, side=side, z=z, reason=why,
+                       hold_bars=pair["hold"], price_a=prices[a],
+                       price_b=prices[b], nav=nav, dry=dry)
                 leg_close(broker, pair, nav, dry)
 
 

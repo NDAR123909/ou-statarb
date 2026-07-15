@@ -9,3 +9,5 @@ venv/
 *.npz
 # the public track record is never ignored — it IS the product
 !track_record/**
+deploy/ltp_state.json
+deploy/ltp_ledger.jsonl
