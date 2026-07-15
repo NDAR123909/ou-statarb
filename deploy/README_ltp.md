@@ -72,6 +72,35 @@ returns, with a Reasoning Audit for logic consistency. Two pieces address it:
   default claude-opus-4-8) to enable it; swap in the organizer-provided
   AI tokens when LTP distributes them.
 
+## Streaming de-risk (the speed differentiator)
+
+`ltp_stream.py` holds LTP's public news WebSocket open in a background
+thread. When an item names an asset the agent is actively trading, the LLM
+assessment fires immediately (only relevant items trigger calls — cheap on
+the AI-token budget); a critical verdict wakes the agent from its inter-bar
+sleep and flattens affected positions within seconds of the headline instead
+of at the next hourly bar. Strictly risk-reducing: the stream can flatten or
+block, never open or size up. Fails open at every layer — no `websockets`
+package, a dropped connection, or a failed classification all degrade to the
+hourly poll.
+
+```bash
+pip install websockets     # optional; the agent runs without it
+```
+
+The WS endpoint is public, so verify transport on the hosting machine before
+the competition (this sandbox's proxy blocks WS):
+
+```bash
+python -c "
+import asyncio, json, websockets
+async def p():
+    async with websockets.connect('wss://feeds.ltp-contest.com/feeds/v2/public') as ws:
+        await ws.send(json.dumps({'event':'subscribe','arg':[{'channel':'news.category.all'}]}))
+        print(await ws.recv())
+asyncio.run(p())"
+```
+
 ## Honest notes
 
 - **Funding carry is not modeled.** Both perp legs pay/receive funding; the
