@@ -52,6 +52,26 @@ USDT total automated exposure, renewed daily while my agent runs."
 | every write preview -> submit | `place_market`/`close_position` implement preview -> submit -> readback; no blind retries |
 | hedge (BOTH) position mode | every order carries an explicit `positionSide` |
 
+## Track A: reasoning logs and the news sentinel
+
+Track A scores "reasoning quality and macro sentiment capture" alongside
+returns, with a Reasoning Audit for logic consistency. Two pieces address it:
+
+- **Every decision in `deploy/ltp_ledger.jsonl` carries a `reasoning` field** —
+  a plain-language narrative assembled from the quantitative facts (z-score vs
+  the cost-aware band, fitted half-life, the gate the pair passed, why an exit
+  fired). It is auditable precisely because it is generated FROM the decision
+  inputs, not rationalized after the fact.
+- **`ltp_news.py` is the LLM layer**, and its role is deliberately narrow:
+  hourly it reads LTP's news feed, asks Claude to rate event severity per
+  traded asset (delistings, hacks, regulatory shocks — the structural breaks
+  mean reversion dies on), and can VETO entries rated critical. The math
+  decides trades; the LLM only ever says no. It fails open: no API key, no
+  news, or an API error means no veto, and the systematic strategy runs
+  unfiltered. Set `ANTHROPIC_API_KEY` (and optionally `ANTHROPIC_MODEL`,
+  default claude-opus-4-8) to enable it; swap in the organizer-provided
+  AI tokens when LTP distributes them.
+
 ## Honest notes
 
 - **Funding carry is not modeled.** Both perp legs pay/receive funding; the

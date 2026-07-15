@@ -43,6 +43,12 @@ from statarb.selection import SelectionConfig, select_pairs          # noqa: E40
 from statarb.ou import fit_spread_model                              # noqa: E402
 from statarb.thresholds import optimal_bands                         # noqa: E402
 from deploy.ltp_broker import RapidXBroker, RapidXError              # noqa: E402
+from deploy.ltp_news import NewsSentinel                             # noqa: E402
+
+
+def base_asset(symbol: str) -> str:
+    """BINANCE_PERP_XAUT_USDT -> XAUT"""
+    return symbol.split("_")[2]
 
 # Sector-restricted candidates from the contest whitelist. Same philosophy as
 # the equity book: the economic grouping IS the multiple-testing correction.
@@ -90,6 +96,19 @@ class AgentConfig:
 def log(msg: str) -> None:
     print(f"{datetime.now(timezone.utc).isoformat(timespec='seconds')} {msg}",
           flush=True)
+
+
+_LEDGER_PATH = "deploy/ltp_ledger.jsonl"
+
+
+def ledger(event: str, **fields) -> None:
+    """Append one decision record. Every enter/exit/stop/skip lands here with
+    enough context that the phase-1 post-mortem is a pandas one-liner:
+    pd.read_json('deploy/ltp_ledger.jsonl', lines=True)."""
+    rec = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+           "event": event, **fields}
+    with open(_LEDGER_PATH, "a") as f:
+        f.write(json.dumps(rec, default=float) + "\n")
 
 
 # ---------------------------------------------------------------- state io --
@@ -177,6 +196,10 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict) -> None:
         if k not in keep_keys and v.get("side", 0) != 0:
             state["pairs"][k] = {**v, "flatten": True}
     log(f"refit: active {sorted(k.replace('BINANCE_PERP_', '').replace('_USDT', '') for k in keep_keys)}")
+    ledger("refit", passed=int(len(passed)), tested=int(len(table)),
+           active=sorted(keep_keys),
+           bands={k: {"entry_z": f["entry_z"], "exit_z": f["exit_z"],
+                      "half_life": f["half_life"]} for k, f in fits.items()})
 
 
 # ------------------------------------------------------------------ trading --
@@ -200,7 +223,7 @@ def flatten_everything(broker: RapidXBroker, state: dict, nav: float,
 
 
 def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
-               dry: bool) -> None:
+               dry: bool, sentinel: NewsSentinel | None = None) -> None:
     nav = broker.equity_usdt()
     state["peak_equity"] = max(state["peak_equity"], nav)
     dd = 1.0 - nav / state["peak_equity"] if state["peak_equity"] > 0 else 0.0
@@ -211,6 +234,7 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
     if dd >= cfg.dd_halt:
         log(f"KILL SWITCH: drawdown {dd:.1%} >= {cfg.dd_halt:.0%} — "
             f"flattening everything and halting (contest DQ is at 20%)")
+        ledger("kill_switch", nav=nav, peak=state["peak_equity"], drawdown=dd)
         flatten_everything(broker, state, nav, dry)
         state["halted"] = True
         return
@@ -267,6 +291,8 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
             add = (1 + abs(pair["beta"])) * g
             if gross + add > cfg.max_gross_mult * nav:
                 log(f"  {short_name}: entry skipped, gross cap")
+                ledger("skip", pair=short_name, reason="gross_cap", z=z,
+                       gross=gross, add=add, nav=nav)
                 continue
             qa = broker.round_qty(a, g / prices[a])
             qb = broker.round_qty(b, abs(pair["beta"]) * g / prices[b])
@@ -274,10 +300,40 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                     or not broker.meets_min_notional(a, qa, prices[a])
                     or not broker.meets_min_notional(b, qb, prices[b])):
                 log(f"  {short_name}: below min notional at NAV {nav:.0f}, skipped")
+                ledger("skip", pair=short_name, reason="min_notional", z=z,
+                       qa=qa, qb=qb, nav=nav)
                 continue
+            news_note = sentinel.note(base_asset(a), base_asset(b)) if sentinel \
+                else "news sentinel disabled"
+            if sentinel is not None:
+                rationale = sentinel.veto(base_asset(a), base_asset(b))
+                if rationale:
+                    log(f"  {short_name}: NEWS VETO — {rationale}")
+                    ledger("skip", pair=short_name, reason="news_veto", z=z,
+                           news=rationale, nav=nav,
+                           reasoning=(f"Quantitative entry signal was live "
+                                      f"(z={z:+.2f} beyond band {pair['entry_z']:.2f}) "
+                                      f"but the news sentinel rated a leg critical: "
+                                      f"{rationale}. Mean reversion presumes the "
+                                      f"historical relationship holds; a structural "
+                                      f"event invalidates that premise, so no entry."))
+                    continue
             ts = int(time.time())
             log(f"  {short_name}: ENTER {'long' if want > 0 else 'short'} spread "
                 f"z={z:+.2f} g={g:.1f} USDT")
+            ledger("enter", pair=short_name, side=want, z=z, g=g,
+                   qa=qa, qb=qb, price_a=prices[a], price_b=prices[b],
+                   beta=pair["beta"], entry_z=pair["entry_z"],
+                   half_life=pair["half_life"], nav=nav, dry=dry,
+                   reasoning=(f"Spread z={z:+.2f} crossed the cost-aware optimal "
+                              f"entry band ±{pair['entry_z']:.2f} (fitted OU "
+                              f"half-life {pair['half_life']:.0f}h; band maximizes "
+                              f"expected profit per hour net of fees via first-"
+                              f"passage times). {'Buying' if want > 0 else 'Selling'} "
+                              f"the spread: risk-budgeted {g:.0f} USDT against "
+                              f"hedge ratio beta={pair['beta']:.2f}. Pair passed "
+                              f"FDR-corrected cointegration + split-half stability "
+                              f"at the last refit. {news_note}."))
             if not dry:
                 broker.place_market(a, "BUY" if want > 0 else "SELL",
                                     "LONG" if want > 0 else "SHORT",
@@ -298,11 +354,32 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
             reverted = abs(z) < pair["exit_z"]
             if stopped:
                 log(f"  {short_name}: Z-STOP z={z:+.2f}, closing + blocking side")
+                ledger("stop", pair=short_name, side=side, z=z,
+                       hold_bars=pair["hold"], price_a=prices[a],
+                       price_b=prices[b], nav=nav, dry=dry,
+                       reasoning=(f"Spread blew past the structural-break stop "
+                                  f"(z={z:+.2f} vs stop {cfg.stop_z}). The working "
+                                  f"hypothesis flips from 'temporarily stretched' "
+                                  f"to 'relationship broke'; position cut and this "
+                                  f"side blocked until z heals inside the entry "
+                                  f"band — never average into a broken spring."))
                 leg_close(broker, pair, nav, dry)
                 pair["blocked"] = +1 if side > 0 else -1
             elif reverted or stale:
-                log(f"  {short_name}: EXIT z={z:+.2f} "
-                    f"({'reverted' if reverted else 'max hold'})")
+                why = "reverted" if reverted else "max_hold"
+                log(f"  {short_name}: EXIT z={z:+.2f} ({why})")
+                reason_text = (
+                    f"Spread reverted inside the exit band (z={z:+.2f} < "
+                    f"{pair['exit_z']:.2f}); the mean-reversion cycle completed."
+                    if reverted else
+                    f"Held {pair['hold']} bars, {cfg.max_hold_mult:.0f}x the "
+                    f"fitted half-life of {pair['half_life']:.0f}h, without "
+                    f"reverting. The model was wrong about the reversion speed; "
+                    f"stop paying carry to find out how wrong.")
+                ledger("exit", pair=short_name, side=side, z=z, reason=why,
+                       hold_bars=pair["hold"], price_a=prices[a],
+                       price_b=prices[b], nav=nav, dry=dry,
+                       reasoning=reason_text)
                 leg_close(broker, pair, nav, dry)
 
 
@@ -345,12 +422,18 @@ def main() -> None:
             "refusing to trade without it. Use --dry-run to test.")
         sys.exit(1)
 
+    sentinel = NewsSentinel()
+
     while True:
         try:
             ensure_session()
             if state["bar"] % cfg.refit_every_bars == 0:
                 refit(broker, cfg, state)
-            trade_step(broker, cfg, state, args.dry_run)
+            active_assets = [base_asset(s) for p in state["pairs"].values()
+                             for s in (p["a"], p["b"])]
+            if active_assets:
+                sentinel.refresh(active_assets)
+            trade_step(broker, cfg, state, args.dry_run, sentinel)
         except RapidXError as exc:
             log(f"bar error (will retry next bar): {exc}")
         state["bar"] += 1
