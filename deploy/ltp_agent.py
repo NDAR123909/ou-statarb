@@ -44,6 +44,7 @@ from statarb.ou import fit_spread_model                              # noqa: E40
 from statarb.thresholds import optimal_bands                         # noqa: E402
 from deploy.ltp_broker import RapidXBroker, RapidXError              # noqa: E402
 from deploy.ltp_news import NewsSentinel                             # noqa: E402
+from deploy.ltp_stream import NewsStream                             # noqa: E402
 
 
 def base_asset(symbol: str) -> str:
@@ -220,6 +221,41 @@ def flatten_everything(broker: RapidXBroker, state: dict, nav: float,
     for pair in state["pairs"].values():
         if pair.get("side", 0) != 0:
             leg_close(broker, pair, nav, dry)
+
+
+def derisk(broker: RapidXBroker, cfg: AgentConfig, state: dict,
+           critical_assets: set[str], dry: bool) -> None:
+    """Flatten open positions with a leg rated critical by streaming news.
+
+    This is the only action the streaming path can take, and it is strictly
+    risk-reducing: close and step aside. Re-entry stays blocked by the
+    sentinel verdicts until the news picture clears at a later refresh."""
+    if not critical_assets or state["halted"]:
+        return
+    nav = broker.equity_usdt()
+    for key, pair in list(state["pairs"].items()):
+        if pair.get("side", 0) == 0:
+            continue
+        hit = {base_asset(pair["a"]), base_asset(pair["b"])} & critical_assets
+        if not hit:
+            continue
+        short_name = f"{base_asset(pair['a'])}/{base_asset(pair['b'])}"
+        log(f"  {short_name}: NEWS DE-RISK — {sorted(hit)} rated critical, "
+            f"flattening within seconds of the headline")
+        ledger("news_derisk", pair=short_name, assets=sorted(hit), nav=nav,
+               dry=dry,
+               reasoning=(f"Streaming news rated {', '.join(sorted(hit))} "
+                          f"critical while a position was open. Mean reversion "
+                          f"presumes the historical relationship holds; a "
+                          f"structural event invalidates that premise, so the "
+                          f"position is flattened immediately rather than at "
+                          f"the next hourly bar, and re-entry stays blocked "
+                          f"while the verdict stands."))
+        try:
+            leg_close(broker, pair, nav, dry)
+        except RapidXError as exc:
+            log(f"  {short_name}: de-risk close failed ({exc}); retrying "
+                f"at next bar")
 
 
 def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
@@ -429,15 +465,25 @@ def main() -> None:
 
     sentinel = NewsSentinel()
 
+    def active_assets() -> list[str]:
+        return [base_asset(s) for p in state["pairs"].values()
+                for s in (p["a"], p["b"])]
+
+    stream = NewsStream(sentinel, active_assets)
+    if stream.start():
+        log("news stream: live (sub-minute de-risking armed)")
+    else:
+        log("news stream: websockets not installed, hourly poll only")
+        stream = None
+
     while True:
         try:
             ensure_session()
             if state["bar"] % cfg.refit_every_bars == 0:
                 refit(broker, cfg, state)
-            active_assets = [base_asset(s) for p in state["pairs"].values()
-                             for s in (p["a"], p["b"])]
-            if active_assets:
-                sentinel.refresh(active_assets)
+            assets = active_assets()
+            if assets:
+                sentinel.refresh(assets)
             trade_step(broker, cfg, state, args.dry_run, sentinel)
         except RapidXError as exc:
             log(f"bar error (will retry next bar): {exc}")
@@ -445,9 +491,25 @@ def main() -> None:
         save_state(cfg.state_path, state)
         if args.once:
             break
-        # sleep to the top of the next hour, the bar close
-        now = time.time()
-        time.sleep(max(60.0, 3600 - (now % 3600) + 5))
+        # Sleep to the top of the next hour (the bar close) — but wake
+        # instantly if the news stream flags a critical event, de-risk,
+        # then resume waiting out the remainder of the bar.
+        deadline = time.time() + max(60.0, 3600 - (time.time() % 3600) + 5)
+        while True:
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                break
+            if stream is None:
+                time.sleep(remaining)
+                break
+            if stream.urgent.wait(timeout=remaining):
+                stream.urgent.clear()
+                try:
+                    derisk(broker, cfg, state, stream.take_critical(),
+                           args.dry_run)
+                except RapidXError as exc:
+                    log(f"de-risk error (positions retried next bar): {exc}")
+                save_state(cfg.state_path, state)
 
 
 if __name__ == "__main__":
