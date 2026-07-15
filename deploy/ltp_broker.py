@@ -60,13 +60,33 @@ class RapidXError(RuntimeError):
 
 @dataclass
 class RapidXBroker:
-    """Thin, rate-limited wrapper over `rapidx <domain> <action> --json`."""
+    """Thin, rate-limited wrapper over `rapidx <domain> <action> --json`.
+
+    Audit note: the Track A reasoning-log rules require every order/trade
+    operation (place, cancel, open, close) to appear in the submitted log
+    with its final result. `on_operation` is the hook for that — the agent
+    wires it to the decision ledger, and `op_context` (set by the agent at
+    each decision site) ties every operation back to the decision that
+    caused it: decision -> operations -> outcomes, one chain per order.
+    """
 
     cli: str = "rapidx"
     automation_session_id: str | None = None
+    on_operation: object = field(default=None, repr=False)   # callable(dict)
+    op_context: dict = field(default_factory=dict, repr=False)
     _last_write: float = field(default=0.0, repr=False)
     _last_read: float = field(default=0.0, repr=False)
     _symbol_info: dict = field(default_factory=dict, repr=False)
+
+    def _emit(self, op: str, **fields) -> None:
+        """Report one order operation. Observability must never break
+        trading, so callback failures are swallowed."""
+        if self.on_operation is None:
+            return
+        try:
+            self.on_operation({"op": op, **self.op_context, **fields})
+        except Exception:
+            pass
 
     # ------------------------------------------------------------- plumbing --
     def _run(self, args: list[str], input_obj: dict | None = None,
@@ -228,7 +248,15 @@ class RapidXBroker:
         self._must(["order", "place"], submit, write=True)
 
         # readback: never infer state from the submit response alone
-        return self._must(["order", "query"], {"clientOrderId": client_order_id})
+        result = self._must(["order", "query"], {"clientOrderId": client_order_id})
+        self._emit("place", symbol=symbol, side=side, position_side=position_side,
+                   quantity=qty, max_notional=round(max_notional, 2),
+                   client_order_id=client_order_id,
+                   order_id=result.get("orderId"),
+                   order_state=result.get("orderState") or result.get("status"),
+                   executed_qty=result.get("executedQty"),
+                   executed_price=result.get("executedAvgPrice"))
+        return result
 
     def close_position(self, symbol: str, position_side: str,
                        max_notional: float) -> dict | None:
@@ -245,7 +273,11 @@ class RapidXBroker:
         preview = self._run(["trade", "preview"], params, write=True)
         if not preview.ok:
             if "NO_POSITION" in (preview.code + preview.message).upper():
+                self._emit("close", symbol=symbol, position_side=position_side,
+                           result="no_position")
                 return None
+            self._emit("close", symbol=symbol, position_side=position_side,
+                       result="preview_error", error=preview.message)
             raise RapidXError(preview, f"close-preview {symbol}")
         submit = {
             "symbol": symbol,
@@ -258,10 +290,18 @@ class RapidXBroker:
         if self.automation_session_id:
             submit["automationSessionId"] = self.automation_session_id
         data = self._must(["position", "close"], submit, write=True)
+        self._emit("close", symbol=symbol, position_side=position_side,
+                   max_notional=params["maxNotional"], result="submitted",
+                   order_id=data.get("orderId"))
         return data
 
     def cancel_all(self, symbol: str | None = None) -> None:
         payload = {"symbol": symbol} if symbol else {}
         res = self._run(["order", "cancel-all"], payload or None, write=True)
         if not res.ok and res.status not in ("NOT_FOUND",):
+            self._emit("cancel_all", symbol=symbol, result="error",
+                       error=res.message)
             raise RapidXError(res, "cancel-all")
+        self._emit("cancel_all", symbol=symbol,
+                   result="ok" if res.ok else res.status,
+                   canceled=res.data.get("canceled") if isinstance(res.data, dict) else None)

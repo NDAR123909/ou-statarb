@@ -62,6 +62,15 @@ returns, with a Reasoning Audit for logic consistency. Two pieces address it:
   the cost-aware band, fitted half-life, the gate the pair passed, why an exit
   fired). It is auditable precisely because it is generated FROM the decision
   inputs, not rationalized after the fact.
+- **Every order/trade OPERATION is logged too.** The Track A rules require the
+  log to cover every place/cancel/open/close with its final result, not just
+  the decision behind it (organizer confirmation, 2026-07-15). The broker emits
+  an `operation` record per API call — order state, executed qty and price from
+  the readback, or the failure reason — each tagged with the `decision` and
+  `pair` that caused it. The audit trail is one chain per order:
+  decision (with reasoning) -> operations -> outcomes. Reconstruct it with
+  `df = pd.read_json('deploy/ltp_ledger.jsonl', lines=True)` then
+  `df[df.event=='operation'].groupby('decision')`.
 - **`ltp_news.py` is the LLM layer**, and its role is deliberately narrow:
   hourly it reads LTP's news feed, asks Claude to rate event severity per
   traded asset (delistings, hacks, regulatory shocks — the structural breaks

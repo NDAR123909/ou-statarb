@@ -112,6 +112,15 @@ def ledger(event: str, **fields) -> None:
         f.write(json.dumps(rec, default=float) + "\n")
 
 
+def ledger_operation(op: dict) -> None:
+    """Broker callback: log one order/trade operation with its final result.
+    Track A requires every place/cancel/close to appear in the log tied to
+    the Agent's reasoning. The `decision`/`pair` fields come from the
+    broker's op_context, set at each decision site, so operations chain back
+    to the decision that caused them."""
+    ledger("operation", **op)
+
+
 # ---------------------------------------------------------------- state io --
 def load_state(path: str) -> dict:
     p = Path(path)
@@ -205,22 +214,30 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict) -> None:
 
 # ------------------------------------------------------------------ trading --
 def leg_close(broker: RapidXBroker, pair: dict, nav: float,
-              dry: bool) -> None:
+              dry: bool, decision: str = "close") -> None:
+    broker.op_context = {"decision": decision,
+                         "pair": f"{base_asset(pair['a'])}/{base_asset(pair['b'])}"}
     for sym, pos_side in ((pair["a"], "LONG" if pair["side"] > 0 else "SHORT"),
                           (pair["b"], "SHORT" if pair["side"] > 0 else "LONG")):
         if dry:
             log(f"  DRY: close {sym} {pos_side}")
             continue
         broker.close_position(sym, pos_side, max_notional=2 * nav)
+    broker.op_context = {}
     pair["side"], pair["hold"] = 0, 0
 
 
 def flatten_everything(broker: RapidXBroker, state: dict, nav: float,
                        dry: bool) -> None:
-    broker.cancel_all() if not dry else log("  DRY: cancel-all")
+    if dry:
+        log("  DRY: cancel-all")
+    else:
+        broker.op_context = {"decision": "kill_switch", "pair": "*"}
+        broker.cancel_all()
+        broker.op_context = {}
     for pair in state["pairs"].values():
         if pair.get("side", 0) != 0:
-            leg_close(broker, pair, nav, dry)
+            leg_close(broker, pair, nav, dry, decision="kill_switch")
 
 
 def derisk(broker: RapidXBroker, cfg: AgentConfig, state: dict,
@@ -252,7 +269,7 @@ def derisk(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                           f"the next hourly bar, and re-entry stays blocked "
                           f"while the verdict stands."))
         try:
-            leg_close(broker, pair, nav, dry)
+            leg_close(broker, pair, nav, dry, decision="news_derisk")
         except RapidXError as exc:
             log(f"  {short_name}: de-risk close failed ({exc}); retrying "
                 f"at next bar")
@@ -376,6 +393,7 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                               f"FDR-corrected cointegration + split-half stability "
                               f"at the last refit. {news_note}."))
             if not dry:
+                broker.op_context = {"decision": "enter", "pair": short_name}
                 broker.place_market(a, "BUY" if want > 0 else "SELL",
                                     "LONG" if want > 0 else "SHORT",
                                     qa, max_notional=1.1 * g,
@@ -384,6 +402,7 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                                     "SHORT" if want > 0 else "LONG",
                                     qb, max_notional=1.1 * abs(pair["beta"]) * g,
                                     client_order_id=f"ou-{ts}-b")
+                broker.op_context = {}
             pair["side"], pair["hold"] = want, 0
             pair["notional"] = g
             gross += add
@@ -404,7 +423,7 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                                   f"to 'relationship broke'; position cut and this "
                                   f"side blocked until z heals inside the entry "
                                   f"band — never average into a broken spring."))
-                leg_close(broker, pair, nav, dry)
+                leg_close(broker, pair, nav, dry, decision="stop")
                 pair["blocked"] = +1 if side > 0 else -1
             elif reverted or stale:
                 why = "reverted" if reverted else "max_hold"
@@ -421,7 +440,7 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                        hold_bars=pair["hold"], price_a=prices[a],
                        price_b=prices[b], nav=nav, dry=dry,
                        reasoning=reason_text)
-                leg_close(broker, pair, nav, dry)
+                leg_close(broker, pair, nav, dry, decision=why)
 
 
 # --------------------------------------------------------------------- main --
@@ -433,7 +452,7 @@ def main() -> None:
                     help="run a single bar then exit (for cron-style hosts)")
     args = ap.parse_args()
     cfg = AgentConfig()
-    broker = RapidXBroker()
+    broker = RapidXBroker(on_operation=ledger_operation)
     state = load_state(cfg.state_path)
 
     check = broker.self_check()
