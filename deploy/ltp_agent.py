@@ -288,6 +288,11 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                 continue
             g = cfg.risk_per_pair * nav / max(pair["dvol"], 1e-9)
             g = min(g, cfg.per_leg_cap_mult * nav)
+            if sentinel is not None:
+                mult = sentinel.size_mult(base_asset(a), base_asset(b))
+                if mult < 1.0:
+                    log(f"  {short_name}: news 'watch' rating, sizing x{mult}")
+                g *= mult
             add = (1 + abs(pair["beta"])) * g
             if gross + add > cfg.max_gross_mult * nav:
                 log(f"  {short_name}: entry skipped, gross cap")

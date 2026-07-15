@@ -18,9 +18,18 @@ originates positions, never sizes anything, and its absence fails open:
 no API key, no news, or an API error all degrade to "no veto", so the
 systematic strategy runs unfiltered rather than halting.
 
+COMPETITION COMPLIANCE (Track A AI API policy): teams must EXCLUSIVELY use
+the organizer-provided AI API — using your own key during the competition is
+grounds for immediate disqualification, verified by correlating AI decision
+logs with orders. Therefore:
+
+  - LTP_AI_BASE_URL + LTP_AI_API_KEY   organizer AI gateway (preferred always)
+  - LTP_COMPETITION_MODE=1             hard-refuses any non-organizer API;
+                                       set this for the whole competition
+  - ANTHROPIC_API_KEY                  pre-competition development ONLY
+
 Env: LTP_ACCESS_KEY / LTP_SECRET_KEY  (news feed auth, same keys as trading)
-     ANTHROPIC_API_KEY                (optional; sentinel disabled without it)
-     ANTHROPIC_MODEL                  (default claude-opus-4-8)
+     LTP_AI_MODEL / ANTHROPIC_MODEL   (default claude-opus-4-8)
 """
 
 from __future__ import annotations
@@ -120,13 +129,31 @@ class NewsSentinel:
     verdicts: dict = field(default_factory=dict)   # base asset -> verdict dict
     last_refresh: str = ""
 
-    def _classify(self, assets: list[str], items: list[dict]) -> dict:
+    @staticmethod
+    def _client():
+        """Organizer AI gateway first; own key only outside competition mode."""
         try:
             import anthropic
         except ImportError:
+            return None
+        base = os.environ.get("LTP_AI_BASE_URL")
+        key = os.environ.get("LTP_AI_API_KEY")
+        if base and key:
+            return anthropic.Anthropic(base_url=base, api_key=key)
+        if os.environ.get("LTP_COMPETITION_MODE"):
+            # Using a self-provided AI API during the competition is a
+            # disqualification offense. No organizer endpoint configured ->
+            # no LLM at all; the sentinel fails open and the math trades on.
+            return None
+        if os.environ.get("ANTHROPIC_API_KEY"):
+            return anthropic.Anthropic()
+        return None
+
+    def _classify(self, assets: list[str], items: list[dict]) -> dict:
+        client = self._client()
+        if client is None:
             return {}
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            return {}
+        import anthropic
 
         digest = []
         for it in items[: self.max_items]:
@@ -135,10 +162,10 @@ class NewsSentinel:
         if not digest:
             return {}
 
-        client = anthropic.Anthropic()
         try:
             response = client.messages.create(
-                model=os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-8"),
+                model=os.environ.get("LTP_AI_MODEL")
+                or os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-8"),
                 max_tokens=2048,
                 system=SYSTEM_PROMPT,
                 output_config={"format": {"type": "json_schema",
@@ -177,6 +204,15 @@ class NewsSentinel:
             if v and v.get("severity") == "critical":
                 return f"{a}: {v.get('rationale', 'critical news event')}"
         return None
+
+    def size_mult(self, *base_assets: str) -> float:
+        """Risk-budget multiplier: 0.5 if any leg is rated 'watch', else 1.0.
+        Like the veto, this can only REDUCE risk, never add it."""
+        for a in base_assets:
+            v = self.verdicts.get(a.upper())
+            if v and v.get("severity") == "watch":
+                return 0.5
+        return 1.0
 
     def note(self, *base_assets: str) -> str:
         """One-line news context for the reasoning log, always available."""
