@@ -46,6 +46,10 @@ import requests
 
 FEEDS_BASE = os.environ.get("LTP_API_HOST", "https://api.ltp-contest.com")
 
+# The verdict contract, kept as documentation of the shape the prompt asks
+# for. Not sent to the API: the MiniMax gateway is Anthropic-compatible only
+# at the messages level and won't honor output_config structured outputs, so
+# the shape is requested in the prompt and parsed defensively instead.
 VERDICT_SCHEMA = {
     "type": "object",
     "properties": {
@@ -156,7 +160,12 @@ class NewsSentinel:
 
     @staticmethod
     def _client():
-        """Organizer AI gateway first; own key only outside competition mode."""
+        """Organizer AI gateway first; own key only outside competition mode.
+
+        The gateway (LTP_AI_BASE_URL) serves MiniMax-M3 behind an
+        Anthropic-compatible endpoint, so the anthropic SDK drives it with
+        only a base_url swap. Its notes require timeout >= 300s and <= 3
+        retries on transient errors; both are set here."""
         try:
             import anthropic
         except ImportError:
@@ -164,7 +173,8 @@ class NewsSentinel:
         base = os.environ.get("LTP_AI_BASE_URL")
         key = os.environ.get("LTP_AI_API_KEY")
         if base and key:
-            return anthropic.Anthropic(base_url=base, api_key=key)
+            return anthropic.Anthropic(base_url=base, api_key=key,
+                                       timeout=300.0, max_retries=3)
         if os.environ.get("LTP_COMPETITION_MODE"):
             # Using a self-provided AI API during the competition is a
             # disqualification offense. No organizer endpoint configured ->
@@ -174,11 +184,30 @@ class NewsSentinel:
             return anthropic.Anthropic()
         return None
 
+    @staticmethod
+    def _extract_json(text: str) -> dict | None:
+        """Parse a JSON object out of model text. MiniMax behind a compat
+        shim will not honor Anthropic's output_config structured-output
+        constraint, so we ask for JSON in the prompt and dig it out here:
+        direct parse first, then the outermost {...} span (handles markdown
+        fences and any prose the model wraps around it)."""
+        text = (text or "").strip()
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+        i, j = text.find("{"), text.rfind("}")
+        if 0 <= i < j:
+            try:
+                return json.loads(text[i:j + 1])
+            except json.JSONDecodeError:
+                pass
+        return None
+
     def _classify(self, assets: list[str], items: list[dict]) -> dict:
         client = self._client()
         if client is None:
             return {}
-        import anthropic
 
         digest = []
         for it in items[: self.max_items]:
@@ -187,34 +216,41 @@ class NewsSentinel:
         if not digest:
             return {}
 
+        instruction = (
+            "Return ONLY a JSON object, no prose and no markdown fences, of "
+            'exactly this shape: {"assessments": [{"symbol": "<one of the '
+            'listed assets>", "severity": "none|watch|critical", "rationale": '
+            '"<short reason>"}]}. Include every listed asset exactly once.')
+        prompt = (f"{instruction}\n\nAssets the agent may trade: "
+                  f"{', '.join(assets)}\n\nNews from the last two hours:\n"
+                  + "\n".join(digest))
+
+        # The sentinel must never crash the trade loop, and the caller
+        # (main) only catches RapidXError, so ANY failure here fails open.
         try:
             response = client.messages.create(
                 model=os.environ.get("LTP_AI_MODEL")
                 or os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-8"),
                 max_tokens=2048,
                 system=SYSTEM_PROMPT,
-                output_config={"format": {"type": "json_schema",
-                                          "schema": VERDICT_SCHEMA}},
-                messages=[{
-                    "role": "user",
-                    "content": (f"Assets the agent may trade: {', '.join(assets)}\n\n"
-                                f"News from the last two hours:\n" + "\n".join(digest)),
-                }],
+                messages=[{"role": "user", "content": prompt}],
             )
-        except anthropic.RateLimitError:
+        except Exception:
             return {}
-        except anthropic.APIStatusError:
+        if getattr(response, "stop_reason", None) == "refusal":
             return {}
-        except anthropic.APIConnectionError:
+        text = next((b.text for b in response.content
+                     if getattr(b, "type", None) == "text"), "")
+        parsed = self._extract_json(text)
+        if not isinstance(parsed, dict):
             return {}
-        if response.stop_reason == "refusal":
-            return {}
-        text = next((b.text for b in response.content if b.type == "text"), "")
-        try:
-            parsed = json.loads(text)
-        except json.JSONDecodeError:
-            return {}
-        return {a["symbol"].upper(): a for a in parsed.get("assessments", [])}
+        out = {}
+        for a in parsed.get("assessments", []):
+            sym = str(a.get("symbol", "")).upper()
+            sev = a.get("severity")
+            if sym and sev in ("none", "watch", "critical"):
+                out[sym] = a
+        return out
 
     def refresh(self, base_assets: list[str]) -> None:
         """One feeds call + one Claude call; fail-open on any problem."""
