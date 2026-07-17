@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -72,11 +73,20 @@ class RapidXBroker:
 
     cli: str = "rapidx"
     automation_session_id: str | None = None
+    # Which portfolio the reads/orders target. Empty = CLI default (the
+    # main portfolio). Set LTP_PORTFOLIO_ID to the funded test portfolio for
+    # UAT, and to the MainPortfolio id for the competition.
+    portfolio_id: str = field(
+        default_factory=lambda: os.environ.get("LTP_PORTFOLIO_ID", ""))
     on_operation: object = field(default=None, repr=False)   # callable(dict)
     op_context: dict = field(default_factory=dict, repr=False)
     _last_write: float = field(default=0.0, repr=False)
     _last_read: float = field(default=0.0, repr=False)
     _symbol_info: dict = field(default_factory=dict, repr=False)
+
+    def _scope(self) -> dict:
+        """Portfolio selector merged into portfolio/position/order inputs."""
+        return {"portfolioId": self.portfolio_id} if self.portfolio_id else {}
 
     def _emit(self, op: str, **fields) -> None:
         """Report one order operation. Observability must never break
@@ -115,12 +125,23 @@ class RapidXBroker:
                                 (proc.stdout or proc.stderr)[:500], {})
         return RapidXResult.from_envelope(env)
 
+    @staticmethod
+    def _inner(data):
+        """Unwrap the RapidX REST envelope. Most CLI reads return
+        data = {"code": 200000, "message": "Success", "data": <payload>};
+        klines returns the payload directly. Peel one {code,message,data}
+        layer when present, else pass through."""
+        if (isinstance(data, dict) and "data" in data
+                and ("code" in data or "message" in data)):
+            return data["data"]
+        return data
+
     def _must(self, args: list[str], input_obj: dict | None = None,
               write: bool = False) -> dict:
         res = self._run(args, input_obj, write)
         if not res.ok:
             raise RapidXError(res, " ".join(args))
-        return res.data
+        return self._inner(res.data)
 
     # ---------------------------------------------------------- diagnostics --
     def self_check(self) -> RapidXResult:
@@ -137,60 +158,62 @@ class RapidXBroker:
                         {"symbol": symbol, "interval": interval, "limit": limit})
         if not res.ok:
             return pd.DataFrame()
-        rows = res.data.get("klines") or res.data.get("list") or res.data
-        if not isinstance(rows, list) or not rows:
+        payload = self._inner(res.data)
+        # Binance-style array rows: [openTime, O, H, L, C, vol, closeTime, ...]
+        candles = payload.get("candles") if isinstance(payload, dict) else payload
+        if not isinstance(candles, list) or not candles:
             return pd.DataFrame()
-        df = pd.DataFrame(rows)
-        # tolerate either open-time keys or array-style rows
-        tcol = next((c for c in ("closeTime", "openTime", "time", "t")
-                     if c in df.columns), None)
-        ccol = next((c for c in ("close", "closePrice", "c")
-                     if c in df.columns), None)
-        if tcol is None or ccol is None:
+        try:
+            times = pd.to_datetime([int(c[0]) for c in candles], unit="ms", utc=True)
+            closes = [float(c[4]) for c in candles]
+        except (IndexError, ValueError, TypeError):
             return pd.DataFrame()
-        out = pd.DataFrame({
-            "time": pd.to_datetime(pd.to_numeric(df[tcol]), unit="ms", utc=True),
-            "close": pd.to_numeric(df[ccol]),
-        }).dropna().set_index("time").sort_index()
-        return out
+        return (pd.DataFrame({"time": times, "close": closes})
+                .dropna().set_index("time").sort_index())
 
     def symbol_info(self, symbol: str) -> dict:
-        """minNotional / lotSize / tickSize / contractSize; cached."""
+        """minNotional / lotSize / tickSize / contractSize; cached.
+        Inner shape is {SYMBOL: {...fields...}}."""
         if symbol not in self._symbol_info:
-            self._symbol_info[symbol] = self._must(
-                ["market", "get-symbol-info"], {"symbol": symbol})
+            data = self._must(["market", "get-symbol-info"], {"symbol": symbol})
+            if isinstance(data, dict):
+                info = data.get(symbol) or (next(iter(data.values()), {})
+                                            if data else {})
+            else:
+                info = {}
+            self._symbol_info[symbol] = info if isinstance(info, dict) else {}
         return self._symbol_info[symbol]
 
     def mark_price(self, symbol: str) -> float:
         data = self._must(["market", "get-mark-price"], {"symbol": symbol})
-        for k in ("markPrice", "price", "mark"):
-            if k in data:
-                return float(data[k])
+        # inner is a list of one {sym, markPrice, time}
+        entry = data[0] if isinstance(data, list) and data else data
+        if isinstance(entry, dict):
+            for k in ("markPrice", "price", "mark"):
+                if k in entry:
+                    return float(entry[k])
         raise KeyError(f"no mark price in response for {symbol}: {data}")
 
     # -------------------------------------------------------------- account --
     def equity_usdt(self) -> float:
-        data = self._must(["portfolio", "overview"])
-        for k in ("totalEquity", "equity", "totalWalletBalance", "accountEquity"):
-            if k in data:
-                return float(data[k])
-        # some shapes nest per-exchange accounts
-        accounts = data.get("accounts") or data.get("list") or []
-        if accounts and isinstance(accounts, list):
+        """Portfolio NAV = sum of per-exchange sub-account equities.
+        Inner shape is a list of {portfolioId, exchangeType, equity, ...}."""
+        data = self._must(["portfolio", "overview"], self._scope() or None)
+        if isinstance(data, list):
+            return sum(float(a.get("equity", 0.0) or 0.0) for a in data)
+        if isinstance(data, dict):
             for k in ("totalEquity", "equity", "totalWalletBalance"):
-                if k in accounts[0]:
-                    return sum(float(a.get(k, 0.0)) for a in accounts)
+                if k in data:
+                    return float(data[k] or 0.0)
         raise KeyError(f"cannot find equity in portfolio overview: {data}")
 
     def positions(self) -> list[dict]:
-        data = self._must(["position", "query"])
-        rows = data.get("positions") or data.get("list") or data
-        return rows if isinstance(rows, list) else []
+        data = self._must(["position", "query"], self._scope() or None)
+        return data if isinstance(data, list) else []
 
     def open_orders(self) -> list[dict]:
-        data = self._must(["order", "open-orders"])
-        rows = data.get("orders") or data.get("list") or data
-        return rows if isinstance(rows, list) else []
+        data = self._must(["order", "open-orders"], self._scope() or None)
+        return data if isinstance(data, list) else []
 
     # ------------------------------------------------------------ automation --
     def start_automation(self, symbols: list[str], max_per_order: str,
