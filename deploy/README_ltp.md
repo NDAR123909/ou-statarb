@@ -46,8 +46,8 @@ USDT total automated exposure, renewed daily while my agent runs."
 
 | contest rule | agent behavior |
 |---|---|
-| drawdown > 20% from peak = disqualified | kill switch flattens everything at **12%** and halts trading permanently; the process stays alive |
-| uptime >= 90% required | one long-running process; errors are caught per bar, logged, and retried next bar rather than crashing |
+| equity < 800 USDT (NAV < 0.8) = eliminated | kill switch flattens everything at **12% off peak** and halts trading permanently. Peak starts at 1,000, so the switch fires at >= 880 USDT — always above the 800 floor |
+| ~~uptime >= 90% required~~ (rule removed, 2026-07) | the always-on design stays anyway: a down agent can't de-risk, and the 800-floor doesn't care why you weren't watching. Errors are caught per bar, logged, and retried rather than crashing |
 | 1 order write / 5 s | rate-limited inside `RapidXBroker`, 5.5 s spacing |
 | every write preview -> submit | `place_market`/`close_position` implement preview -> submit -> readback; no blind retries |
 | hedge (BOTH) position mode | every order carries an explicit `positionSide` |
@@ -130,6 +130,6 @@ asyncio.run(p())"
 
 The agent is a single process; anything that stays up works (a VPS, a spare
 machine). GitHub Actions is a poor fit here — jobs cap at 6 hours and the
-uptime requirement is on the agent, not on a cron. Keep the state file
+agent must stay alive to de-risk, not just to trade. Keep the state file
 (`deploy/ltp_state.json`) on persistent disk: it carries the drawdown peak,
 the halt flag, and per-pair stop blocks across restarts.

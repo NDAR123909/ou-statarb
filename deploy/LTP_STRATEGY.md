@@ -56,10 +56,10 @@ decides every trade; the LLM can only refuse or shrink one.
 
 | their criterion | our mechanism |
 |---|---|
-| max drawdown / elimination at 20% | kill switch flattens everything at 12% and halts; process stays alive for uptime |
+| elimination at equity < 800 USDT (NAV < 0.8) | kill switch flattens everything at 12% off peak (fires at >= 880, always above the floor) and halts; process stays alive to keep de-risking |
 | risk management | vol-targeted sizing, per-leg caps, gross cap, z-stop 3.5 with one-sided re-entry block, no entries beyond the stop |
 | profitability | breadth across 14 sector-restricted pairs; the toll-gate: pairs whose edge can't pay fees are refused at refit |
-| system robustness / uptime ≥ 90% | single long-running process; per-bar error capture and retry; fail-open sentinel |
+| system robustness (uptime rule removed — see addendum) | single long-running process; per-bar error capture and retry; fail-open sentinel |
 | reasoning log audit ("logic consistency") | every decision carries a narrative generated FROM its quantitative inputs — consistent by construction, contradiction-free across days, correlated 1:1 with orders |
 | macro sentiment capture | news sentinel: LLM rates event severity per asset; critical vetoes entries, watch halves size — sentiment as a falsifiable risk rule |
 | speed on unstructured data | (planned) WebSocket news listener for sub-minute de-risking; see below |
@@ -108,6 +108,27 @@ Stated now so the post-mortem is honest:
   (including "innovation" and "explainability"); a deterministic strategy
   may read as less impressive to judges who wanted LLM theatrics, even if
   it outperforms. The reasoning-log quality is our counterargument.
+
+## Addendum — rule changes since writing (2026-07-17)
+
+Recorded here rather than silently rewritten, since this document is a
+pre-registration:
+
+- **The ≥90% uptime elimination rule was removed** from the official rules.
+  The only elimination condition left is equity < 800 USDT (NAV < 0.8) with
+  automatic forced liquidation. This *strengthens* the survival thesis: the
+  field's main guillotine is now purely drawdown, which is the dimension this
+  agent is most conservative on (kill switch at 12% off peak, firing at
+  >= 880 USDT — always before the 800 floor). Our design keeps the always-on
+  process anyway: a down agent can't de-risk on breaking news.
+- **The scoring emphasis was reiterated by the organizers** ("reasoning
+  consistency… drawdown control and position stability are being watched
+  too"), consistent with this document's original bet.
+- **Exchange-side TP/SL became available** on the API. Deliberately not
+  adopted: per-leg price stops can fire on one leg alone and leave the other
+  naked — a directional position a pairs book must never hold. The software
+  z-stop closes both legs together at spread level, which is structurally
+  correct for mean reversion. Every stop is in the reasoning ledger anyway.
 
 ## Sources
 

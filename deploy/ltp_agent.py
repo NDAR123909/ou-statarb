@@ -8,9 +8,12 @@ are imported from the package — only the clock (hours, not days) and the
 venue (RapidX simulation, hedge mode, 1,000 USDT) are new.
 
 Competition rules this agent treats as hard invariants:
-  - 20% max drawdown means DISQUALIFICATION. The kill switch here flattens
-    everything at 12% from peak and refuses to trade again; the process
-    keeps running so the >=90% uptime requirement survives the halt.
+  - equity < 800 USDT (NAV < 0.8) means ELIMINATION. The kill switch here
+    flattens everything at 12% from peak and refuses to trade again — peak
+    starts at 1,000, so it always fires at >= 880, above the 800 floor. The
+    process keeps running after a halt: a dead agent can't de-risk, and the
+    ledger keeps recording. (The old >=90% uptime elimination rule was
+    removed from the official rules, 2026-07.)
   - 1 order write per 5 seconds (enforced inside RapidXBroker).
   - Automation consent must come from the human operator, verbatim, via
     LTP_AUTOMATION_CONSENT_TEXT. The agent will not invent it.
@@ -90,7 +93,9 @@ class AgentConfig:
     max_pairs: int = 4
     max_gross_mult: float = 2.0       # gross notional cap, x NAV
     per_leg_cap_mult: float = 0.5     # single leg cap, x NAV
-    dd_halt: float = 0.12             # flatten + halt (contest DQ is 0.20)
+    dd_halt: float = 0.12             # flatten + halt at 12% off peak; the
+                                      # contest eliminates at equity < 800U,
+                                      # so this always fires first (>= 880)
     state_path: str = "deploy/ltp_state.json"
 
 
@@ -282,11 +287,11 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
     dd = 1.0 - nav / state["peak_equity"] if state["peak_equity"] > 0 else 0.0
 
     if state["halted"]:
-        log(f"halted (dd kill switch); equity {nav:.2f}, uptime heartbeat only")
+        log(f"halted (dd kill switch); equity {nav:.2f}, monitoring only")
         return
     if dd >= cfg.dd_halt:
         log(f"KILL SWITCH: drawdown {dd:.1%} >= {cfg.dd_halt:.0%} — "
-            f"flattening everything and halting (contest DQ is at 20%)")
+            f"flattening everything and halting (contest eliminates at 800U)")
         ledger("kill_switch", nav=nav, peak=state["peak_equity"], drawdown=dd)
         flatten_everything(broker, state, nav, dry)
         state["halted"] = True
