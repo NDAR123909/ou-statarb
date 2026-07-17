@@ -93,9 +93,39 @@ Rate ONLY the assets in the provided list, every one of them, using exactly
 the symbols given."""
 
 
-def _sign_v2(params: dict, nonce: int, secret: str) -> str:
-    s = "&".join(f"{k}={v}" for k, v in sorted(params.items())) + f"&{nonce}"
+# The two official sources disagree on the V2 string-to-sign: the GitHub docs
+# (and their own Python sample) append the nonce as "&"+nonce, while the
+# organizer's Telegram clarification of 2026-07 appends it with NO separator
+# (worked example: "page=1&pageSize=201723456789"). Rather than bet on either,
+# try one, fall back to the other on a signature error (code 1004), and
+# remember the winner for the rest of the run.
+_sign_sep: bool | None = None
+
+
+def _sign_v2(params: dict, nonce: int, secret: str, sep: bool) -> str:
+    payload = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
+    s = payload + (f"&{nonce}" if sep else f"{nonce}")
     return hmac.new(secret.encode(), s.encode(), hashlib.sha256).hexdigest()
+
+
+def _feeds_get(path: str, params: dict, key: str, secret: str) -> dict:
+    """Signed GET with signature-variant fallback."""
+    global _sign_sep
+    body: dict = {}
+    variants = [_sign_sep] if _sign_sep is not None else [True, False]
+    for sep in variants:
+        nonce = int(time.time())
+        headers = {"X-MBX-APIKEY": key, "nonce": str(nonce),
+                   "signature": _sign_v2(params, nonce, secret, sep)}
+        r = requests.get(f"{FEEDS_BASE}{path}", params=params,
+                         headers=headers, timeout=15)
+        body = r.json()
+        if body.get("code") == 200:
+            _sign_sep = sep
+            return body
+        if body.get("code") != 1004:      # not a signature problem
+            return body
+    return body
 
 
 def fetch_news(hours: float = 2.0, page_size: int = 40) -> list[dict]:
@@ -107,13 +137,8 @@ def fetch_news(hours: float = 2.0, page_size: int = 40) -> list[dict]:
     now_ms = int(time.time() * 1000)
     params = {"startTime": str(now_ms - int(hours * 3_600_000)),
               "endTime": str(now_ms), "page": "1", "pageSize": str(page_size)}
-    nonce = int(time.time())
-    headers = {"X-MBX-APIKEY": key, "nonce": str(nonce),
-               "signature": _sign_v2(params, nonce, secret)}
     try:
-        r = requests.get(f"{FEEDS_BASE}/api/v1/feeds/queryNews",
-                         params=params, headers=headers, timeout=15)
-        body = r.json()
+        body = _feeds_get("/api/v1/feeds/queryNews", params, key, secret)
         if body.get("code") != 200:
             return []
         return body.get("data", {}).get("list") or []
