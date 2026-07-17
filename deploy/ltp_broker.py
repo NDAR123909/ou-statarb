@@ -124,7 +124,9 @@ class RapidXBroker:
 
     # ---------------------------------------------------------- diagnostics --
     def self_check(self) -> RapidXResult:
-        return self._run(["self-check", "--read-only"])
+        # `--read-only` is not a flag in the shipped CLI (it 400s with
+        # "unknown field: readOnly"); plain self-check is already read-only.
+        return self._run(["self-check"])
 
     # ---------------------------------------------------------- market data --
     def klines(self, symbol: str, interval: str = "1h",
