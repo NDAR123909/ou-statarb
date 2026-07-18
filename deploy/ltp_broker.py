@@ -211,6 +211,41 @@ class RapidXBroker:
         data = self._must(["position", "query"], self._scope() or None)
         return data if isinstance(data, list) else []
 
+    @staticmethod
+    def _position_qty(p: dict) -> float:
+        """Signed size of a live position, tolerant of field naming.
+        Different reads spell the quantity differently; the first present,
+        non-empty one wins. 0.0 means flat."""
+        for k in ("positionQty", "positionAmt", "qty", "quantity", "size",
+                  "positionSize"):
+            v = p.get(k)
+            if v not in (None, ""):
+                try:
+                    return float(v)
+                except (TypeError, ValueError):
+                    pass
+        return 0.0
+
+    def _live_position(self, symbol: str,
+                       prefer_side: str | None = None) -> dict | None:
+        """The open position dict for `symbol`, or None if genuinely flat.
+
+        Ground truth for the close path: we decide there is nothing to close
+        by asking the exchange, never by reading an error string. In NET mode
+        a symbol has one net position (positionSide "NONE"); in hedge mode it
+        can have two, and `prefer_side` picks the leg we mean to reduce."""
+        matches = [p for p in self.positions()
+                   if p.get("symbol") == symbol
+                   and abs(self._position_qty(p)) > 0]
+        if not matches:
+            return None
+        if prefer_side:
+            want = prefer_side.upper()
+            for p in matches:
+                if str(p.get("positionSide") or "").upper() == want:
+                    return p
+        return matches[0]
+
     def open_orders(self) -> list[dict]:
         data = self._must(["order", "open-orders"], self._scope() or None)
         return data if isinstance(data, list) else []
@@ -285,38 +320,70 @@ class RapidXBroker:
 
     def close_position(self, symbol: str, position_side: str,
                        max_notional: float) -> dict | None:
-        """reduceOnly close via preview->submit; None if nothing to close."""
+        """reduceOnly close via preview->submit->readback.
+
+        Closes by the position's ACTUAL live side, not the caller's intended
+        one: a NET-mode account carries positionSide "NONE" and the API
+        rejects any positionSide value on the close (and 400s NO_POSITION if
+        you pass LONG/SHORT), while a hedge-mode account requires LONG/SHORT.
+        `position_side` from the caller is advisory — it only disambiguates
+        which leg to reduce in hedge mode.
+
+        Returns None only when the exchange itself reports the symbol flat.
+        Any other failure raises: a close that doesn't close must never be
+        able to masquerade as success (the v0.x silent-'no_position' bug)."""
+        max_notional_s = str(round(max_notional, 2))
+        live = self._live_position(symbol, prefer_side=position_side)
+        if live is None:
+            # Ground truth from the position query, not an inferred error
+            # string: there really is nothing to close.
+            self._emit("close", symbol=symbol, position_side=position_side,
+                       result="no_position")
+            return None
+
+        # NET mode -> "NONE"/empty -> omit positionSide; hedge -> keep it.
+        live_side = str(live.get("positionSide") or "").upper()
+        send_side = live_side if live_side in ("LONG", "SHORT") else None
+
         params = {
             "targetCapabilityId": "position.close",
             "symbol": symbol,
-            "positionSide": position_side,
             "reduceOnly": True,
-            "maxNotional": str(round(max_notional, 2)),
+            "maxNotional": max_notional_s,
         }
+        if send_side:
+            params["positionSide"] = send_side
         if self.automation_session_id:
             params["automationSessionId"] = self.automation_session_id
+
         preview = self._run(["trade", "preview"], params, write=True)
         if not preview.ok:
-            if "NO_POSITION" in (preview.code + preview.message).upper():
-                self._emit("close", symbol=symbol, position_side=position_side,
-                           result="no_position")
-                return None
-            self._emit("close", symbol=symbol, position_side=position_side,
+            self._emit("close", symbol=symbol, position_side=live_side or "NONE",
                        result="preview_error", error=preview.message)
             raise RapidXError(preview, f"close-preview {symbol}")
+
         submit = {
             "symbol": symbol,
-            "positionSide": position_side,
             "reduceOnly": True,
-            "maxNotional": params["maxNotional"],
+            "maxNotional": max_notional_s,
             "previewId": preview.data["previewId"],
             "continueConsentId": preview.data["confirmation"]["submitToken"],
         }
+        if send_side:
+            submit["positionSide"] = send_side
         if self.automation_session_id:
             submit["automationSessionId"] = self.automation_session_id
         data = self._must(["position", "close"], submit, write=True)
-        self._emit("close", symbol=symbol, position_side=position_side,
-                   max_notional=params["maxNotional"], result="submitted",
+
+        # Readback: confirm state rather than trust the submit. A post-close
+        # market order may rest as ACCEPTED and fill at the next open (a
+        # documented normal path), so a position still showing here is logged
+        # as 'resting', not raised — but if it went flat we record that.
+        after = self._live_position(symbol, prefer_side=live_side or None)
+        self._emit("close", symbol=symbol, position_side=live_side or "NONE",
+                   max_notional=max_notional_s,
+                   result="closed" if after is None else "resting",
+                   residual_qty=None if after is None else self._position_qty(after),
                    order_id=data.get("orderId"))
         return data
 
