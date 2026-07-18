@@ -14,9 +14,9 @@ so keep that pointed at the funded UAT test portfolio. One leg, opened and
 immediately closed; notional is sized to just clear the symbol's minNotional.
 
     source /root/ltp.env
-    python deploy/verify_close.py                 # ETCUSDT, live
-    python deploy/verify_close.py --symbol KASUSDT
-    python deploy/verify_close.py --dry-run        # sizing only, no orders
+    python deploy/verify_close.py                            # ETC, live
+    python deploy/verify_close.py --symbol BINANCE_PERP_KAS_USDT
+    python deploy/verify_close.py --dry-run                  # sizing only
 
 Requires LTP_AUTOMATION_CONSENT_TEXT (the human-authored consent), same as
 the agent — the broker will not open an automation session without it.
@@ -57,8 +57,9 @@ def _size_to_min_notional(broker: RapidXBroker, symbol: str,
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--symbol", default="ETCUSDT",
-                    help="whitelist symbol to open and close (default ETCUSDT)")
+    ap.add_argument("--symbol", default="BINANCE_PERP_ETC_USDT",
+                    help="RapidX whitelist symbol to open and close "
+                         "(default BINANCE_PERP_ETC_USDT)")
     ap.add_argument("--dry-run", action="store_true",
                     help="show self-check, equity and sizing; place no orders")
     args = ap.parse_args()
