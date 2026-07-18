@@ -50,7 +50,7 @@ USDT total automated exposure, renewed daily while my agent runs."
 | ~~uptime >= 90% required~~ (rule removed, 2026-07) | the always-on design stays anyway: a down agent can't de-risk, and the 800-floor doesn't care why you weren't watching. Errors are caught per bar, logged, and retried rather than crashing |
 | 1 order write / 5 s | rate-limited inside `RapidXBroker`, 5.5 s spacing |
 | every write preview -> submit | `place_market`/`close_position` implement preview -> submit -> readback; no blind retries |
-| hedge (BOTH) position mode | every order carries an explicit `positionSide` |
+| position mode (NET vs hedge) | `close_position` reads the position's **live** side and closes by it — omitting `positionSide` on a NET account (which carries `positionSide: NONE` and rejects any value on a reduceOnly close), keeping LONG/SHORT on a hedge account. The UAT account is NET; opens still send an explicit side, which the venue accepts |
 
 ## Track A: reasoning logs and the news sentinel
 
