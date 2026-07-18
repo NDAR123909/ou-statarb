@@ -234,8 +234,10 @@ class RapidXBroker:
         by asking the exchange, never by reading an error string. In NET mode
         a symbol has one net position (positionSide "NONE"); in hedge mode it
         can have two, and `prefer_side` picks the leg we mean to reduce."""
+        # RapidX names the symbol field "sym" on position objects (not
+        # "symbol"); keep "symbol" as a harmless fallback for other shapes.
         matches = [p for p in self.positions()
-                   if p.get("symbol") == symbol
+                   if (p.get("sym") or p.get("symbol")) == symbol
                    and abs(self._position_qty(p)) > 0]
         if not matches:
             return None
