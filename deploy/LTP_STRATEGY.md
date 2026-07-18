@@ -130,6 +130,43 @@ pre-registration:
   z-stop closes both legs together at spread level, which is structurally
   correct for mean reversion. Every stop is in the reasoning ledger anyway.
 
+## Addendum — first live-data selection result (2026-07-18)
+
+The first selection run on real RapidX data (960 hourly bars, 28 symbols)
+passed **0 of 14** candidate pairs. This is disclosed here, not smoothed
+over, because it is partly the crypto-edge risk this document named first
+("crypto pairs may cointegrate worse") showing up on live data — exactly
+the thing a pre-registration exists to hold us to.
+
+Reading the per-pair reject reasons, most rejections were correct and left
+alone: three pairs were trending (Hurst > 0.47), three reverted too slowly
+(half-life 108–164h, too few crossings), and the strongest full-window
+pair (TAO/RENDER, ADF p=0.001) failed the split-half stability check
+because one 20-day half genuinely did not hold. The gold pair (XAUT/PAXG)
+oscillates tightly (Hurst 0.26) but with too little amplitude to clear
+costs (ADF p=0.12) — the cost-aware gate doing its job.
+
+**One parameter was changed**, transparently: the hedge-ratio band, from
+the equity default 0.25–4.0 to **0.20–5.0**, in the crypto agent only
+(`selection.py` defaults and the equity backtest are untouched). Rationale:
+crypto pairs have far wider volatility ratios than paired equities, so the
+tight equity band is an asset-class mismatch. It was rejecting **ETC/KAS** —
+ADF p=0.005, Hurst 0.37, 83 crossings, beta 0.218 stable across both halves
+— purely because 0.218 sat under the 0.25 floor. This recovers exactly that
+one genuinely-cointegrated pair; XMR/ZEC and LTC/BCH reach the cointegration
+test with the wider band and then fail it on their own merits (FDR / unstable
+beta), so the widening is not a backdoor for weak pairs.
+
+**What was deliberately not changed:** the ADF/FDR cointegration threshold,
+the split-half stability test, and the Hurst cap. Loosening any of those to
+manufacture more trades is the false-discovery trap this repo exists to
+avoid, and the live betas confirmed the gate is discriminating correctly.
+The honest consequence is a thin book — one pair now, more as the daily
+refit rolls onto fresh windows — and that is the intended shape of this
+strategy on a less-cointegrated asset class. The competitive case rests on
+survival, risk discipline, and reasoning-log quality (all scored by Track A),
+not on forcing volume.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;

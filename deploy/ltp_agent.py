@@ -86,6 +86,15 @@ class AgentConfig:
     min_half_life: float = 6.0        # bars (hours): faster is microstructure
     max_half_life: float = 168.0      # one week; slower won't cycle in Phase 1
     fdr_q: float = 0.10
+    # Hedge-ratio band, widened from the equity default (0.25/4.0). Crypto
+    # pairs have far wider volatility ratios than paired equities, so a
+    # genuinely cointegrated spread can carry a beta outside the tighter
+    # equity band. Widened after live data showed it rejecting ETC/KAS
+    # (beta 0.218, stable across halves, ADF p=0.005) purely on the floor.
+    # See LTP_STRATEGY.md 2026-07-18. The cointegration/stability/Hurst
+    # gates are untouched — this only fixes an asset-class mismatch.
+    min_abs_beta: float = 0.20
+    max_abs_beta: float = 5.0
     taker_fee: float = 5e-4           # 5 bps per leg per trade, until measured
     stop_z: float = 3.5
     max_hold_mult: float = 3.0
@@ -170,10 +179,17 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict) -> None:
         max_half_life=cfg.max_half_life,
         periods_per_year=cfg.bars_per_year,
         min_crossings_per_year=8.0 * (cfg.bars_per_year / 252),  # same density
+        min_abs_beta=cfg.min_abs_beta,
+        max_abs_beta=cfg.max_abs_beta,
     )
     table = select_pairs(logp, candidates=usable, cfg=sel_cfg)
     passed = table[table.passed]
     log(f"refit: {len(passed)}/{len(table)} candidates pass the gate")
+    if len(passed) < len(table):
+        # Why the rest were rejected — surfaced in the live logs so a quiet
+        # day is legible (genuine no-cointegration vs a tunable mismatch).
+        reasons = table.loc[~table.passed, "reject_reason"].value_counts()
+        log(f"refit: rejects {reasons.to_dict()}")
 
     fits = {}
     for _, row in passed.iterrows():
