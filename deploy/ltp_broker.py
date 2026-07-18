@@ -234,8 +234,10 @@ class RapidXBroker:
         by asking the exchange, never by reading an error string. In NET mode
         a symbol has one net position (positionSide "NONE"); in hedge mode it
         can have two, and `prefer_side` picks the leg we mean to reduce."""
+        # RapidX names the symbol field "sym" on position objects (not
+        # "symbol"); keep "symbol" as a harmless fallback for other shapes.
         matches = [p for p in self.positions()
-                   if p.get("symbol") == symbol
+                   if (p.get("sym") or p.get("symbol")) == symbol
                    and abs(self._position_qty(p)) > 0]
         if not matches:
             return None
@@ -288,7 +290,13 @@ class RapidXBroker:
     def place_market(self, symbol: str, side: str, position_side: str,
                      qty: float, max_notional: float,
                      client_order_id: str) -> dict:
-        """Preview -> submit -> readback. Returns the readback order dict."""
+        """Preview -> submit -> readback. Returns the readback order dict.
+
+        The automation session binds at PREVIEW: PreviewOrderInput accepts
+        `automationSessionId`, and the submit re-checks the session through
+        the preview token. It must NOT ride the submit — PlaceOrderInput has
+        additionalProperties:false and 400s on the unknown field (confirmed
+        against `rapidx schema --json`)."""
         params = {
             "symbol": symbol,
             "side": side,                      # BUY / SELL
@@ -298,11 +306,13 @@ class RapidXBroker:
             "maxNotional": str(round(max_notional, 2)),
             "clientOrderId": client_order_id,
         }
+        preview_params = dict(params)
         if self.automation_session_id:
-            params["automationSessionId"] = self.automation_session_id
+            preview_params["automationSessionId"] = self.automation_session_id
+        preview = self._must(["order", "place-preview"], preview_params,
+                             write=True)
 
-        preview = self._must(["order", "place-preview"], params, write=True)
-        submit = dict(params)
+        submit = dict(params)              # no automationSessionId on submit
         submit["previewId"] = preview["previewId"]
         submit["continueConsentId"] = preview["confirmation"]["submitToken"]
         self._must(["order", "place"], submit, write=True)
@@ -362,6 +372,10 @@ class RapidXBroker:
                        result="preview_error", error=preview.message)
             raise RapidXError(preview, f"close-preview {symbol}")
 
+        # ClosePositionInput is additionalProperties:false and defines no
+        # automationSessionId — the session bound at the preview above, and
+        # the submit re-checks it via the preview token, so passing it here
+        # would 400. reduceOnly is required; RapidX infers BUY/SELL itself.
         submit = {
             "symbol": symbol,
             "reduceOnly": True,
@@ -371,8 +385,6 @@ class RapidXBroker:
         }
         if send_side:
             submit["positionSide"] = send_side
-        if self.automation_session_id:
-            submit["automationSessionId"] = self.automation_session_id
         data = self._must(["position", "close"], submit, write=True)
 
         # Readback: confirm state rather than trust the submit. A post-close

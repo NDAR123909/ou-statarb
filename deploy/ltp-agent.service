@@ -1,0 +1,56 @@
+# LTP Liquidity Arena trading agent — systemd service
+#
+# Keeps deploy/ltp_agent.py running as a single always-on process. The
+# competition eliminates on drawdown, not uptime, but a *down* agent can't
+# de-risk on breaking news either, so the design is: stay alive, auto-recover
+# from crashes, and come back automatically after a reboot.
+#
+# INSTALL (as root on the droplet):
+#   0. Make sure /root/ltp.env contains your consent line, or the agent exits
+#      on start (it refuses to trade live without it). Append the same line
+#      you exported this session so it persists:
+#        grep -q LTP_AUTOMATION_CONSENT_TEXT /root/ltp.env || \
+#          echo "export LTP_AUTOMATION_CONSENT_TEXT=\"$LTP_AUTOMATION_CONSENT_TEXT\"" >> /root/ltp.env
+#   1. Verify the two paths below match your layout:
+#        pwd                  # -> /root/ou-statarb        (WorkingDirectory)
+#        echo "$VIRTUAL_ENV"  # -> /root/ou-statarb/.venv  (the python in ExecStart)
+#      Edit WorkingDirectory / ExecStart if yours differ.
+#   2. cp deploy/ltp-agent.service /etc/systemd/system/ltp-agent.service
+#   3. systemctl daemon-reload
+#   4. systemctl enable ltp-agent      # start automatically on boot
+#   5. systemctl start ltp-agent       # NOTE: this begins LIVE trading on
+#                                      # whatever account /root/ltp.env points at
+#   6. journalctl -fu ltp-agent        # watch it refit + trade
+#
+# Manage:  systemctl {status,stop,restart} ltp-agent   |   journalctl -u ltp-agent
+
+[Unit]
+Description=LTP Liquidity Arena OU pairs-trading agent
+After=network-online.target
+Wants=network-online.target
+# Never stop retrying: a rate-limited-out agent can't de-risk, the one thing
+# the contest punishes. (These keys live in [Unit] since systemd v230.)
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=/root/ou-statarb
+# Source the shell-format env file (export KEY=... lines, which systemd's own
+# EnvironmentFile= cannot read), then exec the agent so systemd tracks the
+# python process directly for clean signals / MAINPID. set -a is belt-and-
+# suspenders for any line missing `export`; -u keeps logs unbuffered so they
+# reach the journal promptly.
+ExecStart=/bin/bash -c 'set -a && . /root/ltp.env && set +a && exec .venv/bin/python -u deploy/ltp_agent.py'
+
+# Crashes come back after 10s. State (drawdown peak, halt flag, per-pair stop
+# blocks) is persisted to deploy/ltp_state.json each bar, so a restart resumes
+# where it left off — including staying halted if the kill switch had fired.
+Restart=always
+RestartSec=10
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ltp-agent
+
+[Install]
+WantedBy=multi-user.target
