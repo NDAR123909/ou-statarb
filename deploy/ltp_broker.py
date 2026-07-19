@@ -400,12 +400,40 @@ class RapidXBroker:
         return data
 
     def cancel_all(self, symbol: str | None = None) -> None:
-        payload = {"symbol": symbol} if symbol else {}
-        res = self._run(["order", "cancel-all"], payload or None, write=True)
-        if not res.ok and res.status not in ("NOT_FOUND",):
-            self._emit("cancel_all", symbol=symbol, result="error",
-                       error=res.message)
-            raise RapidXError(res, "cancel-all")
-        self._emit("cancel_all", symbol=symbol,
-                   result="ok" if res.ok else res.status,
-                   canceled=res.data.get("canceled") if isinstance(res.data, dict) else None)
+        """Cancel resting orders via preview->submit.
+
+        order.cancel-all is previewRequired (a bare submit 400s with
+        RCLI20002 'previewId is required'), and its preview is the generic
+        trade preview with targetCapabilityId=order.cancel-all. The strategy
+        trades MARKET orders, so in the normal path there is nothing resting:
+        we check open_orders() first and skip the write entirely when empty,
+        which also avoids previewing against an empty book. Session binds at
+        the preview; CancelAllOrdersInput carries no automationSessionId."""
+        orders = self.open_orders()
+        if symbol:
+            orders = [o for o in orders
+                      if (o.get("sym") or o.get("symbol")) == symbol]
+        if not orders:
+            self._emit("cancel_all", symbol=symbol, result="no_open_orders")
+            return
+
+        prev = {"targetCapabilityId": "order.cancel-all"}
+        if symbol:
+            prev["symbol"] = symbol
+        if self.automation_session_id:
+            prev["automationSessionId"] = self.automation_session_id
+        preview = self._run(["trade", "preview"], prev, write=True)
+        if not preview.ok:
+            self._emit("cancel_all", symbol=symbol, result="preview_error",
+                       error=preview.message)
+            raise RapidXError(preview, "cancel-all preview")
+
+        submit = {
+            "previewId": preview.data["previewId"],
+            "continueConsentId": preview.data["confirmation"]["submitToken"],
+        }
+        if symbol:
+            submit["symbol"] = symbol
+        data = self._must(["order", "cancel-all"], submit, write=True)
+        self._emit("cancel_all", symbol=symbol, result="ok",
+                   canceled=data.get("canceled") if isinstance(data, dict) else None)

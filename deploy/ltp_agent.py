@@ -254,7 +254,12 @@ def flatten_everything(broker: RapidXBroker, state: dict, nav: float,
         log("  DRY: cancel-all")
     else:
         broker.op_context = {"decision": "kill_switch", "pair": "*"}
-        broker.cancel_all()
+        # cancel-all is best-effort: closing positions is what protects the
+        # account, so a cancel failure must not block the leg closes below.
+        try:
+            broker.cancel_all()
+        except RapidXError as exc:
+            log(f"  cancel-all failed (closing positions anyway): {exc}")
         broker.op_context = {}
     for pair in state["pairs"].values():
         if pair.get("side", 0) != 0:
@@ -299,18 +304,48 @@ def derisk(broker: RapidXBroker, cfg: AgentConfig, state: dict,
 def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                dry: bool, sentinel: NewsSentinel | None = None) -> None:
     nav = broker.equity_usdt()
+
+    # A bad equity read must never be mistaken for a drawdown. A funded
+    # account cannot legitimately read <= 0, and a market-neutral,
+    # leverage-capped book cannot halve in a single bar — the kill switch
+    # trips gradually at 88% of peak, far above this 50% floor, so a real
+    # drawdown is never masked here. An implausibly low nav is a failed or
+    # partial overview read (a defunded/transitioning account, a transient
+    # API glitch): skip the bar without polluting the peak or firing the
+    # kill switch, and retry next bar. (Without this, a one-off nav=0 read
+    # computes a 100% drawdown and flattens the book on phantom losses.)
+    if nav <= 0 or (state["peak_equity"] > 0
+                    and nav < 0.5 * state["peak_equity"]):
+        log(f"  implausible equity read (nav={nav:.2f} vs peak "
+            f"{state['peak_equity']:.2f}); treating as a bad read, skipping bar")
+        ledger("bad_read", nav=nav, peak=state["peak_equity"])
+        return
+
     state["peak_equity"] = max(state["peak_equity"], nav)
     dd = 1.0 - nav / state["peak_equity"] if state["peak_equity"] > 0 else 0.0
 
     if state["halted"]:
-        log(f"halted (dd kill switch); equity {nav:.2f}, monitoring only")
+        # Halt has latched: never open new risk again. Keep RE-attempting the
+        # flatten each bar until the book is actually flat — a de-risk retry,
+        # not just monitoring — so a flatten that failed mid-way completes.
+        log(f"halted (kill switch); equity {nav:.2f} — de-risking, monitoring only")
+        try:
+            flatten_everything(broker, state, nav, dry)
+        except RapidXError as exc:
+            log(f"  halted de-risk retry failed (will retry next bar): {exc}")
         return
     if dd >= cfg.dd_halt:
         log(f"KILL SWITCH: drawdown {dd:.1%} >= {cfg.dd_halt:.0%} — "
             f"flattening everything and halting (contest eliminates at 800U)")
         ledger("kill_switch", nav=nav, peak=state["peak_equity"], drawdown=dd)
-        flatten_everything(broker, state, nav, dry)
+        # Latch the halt BEFORE flattening, so even if the flatten cannot
+        # complete (API hiccup), we never open new risk and the halted branch
+        # above retries the flatten on subsequent bars.
         state["halted"] = True
+        try:
+            flatten_everything(broker, state, nav, dry)
+        except RapidXError as exc:
+            log(f"  kill-switch flatten failed (will retry while halted): {exc}")
         return
 
     gross = 0.0
