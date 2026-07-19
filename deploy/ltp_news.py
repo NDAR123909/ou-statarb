@@ -42,7 +42,10 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-import requests
+try:
+    import requests
+except ImportError:      # the news sentinel is optional infrastructure; with
+    requests = None      # no requests it fetches nothing and the math trades on
 
 FEEDS_BASE = os.environ.get("LTP_API_HOST", "https://api.ltp-contest.com")
 
@@ -134,6 +137,8 @@ def _feeds_get(path: str, params: dict, key: str, secret: str) -> dict:
 
 def fetch_news(hours: float = 2.0, page_size: int = 40) -> list[dict]:
     """Recent items from the LTP feeds API. Empty list on any failure."""
+    if requests is None:                       # dependency absent: fail open
+        return []
     key = os.environ.get("LTP_ACCESS_KEY", "")
     secret = os.environ.get("LTP_SECRET_KEY", "")
     if not (key and secret):
