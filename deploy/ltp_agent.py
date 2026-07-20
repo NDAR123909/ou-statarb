@@ -526,8 +526,15 @@ def main() -> None:
         if args.dry_run or time.time() - session_started < 23 * 3600:
             return
         symbols = sorted({t for p in CANDIDATES for t in p})
+        # Per-order cap is 1x NAV (1000): the risk-sizing puts ~0.5x NAV of
+        # notional on a leg, but the order's safety ceiling is 1.1x that, and
+        # the hedge leg of a higher-beta pair scales with beta — so 500 was
+        # below the ceiling and blocked legitimate orders (RCLI26005). 1000
+        # clears both legs of the selected pairs and still sits under the 2x
+        # leverage limit. Total stays 4000 as a coarse net; the strategy's own
+        # gross cap (max_gross_mult=2x) is the real total-exposure limiter.
         sid = broker.start_automation(
-            symbols, max_per_order="500", max_total="4000",
+            symbols, max_per_order="1000", max_total="4000",
             expires_s=24 * 3600, consent_text=consent)
         session_started = time.time()
         log(f"automation session {sid}")
