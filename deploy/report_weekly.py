@@ -25,7 +25,7 @@ import glob
 import json
 import subprocess
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -269,7 +269,7 @@ def main() -> int:
     log_path = Path(args[1]) if len(args) > 1 else root.parent / "LOG.md" \
         if root.name == "track_record" else Path("LOG.md")
 
-    today = datetime.utcnow().date().isoformat()
+    today = datetime.now(timezone.utc).date().isoformat()
     wrote = append_entry(root, log_path, today, force=force)
     if wrote:
         print(f"weekly log: appended entry for {today} -> {log_path}")
