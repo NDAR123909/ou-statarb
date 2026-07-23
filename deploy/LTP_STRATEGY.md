@@ -167,6 +167,38 @@ strategy on a less-cointegrated asset class. The competitive case rests on
 survival, risk discipline, and reasoning-log quality (all scored by Track A),
 not on forcing volume.
 
+## Addendum — universe breadth check + one added pair (2026-07-22)
+
+By day 3 the live book had gone thin to idle (refit pair count 1→2→2→1→0)
+and the Sharpe — 40% of the Phase-1 score — was frozen by inactivity. Before
+touching anything, we ran a read-only breadth diagnostic
+(`deploy/universe_scan.py`): the SAME selection gates and FDR, applied to a
+4x-wider set of **economically-motivated** sector pairs (55 within-group
+pairs across 51 available whitelist symbols — never blind all-vs-all).
+
+The honest result was **mostly a regime, not a too-small universe**: the wider
+rigorous search passed only two pairs — RENDER/TAO (our existing pair,
+re-oriented) and **AR/FIL** (Arweave/Filecoin, decentralized storage;
+ADF p=0.0011, Hurst 0.39, half-life 22h, beta 0.74, 84 crossings). The other
+~50 failed on genuine grounds (beta out of range, split-half, half-life,
+crossings). So crypto cointegration is simply thin right now, and the agent
+sitting mostly-idle is partly *correct* — it protects the low drawdown that is
+our one banked edge; forcing trades in a trending tape would cost both Sharpe
+and MDD.
+
+**One change, disclosed:** AR/FIL is added to `CANDIDATES` — a genuine
+storage-sector pair we were blind to, not a manufactured one. The gates
+(ADF/FDR, split-half, Hurst, half-life, crossings) are **untouched**; this is
+breadth with economic rationale, not loosening. Expectation set honestly: one
+pair does not transform a thin book — it improves activity at the margin while
+the strategy stays disciplined.
+
+**Parked for careful review, not changed reactively:** the diagnostic showed
+RENDER/TAO passing where our hardcoded TAO/RENDER orientation did not on the
+same window — the Engle-Granger test is orientation-sensitive. Testing both
+directions could recover a few more pairs but touches the FDR invariant, so it
+is deferred to a considered review rather than a competition-day reflex.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;

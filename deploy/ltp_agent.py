@@ -74,6 +74,7 @@ CANDIDATES = [
     ("BINANCE_PERP_TAO_USDT", "BINANCE_PERP_RENDER_USDT"),   # AI/compute
     ("BINANCE_PERP_LINK_USDT", "BINANCE_PERP_QNT_USDT"),     # middleware
     ("BINANCE_PERP_ETC_USDT", "BINANCE_PERP_KAS_USDT"),      # proof-of-work
+    ("BINANCE_PERP_AR_USDT", "BINANCE_PERP_FIL_USDT"),       # decentralized storage
 ]
 
 
