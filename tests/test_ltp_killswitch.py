@@ -89,3 +89,41 @@ def test_drawdown_just_below_threshold_does_not_halt():
     assert state["halted"] is False
     assert "kill_switch" not in events
     assert "bad_read" not in events
+
+
+# --- durable drawdown high-water mark (kill-switch anchor) -------------------
+
+def test_peak_anchor_survives_state_wipe(tmp_path):
+    # The agent recorded a 1000 peak; then the operational state gets wiped
+    # (rm ltp_state.json, e.g. to force a refit). The anchor must not drop.
+    cfg = agent.AgentConfig(hwm_path=str(tmp_path / "hwm.json"))
+    agent.save_hwm(cfg.hwm_path, 1000.0)
+    wiped = {"peak_equity": 0.0, "halted": False, "pairs": {}, "bar": 0}
+    peak = agent.anchor_peak(cfg, wiped)
+    assert peak == 1000.0
+    assert wiped["peak_equity"] == 1000.0
+
+
+def test_peak_anchor_takes_the_high_water_mark(tmp_path):
+    # A genuine new high (1050) was recorded; a stale state (1020) must not win.
+    cfg = agent.AgentConfig(hwm_path=str(tmp_path / "hwm.json"))
+    agent.save_hwm(cfg.hwm_path, 1050.0)
+    peak = agent.anchor_peak(cfg, {"peak_equity": 1020.0})
+    assert peak == 1050.0
+
+
+def test_peak_anchor_floors_at_funded_equity(tmp_path):
+    # No hwm file and a zeroed state -> anchor to the funded starting equity,
+    # never below it.
+    cfg = agent.AgentConfig(hwm_path=str(tmp_path / "hwm.json"))
+    peak = agent.anchor_peak(cfg, {"peak_equity": 0.0})
+    assert peak == cfg.initial_equity
+
+
+def test_hwm_file_ratchets_and_round_trips(tmp_path):
+    hwm = str(tmp_path / "hwm.json")
+    assert agent.load_hwm(hwm) == 0.0            # missing -> 0
+    agent.save_hwm(hwm, 1000.0)
+    assert agent.load_hwm(hwm) == 1000.0
+    agent.save_hwm(hwm, 1075.0)
+    assert agent.load_hwm(hwm) == 1075.0

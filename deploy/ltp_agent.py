@@ -107,6 +107,12 @@ class AgentConfig:
                                       # contest eliminates at equity < 800U,
                                       # so this always fires first (>= 880)
     state_path: str = "deploy/ltp_state.json"
+    # Durable drawdown high-water mark, kept in its OWN file so clearing the
+    # disposable operational state (rm ltp_state.json, e.g. to force a refit)
+    # can never silently re-anchor the kill switch to a lower equity. Seeded
+    # to the funded starting equity, which is also the peak's floor.
+    hwm_path: str = "deploy/ltp_hwm.json"
+    initial_equity: float = 1000.0
 
 
 def log(msg: str) -> None:
@@ -146,6 +152,37 @@ def load_state(path: str) -> dict:
 
 def save_state(path: str, state: dict) -> None:
     Path(path).write_text(json.dumps(state, indent=2, default=float))
+
+
+def load_hwm(path: str) -> float:
+    """The durable drawdown high-water mark, or 0.0 if it doesn't exist yet.
+    Deliberately a separate file from the operational state so a state wipe
+    can't lower it."""
+    p = Path(path)
+    if not p.exists():
+        return 0.0
+    try:
+        return float(json.loads(p.read_text()).get("peak_equity", 0.0))
+    except (ValueError, OSError):
+        return 0.0
+
+
+def save_hwm(path: str, value: float) -> None:
+    """Persist the high-water mark. Monotonic by construction at the call
+    sites (always max'd with the prior value), so this only ever ratchets up."""
+    Path(path).write_text(json.dumps({"peak_equity": float(value)}))
+
+
+def anchor_peak(cfg: "AgentConfig", state: dict) -> float:
+    """Set state['peak_equity'] to the highest of the operational state, the
+    durable high-water-mark file, and the funded floor; persist it and return
+    it. Called once at startup so a wiped state can't lower the kill-switch
+    anchor."""
+    peak = max(float(state.get("peak_equity", 0.0)),
+               load_hwm(cfg.hwm_path), cfg.initial_equity)
+    state["peak_equity"] = peak
+    save_hwm(cfg.hwm_path, peak)
+    return peak
 
 
 # ------------------------------------------------------------------- fitting --
@@ -323,6 +360,7 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
         return
 
     state["peak_equity"] = max(state["peak_equity"], nav)
+    save_hwm(cfg.hwm_path, state["peak_equity"])   # ratchet the durable mark
     dd = 1.0 - nav / state["peak_equity"] if state["peak_equity"] > 0 else 0.0
 
     if state["halted"]:
@@ -511,6 +549,9 @@ def main() -> None:
     cfg = AgentConfig()
     broker = RapidXBroker(on_operation=ledger_operation)
     state = load_state(cfg.state_path)
+    # Anchor the drawdown peak from the durable high-water mark so a state
+    # wipe (e.g. forcing a refit) can't re-anchor the kill switch downward.
+    log(f"drawdown peak anchored at {anchor_peak(cfg, state):.2f} USDT")
 
     check = broker.self_check()
     if not check.ok:
