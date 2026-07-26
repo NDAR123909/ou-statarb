@@ -370,6 +370,83 @@ def derisk(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                 f"at next bar")
 
 
+def reconcile_positions(broker: RapidXBroker, state: dict, dry: bool) -> None:
+    """Make the exchange the source of truth about what we are holding.
+
+    State and reality can disagree in two directions, and both are dangerous:
+
+      - The exchange holds a position the strategy has no record of. Causes
+        seen live: a wiped or stale state file, and a crash (or an API error)
+        between placing the first and second leg of an entry. Nothing will
+        ever exit or stop that position, and because the pair still reads as
+        flat the agent can open a SECOND position in the same direction.
+      - The strategy believes it holds a pair the exchange has already closed,
+        so its side, hold clock and gross-exposure accounting are all wrong.
+
+    Anything the strategy cannot account for is FLATTENED rather than adopted.
+    Adopting would mean reconstructing the entry price, the hold clock and the
+    hedge ratio the legs were originally sized under -- and a mis-adopted pair
+    is a mis-hedged pair, which is a directional bet wearing a market-neutral
+    costume. Flattening costs one round trip of fees, always reduces risk, and
+    the strategy re-enters cleanly on its own terms if the signal still holds.
+
+    The half-open case (one leg live, one not) is the worst of all: naked
+    directional exposure in a book whose entire premise is being hedged. It is
+    closed on sight.
+    """
+    live: dict[str, dict] = {}
+    for p in broker.positions():
+        if abs(broker._position_qty(p)) > 0:
+            sym = p.get("sym") or p.get("symbol")
+            if sym:
+                live[sym] = p
+
+    def _close(sym: str, why: str, pair_key: str) -> None:
+        pos = live.get(sym, {})
+        val = abs(float(pos.get("positionValue") or 0.0)) or 1000.0
+        log(f"  reconcile: {why} — closing unmanaged {sym}")
+        ledger("reconcile", action=why, symbol=sym, pair=pair_key,
+               qty=broker._position_qty(pos), dry=dry,
+               reasoning=(
+                   f"The exchange reports an open {sym} position that the "
+                   f"strategy's own state does not account for ({why}). An "
+                   f"unmanaged position has no exit, no stop and no place in "
+                   f"the gross-exposure budget, and a pair that reads as flat "
+                   f"can be entered again on top of it. It is closed rather "
+                   f"than adopted, because adopting it would mean guessing the "
+                   f"hedge ratio it was sized under."))
+        if not dry:
+            broker.op_context = {"decision": "reconcile", "pair": pair_key}
+            broker.close_position(sym, pos.get("positionSide") or "LONG",
+                                  max_notional=max(2.0 * val, 100.0))
+            broker.op_context = {}
+        live.pop(sym, None)
+
+    # 1. pairs the state believes are open: confirm both legs really are
+    for key, pair in state.get("pairs", {}).items():
+        if pair.get("side", 0) == 0:
+            continue
+        a_live, b_live = pair["a"] in live, pair["b"] in live
+        if a_live and b_live:
+            continue                       # consistent, leave it alone
+        if not a_live and not b_live:
+            log(f"  reconcile: {key} recorded open but the exchange is flat; "
+                f"clearing stale side")
+            ledger("reconcile", action="clear_stale_side", pair=key,
+                   side=pair.get("side"), dry=dry)
+            pair["side"], pair["hold"] = 0, 0
+        else:
+            _close(pair["a"] if a_live else pair["b"], "half_open_pair", key)
+            pair["side"], pair["hold"] = 0, 0
+
+    # 2. anything still live that no open pair accounts for is an orphan
+    expected = {s for pair in state.get("pairs", {}).values()
+                if pair.get("side", 0) != 0 for s in (pair["a"], pair["b"])}
+    for sym in list(live):
+        if sym not in expected:
+            _close(sym, "unknown_position", "*")
+
+
 def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                dry: bool, sentinel: NewsSentinel | None = None,
                analyst=None) -> None:
@@ -686,6 +763,12 @@ def main() -> None:
             ensure_session()
             if state["bar"] % cfg.refit_every_bars == 0:
                 refit(broker, cfg, state, analyst)
+            # Reality check before acting: a restart, a wiped state file or a
+            # failure between an entry's two legs can leave the exchange
+            # holding something the strategy doesn't know about. Run this
+            # BEFORE trade_step so nothing is ever stacked on top of an
+            # unmanaged position.
+            reconcile_positions(broker, state, args.dry_run)
             assets = active_assets()
             if assets:
                 sentinel.refresh(assets)

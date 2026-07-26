@@ -273,6 +273,36 @@ fitting is wrapped so a degenerate half-window can't escape either, and the
 bar loop catches everything with a logged `bar_error` — a live agent that is
 down cannot de-risk. Pinned by `test_selector_survives_degenerate_series`.
 
+## Addendum — position reconciliation (2026-07-26)
+
+Recorded because it is a live incident, not a hypothetical. Forcing a refit by
+clearing the state file was done **while a TAO/RENDER pair was open**. The
+agent restarted believing it was flat while the exchange still held ~1,193 USDT
+of gross exposure: no exit, no stop, outside the gross-exposure budget — and
+because the pair read as flat, the next entry signal would have opened a
+*second* position in the same direction on top of it. It was caught in the
+same session and closed manually (both legs, ~0.3 USDT unrealised).
+
+The operator error was the trigger, but the failure mode does not need one:
+entries place two legs sequentially, so a crash or an API error between them
+leaves exactly the same inconsistency — and worse, a **naked directional leg**
+in a book whose entire premise is being hedged.
+
+`reconcile_positions()` now runs at startup and before every trade step:
+
+- exchange positions no open pair accounts for are **closed**;
+- a half-open pair (one leg live) is closed on sight;
+- a pair the state records as open that the exchange has already closed has
+  its side and hold clock cleared.
+
+Unaccounted positions are **flattened rather than adopted**, deliberately.
+Adopting means reconstructing the entry price, the hold clock and the hedge
+ratio the legs were sized under; a mis-adopted pair is a mis-hedged one, which
+is a directional bet wearing a market-neutral costume. Flattening costs one
+round trip of fees, always reduces risk, and the strategy re-enters cleanly on
+its own terms if the signal still holds. Pinned by `tests/test_ltp_reconcile.py`,
+including the requirement that a *healthy* open pair is never churned.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;
