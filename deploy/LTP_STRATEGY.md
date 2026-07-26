@@ -237,6 +237,42 @@ calling above a ceiling that leaves headroom. Everything fails open: no key, no
 SDK, a malformed reply, or an exhausted budget degrades to "no analysis, no
 veto" and the systematic strategy runs on. Pinned by `tests/test_ltp_analyst.py`.
 
+## Addendum — canonical pair orientation + degeneracy guard (2026-07-26)
+
+Engle-Granger is not symmetric: regressing A on B is a different test from B
+on A. That meant the order a pair happened to be **typed into `CANDIDATES`**
+silently decided whether a genuinely cointegrated pair was found — luck, not
+rigour. The live scan made it concrete: `SOL/AVAX` fails in our hardcoded
+direction while `AVAX/SOL` passes at ADF p=0.0024.
+
+Measured three resolutions on the same 54-pair panel before changing anything:
+the arbitrary-but-systematic alphabetical order found 3 distinct pairs, the
+a-priori vol-rule found 3, and our hardcoded orientation found 2.
+
+**Adopted: the vol-rule.** The more volatile series becomes the dependent
+variable, so the cleaner series is the regressor — the standard
+errors-in-variables mitigation, since noise in a regressor attenuates beta.
+Decisive property: the rule is fixed in advance and **never inspects a
+p-value**, so it adds no multiple testing. The rejected alternative was
+"test both directions and keep whichever passes"; that finds at least as many
+pairs *partly because it looks twice*, and the two orientations of one pair
+are strongly correlated tests, which puts Benjamini-Hochberg on softer ground.
+Since the vol-rule matched it at the top of the list, there was no case for
+paying that price. Honest size of the win: **one extra pair (2 → 3)** — real,
+principled, and not a Sharpe fix.
+
+**Degeneracy guard (the more important find).** The diagnostic crashed with
+`ValueError: Invalid input, x is constant` from `adfuller`: a halted or
+untraded symbol gives a flat log-price series, a degenerate regression, and a
+constant spread. In the live agent this exception propagated out of `refit()`
+past a bar loop that caught only `RapidXError` — so **one bad whitelist symbol
+would have killed the process, which systemd would restart straight back into
+the same failing refit.** Now such pairs are rejected explicitly (with p=1.0
+so they still count as tests in the FDR correction, per invariant 3), the
+fitting is wrapped so a degenerate half-window can't escape either, and the
+bar loop catches everything with a logged `bar_error` — a live agent that is
+down cannot de-risk. Pinned by `test_selector_survives_degenerate_series`.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;

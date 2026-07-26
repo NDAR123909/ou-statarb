@@ -211,7 +211,18 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict,
         log("refit: no data panel, keeping previous fits")
         return
 
-    usable = [(a, b) for a, b in CANDIDATES
+    # Canonical orientation. Engle-Granger is not symmetric: regressing A on B
+    # is a different test from B on A, so the order a pair happens to be typed
+    # in silently decides whether a genuinely cointegrated pair is found (live
+    # scan: SOL/AVAX fails, AVAX/SOL passes at ADF p=0.0024). Resolve it with a
+    # rule fixed in ADVANCE rather than by trying both and keeping the winner:
+    # the MORE volatile series becomes the dependent variable, so the cleaner
+    # series is the regressor. That is the standard errors-in-variables
+    # mitigation -- noise in a regressor attenuates beta -- and because the
+    # rule never inspects a p-value it adds no multiple testing at all.
+    usable = [(a, b) if np.std(np.diff(logp[a].values)) >=
+                        np.std(np.diff(logp[b].values)) else (b, a)
+              for a, b in CANDIDATES
               if a in logp.columns and b in logp.columns]
     sel_cfg = SelectionConfig(
         fdr_q=cfg.fdr_q,
@@ -682,6 +693,16 @@ def main() -> None:
                        analyst)
         except RapidXError as exc:
             log(f"bar error (will retry next bar): {exc}")
+        except Exception as exc:
+            # An always-on agent must not die on a data or model problem: a
+            # single bad symbol (constant series, NaN, a numerical edge case
+            # in a fit) used to propagate out of refit and kill the process,
+            # which then restarted straight back into the same refit. Log it
+            # loudly, keep the state, and let the next bar retry -- a live
+            # agent that is down cannot de-risk.
+            log(f"UNEXPECTED bar error ({type(exc).__name__}: {exc}); "
+                f"continuing to next bar")
+            ledger("bar_error", error_type=type(exc).__name__, error=str(exc)[:500])
         state["bar"] += 1
         save_state(cfg.state_path, state)
         if args.once:

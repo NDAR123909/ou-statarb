@@ -107,6 +107,31 @@ def test_selector_keeps_real_pair_rejects_fake():
     assert not others.passed.any()
 
 
+def test_selector_survives_degenerate_series():
+    """A halted/untraded symbol gives a flat log-price series, which makes the
+    ADF test raise outright. One such symbol must not take down the scan (or,
+    live, the refit that calls it): the pair is rejected explicitly and every
+    other pair is still screened normally."""
+    rng = np.random.default_rng(7)
+    n = 1200
+    common = np.cumsum(0.012 * rng.standard_normal(n))
+    lp_b = 3.0 + common
+    lp_a = 1.1 * lp_b + simulate_ou(rng, 0.08, 0.0, 0.015, n)
+    flat = np.full(n, 2.5)                      # halted symbol: never moves
+    panel = pd.DataFrame({"A": lp_a, "B": lp_b, "DEAD": flat})
+
+    res = select_pairs(panel)                   # must not raise
+
+    dead = res[(res.a == "DEAD") | (res.b == "DEAD")]
+    assert len(dead) == 2                       # still counted as tests (FDR)
+    assert not dead.passed.any()
+    assert (dead.reject_reason == "degenerate price series").all()
+    assert (dead.adf_pvalue == 1.0).all()       # conservative p for the BH step
+    # the healthy pair is unaffected by its degenerate neighbour
+    ab = res[(res.a == "A") & (res.b == "B")].iloc[0]
+    assert ab.passed
+
+
 # ---- structural-break stop ---------------------------------------------------
 def test_stop_z_caps_loss_when_relationship_breaks():
     """
