@@ -155,6 +155,39 @@ def fetch_news(hours: float = 2.0, page_size: int = 40) -> list[dict]:
         return []
 
 
+def organizer_client():
+    """Organizer AI gateway first; own key only outside competition mode.
+
+    The gateway (LTP_AI_BASE_URL) serves MiniMax-M3 behind an
+    Anthropic-compatible endpoint, so the anthropic SDK drives it with only a
+    base_url swap. Its notes require timeout >= 300s and <= 3 retries on
+    transient errors; both are set here. Shared by every AI caller in the
+    agent so there is exactly one place a non-organizer endpoint could enter
+    — and in competition mode there is none."""
+    try:
+        import anthropic
+    except ImportError:
+        return None
+    base = os.environ.get("LTP_AI_BASE_URL")
+    key = os.environ.get("LTP_AI_API_KEY")
+    if base and key:
+        return anthropic.Anthropic(base_url=base, api_key=key,
+                                   timeout=300.0, max_retries=3)
+    if os.environ.get("LTP_COMPETITION_MODE"):
+        # Using a self-provided AI API during the competition is a
+        # disqualification offense. No organizer endpoint configured ->
+        # no LLM at all; callers fail open and the math trades on.
+        return None
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return anthropic.Anthropic()
+    return None
+
+
+def model_name() -> str:
+    return (os.environ.get("LTP_AI_MODEL")
+            or os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-8"))
+
+
 @dataclass
 class NewsSentinel:
     """Hourly news -> per-asset severity verdicts, consumed by the agent."""
@@ -165,29 +198,7 @@ class NewsSentinel:
 
     @staticmethod
     def _client():
-        """Organizer AI gateway first; own key only outside competition mode.
-
-        The gateway (LTP_AI_BASE_URL) serves MiniMax-M3 behind an
-        Anthropic-compatible endpoint, so the anthropic SDK drives it with
-        only a base_url swap. Its notes require timeout >= 300s and <= 3
-        retries on transient errors; both are set here."""
-        try:
-            import anthropic
-        except ImportError:
-            return None
-        base = os.environ.get("LTP_AI_BASE_URL")
-        key = os.environ.get("LTP_AI_API_KEY")
-        if base and key:
-            return anthropic.Anthropic(base_url=base, api_key=key,
-                                       timeout=300.0, max_retries=3)
-        if os.environ.get("LTP_COMPETITION_MODE"):
-            # Using a self-provided AI API during the competition is a
-            # disqualification offense. No organizer endpoint configured ->
-            # no LLM at all; the sentinel fails open and the math trades on.
-            return None
-        if os.environ.get("ANTHROPIC_API_KEY"):
-            return anthropic.Anthropic()
-        return None
+        return organizer_client()
 
     @staticmethod
     def _extract_json(text: str) -> dict | None:

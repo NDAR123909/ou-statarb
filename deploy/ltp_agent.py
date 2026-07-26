@@ -47,6 +47,7 @@ from statarb.ou import fit_spread_model                              # noqa: E40
 from statarb.thresholds import optimal_bands                         # noqa: E402
 from deploy.ltp_broker import RapidXBroker, RapidXError              # noqa: E402
 from deploy.ltp_news import NewsSentinel                             # noqa: E402
+from deploy.ltp_analyst import StrategyAnalyst                       # noqa: E402
 from deploy.ltp_stream import NewsStream                             # noqa: E402
 
 
@@ -201,7 +202,8 @@ def fetch_panel(broker: RapidXBroker, symbols: list[str],
     return np.log(panel)
 
 
-def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict) -> None:
+def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict,
+          analyst=None) -> None:
     """Weekly-refit equivalent: selection + OU fit + cost-aware bands."""
     symbols = sorted({t for p in CANDIDATES for t in p})
     logp = fetch_panel(broker, symbols, cfg)
@@ -222,12 +224,14 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict) -> None:
     )
     table = select_pairs(logp, candidates=usable, cfg=sel_cfg)
     passed = table[table.passed]
+    reject_counts: dict = {}
     log(f"refit: {len(passed)}/{len(table)} candidates pass the gate")
     if len(passed) < len(table):
         # Why the rest were rejected — surfaced in the live logs so a quiet
         # day is legible (genuine no-cointegration vs a tunable mismatch).
-        reasons = table.loc[~table.passed, "reject_reason"].value_counts()
-        log(f"refit: rejects {reasons.to_dict()}")
+        reject_counts = table.loc[~table.passed,
+                                  "reject_reason"].value_counts().to_dict()
+        log(f"refit: rejects {reject_counts}")
 
     fits = {}
     for _, row in passed.iterrows():
@@ -269,6 +273,22 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict) -> None:
            active=sorted(keep_keys),
            bands={k: {"entry_z": f["entry_z"], "exit_z": f["exit_z"],
                       "half_life": f["half_life"]} for k, f in fits.items()})
+
+    # STRATEGY ADAPTATION (Track A reasoning audit): the organizer LLM reads
+    # today's selection outcome and records an honest account of how the
+    # tradeable universe is adapting. Advisory only — it never edits the
+    # selection, and a failure here must not disturb the refit.
+    if analyst is not None:
+        rows = [{"pair": f"{r.a.split('_')[2]}/{r.b.split('_')[2]}",
+                 "adf_p": float(r.adf_pvalue), "hurst": float(r.hurst),
+                 "half_life": float(r.half_life), "beta": float(r.beta),
+                 "crossings": int(r.crossings)}
+                for _, r in passed.iterrows()]
+        review = analyst.review_refit(rows, reject_counts, sorted(old.keys()))
+        if review:
+            log(f"  ai refit review: {str(review.get('assessment', ''))[:160]}")
+            ledger("ai_refit_review", passed=int(len(passed)),
+                   tested=int(len(table)), active=sorted(keep_keys), **review)
 
 
 # ------------------------------------------------------------------ trading --
@@ -340,7 +360,8 @@ def derisk(broker: RapidXBroker, cfg: AgentConfig, state: dict,
 
 
 def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
-               dry: bool, sentinel: NewsSentinel | None = None) -> None:
+               dry: bool, sentinel: NewsSentinel | None = None,
+               analyst=None) -> None:
     nav = broker.equity_usdt()
 
     # A bad equity read must never be mistaken for a drawdown. A funded
@@ -410,6 +431,29 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
         z = (spread - pair["mu"]) / pair["sigma"]
         short_name = f"{a.split('_')[2]}/{b.split('_')[2]}"
 
+        # rolling z path, kept in state so the analyst (and the audit) can see
+        # the shape of the divergence, not just its latest value
+        z_path = (pair.get("z_path") or [])[-23:] + [round(float(z), 3)]
+        pair["z_path"] = z_path
+
+        # MARKET ANOMALY DETECTION (Track A reasoning audit): the organizer
+        # LLM judges whether this spread still behaves like the mean-reverting
+        # process the model assumes. Logged every bar; a "broken" verdict can
+        # only VETO an entry below — never open, size up, or re-enter.
+        assessment = {}
+        if analyst is not None and not dry:
+            news_note = (sentinel.note(base_asset(a), base_asset(b))
+                         if sentinel else "news sentinel disabled")
+            assessment = analyst.assess_spread(
+                pair=short_name, z=float(z), entry_z=pair["entry_z"],
+                exit_z=pair["exit_z"], stop_z=cfg.stop_z,
+                half_life=pair["half_life"], beta=pair["beta"],
+                z_path=z_path, news_note=news_note,
+                holding=pair.get("side", 0) != 0)
+            if assessment:
+                ledger("ai_spread_assessment", pair=short_name, z=float(z),
+                       holding=pair.get("side", 0) != 0, **assessment)
+
         # heal the post-stop one-sided block once z is back inside the band
         if pair.get("blocked", 0) == +1 and z > -pair["entry_z"]:
             pair["blocked"] = 0
@@ -458,6 +502,25 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                 continue
             news_note = sentinel.note(base_asset(a), base_asset(b)) if sentinel \
                 else "news sentinel disabled"
+            # Anomaly veto: the analyst judged the spread structurally broken,
+            # so the mean-reversion premise does not hold. Risk-reducing only.
+            if analyst is not None and assessment:
+                broken = analyst.anomaly_veto(assessment)
+                if broken:
+                    log(f"  {short_name}: ANOMALY VETO — {broken}")
+                    ledger("skip", pair=short_name, reason="anomaly_veto", z=z,
+                           assessment=assessment, nav=nav,
+                           reasoning=(
+                               f"The quantitative entry signal was live "
+                               f"(z={z:+.2f} beyond the cost-aware band "
+                               f"{pair['entry_z']:.2f}), but the spread's live "
+                               f"regime was rated broken rather than merely "
+                               f"stretched: {broken}. Mean reversion presumes "
+                               f"the spread is a spring; when the evidence says "
+                               f"the relationship itself has changed, entering "
+                               f"would be betting on a spring that has snapped, "
+                               f"so no position is opened."))
+                    continue
             if sentinel is not None:
                 rationale = sentinel.veto(base_asset(a), base_asset(b))
                 if rationale:
@@ -486,7 +549,11 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                               f"the spread: risk-budgeted {g:.0f} USDT against "
                               f"hedge ratio beta={pair['beta']:.2f}. Pair passed "
                               f"FDR-corrected cointegration + split-half stability "
-                              f"at the last refit. {news_note}."))
+                              f"at the last refit. {news_note}."
+                              + (f" Spread-regime analysis: "
+                                 f"{assessment.get('regime')} — "
+                                 f"{assessment.get('rationale', '')}"
+                                 if assessment else "")))
             if not dry:
                 broker.op_context = {"decision": "enter", "pair": short_name}
                 broker.place_market(a, "BUY" if want > 0 else "SELL",
@@ -588,6 +655,9 @@ def main() -> None:
         sys.exit(1)
 
     sentinel = NewsSentinel()
+    # Reasoning-depth layer: anomaly detection + strategy adaptation, logged
+    # for the Track A audit. Analyses only; it can veto an entry, never open one.
+    analyst = StrategyAnalyst()
 
     def active_assets() -> list[str]:
         return [base_asset(s) for p in state["pairs"].values()
@@ -604,11 +674,12 @@ def main() -> None:
         try:
             ensure_session()
             if state["bar"] % cfg.refit_every_bars == 0:
-                refit(broker, cfg, state)
+                refit(broker, cfg, state, analyst)
             assets = active_assets()
             if assets:
                 sentinel.refresh(assets)
-            trade_step(broker, cfg, state, args.dry_run, sentinel)
+            trade_step(broker, cfg, state, args.dry_run, sentinel,
+                       analyst)
         except RapidXError as exc:
             log(f"bar error (will retry next bar): {exc}")
         state["bar"] += 1

@@ -199,6 +199,44 @@ same window — the Engle-Granger test is orientation-sensitive. Testing both
 directions could recover a few more pairs but touches the FDR invariant, so it
 is deferred to a considered review rather than a competition-day reflex.
 
+## Addendum — reasoning-depth layer (2026-07-26)
+
+The organizer's 2026-07-21 notice promised a **deep audit of AI Reasoning Logs**
+for "logical depth of sentiment analysis, market anomaly detection, and
+strategy adaptation," and warned that trading activity alongside negligible or
+non-strategy AI usage may be read as an absence of an AI-driven process. Our
+logs covered only the first of the three, and our token usage was the lowest in
+the top 10 — a real audit exposure, and an unused differentiator, even though
+AI engagement is explicitly display-only and not scored.
+
+`deploy/ltp_analyst.py` closes the gap without touching the division of labour
+that makes this strategy testable — **the math still decides every trade, and
+the LLM may still only say no**:
+
+- **Market anomaly detection.** Each bar, for each active pair, the organizer
+  model reads the live spread state (z path, band geometry, half-life, hedge
+  ratio, news verdicts) and rates the regime `normal` / `stressed` / `broken`.
+  Every verdict is logged as `ai_spread_assessment`. A `broken` verdict
+  **vetoes an entry** — the same risk-reducing-only contract as the news veto;
+  it can never open, size up, or re-enter. `stressed` is informational by
+  design, so ordinary volatility cannot quietly switch the strategy off.
+- **Strategy adaptation.** Each refit, the model reviews which pairs passed,
+  the rejection histogram, and what changed since the previous refit, logged as
+  `ai_refit_review`. Advisory only; it never edits the selection, and its
+  prompt forbids suggesting looser gates to obtain more trades.
+
+Both analyses are written next to the quantitative state that prompted them and
+the order (or veto) that followed, so the audit trail is one chain:
+AI assessment → decision (with reasoning) → operations → outcome.
+
+**Budget discipline:** analyses are sized to genuine need, not inflated for
+appearance. Burning the USD 10/day allocation for show would be dishonest and
+self-defeating — exhausting it blinds the news sentinel for the rest of the
+day — so the analyst reads the gateway's own `/key/info` spend meter and stops
+calling above a ceiling that leaves headroom. Everything fails open: no key, no
+SDK, a malformed reply, or an exhausted budget degrades to "no analysis, no
+veto" and the systematic strategy runs on. Pinned by `tests/test_ltp_analyst.py`.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;
