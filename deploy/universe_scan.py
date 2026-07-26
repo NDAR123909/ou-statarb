@@ -100,6 +100,52 @@ def _report(table, label: str) -> int:
     return len(passed)
 
 
+def _return_vol(panel, sym: str) -> float:
+    """Volatility of log returns for one symbol on the panel."""
+    import numpy as np
+    return float(np.std(np.diff(panel[sym].values), ddof=1))
+
+
+def compare_orientations(panel, unordered: list[tuple[str, str]], sel) -> None:
+    """Engle-Granger is orientation-sensitive: regressing A on B is not the
+    same test as B on A, so which direction we happened to type into
+    CANDIDATES silently decides whether a genuinely cointegrated pair is
+    found. That is luck, not rigour. Compare three ways of resolving it:
+
+      alpha    — alphabetical (arbitrary; the status quo)
+      vol-rule — deterministic and chosen a priori: the MORE volatile series
+                 is the dependent variable, so the cleaner series is the
+                 regressor. This is the standard errors-in-variables
+                 mitigation (measurement noise in the regressor attenuates
+                 beta), and it never looks at a p-value, so it adds no
+                 multiple testing at all.
+      both     — test both directions and accept a pair if either passes,
+                 with the FDR correction applied across ALL 2N tests. This is
+                 the honest price: doubling the tests raises the bar for
+                 everyone (repo invariant 3).
+
+    'both' will always find at least as many pairs as the others; the
+    question the numbers have to answer is whether it finds them because the
+    relationships are real or because we looked twice."""
+    alpha = sorted(unordered)
+    volrule = [(a, b) if _return_vol(panel, a) >= _return_vol(panel, b)
+               else (b, a) for a, b in alpha]
+    both = [p for a, b in alpha for p in ((a, b), (b, a))]
+
+    for label, cands in (("alpha (status quo)", alpha),
+                         ("vol-rule (a priori)", volrule),
+                         ("both directions (FDR over 2N)", both)):
+        table = select_pairs(panel, candidates=cands, cfg=sel)
+        passed = table[table.passed]
+        uniq = {frozenset((r.a, r.b)) for _, r in passed.iterrows()}
+        print(f"\n-- orientation policy: {label} -- "
+              f"{len(uniq)} distinct pairs pass ({len(cands)} tests)")
+        for _, r in passed.sort_values("adf_pvalue").iterrows():
+            print(f"   {_base(r.a)}/{_base(r.b):<9} adf_p={r.adf_pvalue:.4f} "
+                  f"hurst={r.hurst:.2f} hl={r.half_life:.0f}h "
+                  f"beta={r.beta:+.2f} cross={int(r.crossings)}")
+
+
 def main() -> int:
     cfg = AgentConfig()
     broker = RapidXBroker()
@@ -134,6 +180,11 @@ def main() -> int:
                if a in available and b in available]
     cur_table = select_pairs(panel, candidates=current, cfg=sel)
     n_current = _report(cur_table, f"CURRENT universe ({len(current)} pairs)")
+
+    print("\n" + "=" * 60)
+    print("ORIENTATION SENSITIVITY (Engle-Granger is not symmetric)")
+    print("=" * 60)
+    compare_orientations(panel, pairs_list, sel)
 
     print("\n" + "=" * 60)
     if n_expanded > n_current and n_expanded >= 3:
