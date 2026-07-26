@@ -399,6 +399,47 @@ class RapidXBroker:
                    order_id=data.get("orderId"))
         return data
 
+    def get_leverage(self, symbol: str) -> float | None:
+        """Current leverage setting for a symbol, or None if unavailable.
+        Read-only (position.get-leverage)."""
+        data = self._must(["position", "get-leverage"], {"symbol": symbol})
+        if isinstance(data, dict):
+            for k in ("leverage", "currentLeverage", "value"):
+                if k in data and data[k] not in (None, ""):
+                    try:
+                        return float(data[k])
+                    except (TypeError, ValueError):
+                        pass
+        return None
+
+    def set_leverage(self, symbol: str, leverage: int) -> dict:
+        """Set a symbol's leverage via preview->submit.
+
+        position.set-leverage is previewRequired (a bare submit 400s), and the
+        preview is the generic trade preview with
+        targetCapabilityId=position.set-leverage plus the leverage field. The
+        session binds at the preview; SetLeverageInput carries no
+        automationSessionId, so it must not ride the submit."""
+        prev = {"targetCapabilityId": "position.set-leverage",
+                "symbol": symbol, "leverage": leverage}
+        if self.automation_session_id:
+            prev["automationSessionId"] = self.automation_session_id
+        preview = self._run(["trade", "preview"], prev, write=True)
+        if not preview.ok:
+            self._emit("set_leverage", symbol=symbol, leverage=leverage,
+                       result="preview_error", error=preview.message)
+            raise RapidXError(preview, f"set-leverage preview {symbol}")
+        submit = {
+            "symbol": symbol,
+            "leverage": leverage,
+            "previewId": preview.data["previewId"],
+            "continueConsentId": preview.data["confirmation"]["submitToken"],
+        }
+        data = self._must(["position", "set-leverage"], submit, write=True)
+        self._emit("set_leverage", symbol=symbol, leverage=leverage,
+                   result="ok")
+        return data
+
     def cancel_all(self, symbol: str | None = None) -> None:
         """Cancel resting orders via preview->submit.
 

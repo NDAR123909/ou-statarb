@@ -136,12 +136,33 @@ def select_pairs(
     rows: list[PairCandidate] = []
     for a, b in cands:
         la, lb = log_prices[a].values, log_prices[b].values
-        m = fit_spread_model(la, lb)
-        spread, _ = build_spread(la, lb)
 
-        # split-half refits
-        m1 = fit_spread_model(la[:half], lb[:half])
-        m2 = fit_spread_model(la[half:], lb[half:])
+        # A halted or untraded symbol gives a flat log-price series. Feeding
+        # one to the regression is a degenerate fit (a constant regressor),
+        # and the resulting constant spread makes adfuller raise outright, so
+        # one bad symbol would otherwise take down the whole scan -- and, in
+        # the live agent, the refit that calls it. Reject the pair explicitly
+        # instead, with p=1.0 so it still counts as a test in the FDR
+        # correction (invariant: every test run is corrected for).
+        degenerate = (not np.isfinite(la).all() or not np.isfinite(lb).all()
+                      or np.std(la) < 1e-10 or np.std(lb) < 1e-10)
+        if not degenerate:
+            try:
+                m = fit_spread_model(la, lb)
+                spread, _ = build_spread(la, lb)
+                m1 = fit_spread_model(la[:half], lb[:half])
+                m2 = fit_spread_model(la[half:], lb[half:])
+            except (ValueError, np.linalg.LinAlgError):
+                # a half-window can be degenerate even when the full one isn't
+                degenerate = True
+        if degenerate:
+            rows.append(PairCandidate(
+                a=a, b=b, beta=np.nan, half_life=np.nan, adf_pvalue=1.0,
+                hurst=np.nan, crossings=0,
+                beta_first_half=np.nan, beta_second_half=np.nan,
+                passed=False, reject_reason="degenerate price series",
+            ))
+            continue
 
         h = hurst_exponent(spread)
         cr = mean_crossings(spread)

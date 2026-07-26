@@ -47,6 +47,7 @@ from statarb.ou import fit_spread_model                              # noqa: E40
 from statarb.thresholds import optimal_bands                         # noqa: E402
 from deploy.ltp_broker import RapidXBroker, RapidXError              # noqa: E402
 from deploy.ltp_news import NewsSentinel                             # noqa: E402
+from deploy.ltp_analyst import StrategyAnalyst                       # noqa: E402
 from deploy.ltp_stream import NewsStream                             # noqa: E402
 
 
@@ -74,6 +75,7 @@ CANDIDATES = [
     ("BINANCE_PERP_TAO_USDT", "BINANCE_PERP_RENDER_USDT"),   # AI/compute
     ("BINANCE_PERP_LINK_USDT", "BINANCE_PERP_QNT_USDT"),     # middleware
     ("BINANCE_PERP_ETC_USDT", "BINANCE_PERP_KAS_USDT"),      # proof-of-work
+    ("BINANCE_PERP_AR_USDT", "BINANCE_PERP_FIL_USDT"),       # decentralized storage
 ]
 
 
@@ -106,6 +108,12 @@ class AgentConfig:
                                       # contest eliminates at equity < 800U,
                                       # so this always fires first (>= 880)
     state_path: str = "deploy/ltp_state.json"
+    # Durable drawdown high-water mark, kept in its OWN file so clearing the
+    # disposable operational state (rm ltp_state.json, e.g. to force a refit)
+    # can never silently re-anchor the kill switch to a lower equity. Seeded
+    # to the funded starting equity, which is also the peak's floor.
+    hwm_path: str = "deploy/ltp_hwm.json"
+    initial_equity: float = 1000.0
 
 
 def log(msg: str) -> None:
@@ -147,6 +155,37 @@ def save_state(path: str, state: dict) -> None:
     Path(path).write_text(json.dumps(state, indent=2, default=float))
 
 
+def load_hwm(path: str) -> float:
+    """The durable drawdown high-water mark, or 0.0 if it doesn't exist yet.
+    Deliberately a separate file from the operational state so a state wipe
+    can't lower it."""
+    p = Path(path)
+    if not p.exists():
+        return 0.0
+    try:
+        return float(json.loads(p.read_text()).get("peak_equity", 0.0))
+    except (ValueError, OSError):
+        return 0.0
+
+
+def save_hwm(path: str, value: float) -> None:
+    """Persist the high-water mark. Monotonic by construction at the call
+    sites (always max'd with the prior value), so this only ever ratchets up."""
+    Path(path).write_text(json.dumps({"peak_equity": float(value)}))
+
+
+def anchor_peak(cfg: "AgentConfig", state: dict) -> float:
+    """Set state['peak_equity'] to the highest of the operational state, the
+    durable high-water-mark file, and the funded floor; persist it and return
+    it. Called once at startup so a wiped state can't lower the kill-switch
+    anchor."""
+    peak = max(float(state.get("peak_equity", 0.0)),
+               load_hwm(cfg.hwm_path), cfg.initial_equity)
+    state["peak_equity"] = peak
+    save_hwm(cfg.hwm_path, peak)
+    return peak
+
+
 # ------------------------------------------------------------------- fitting --
 def fetch_panel(broker: RapidXBroker, symbols: list[str],
                 cfg: AgentConfig) -> pd.DataFrame:
@@ -163,7 +202,8 @@ def fetch_panel(broker: RapidXBroker, symbols: list[str],
     return np.log(panel)
 
 
-def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict) -> None:
+def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict,
+          analyst=None) -> None:
     """Weekly-refit equivalent: selection + OU fit + cost-aware bands."""
     symbols = sorted({t for p in CANDIDATES for t in p})
     logp = fetch_panel(broker, symbols, cfg)
@@ -171,7 +211,18 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict) -> None:
         log("refit: no data panel, keeping previous fits")
         return
 
-    usable = [(a, b) for a, b in CANDIDATES
+    # Canonical orientation. Engle-Granger is not symmetric: regressing A on B
+    # is a different test from B on A, so the order a pair happens to be typed
+    # in silently decides whether a genuinely cointegrated pair is found (live
+    # scan: SOL/AVAX fails, AVAX/SOL passes at ADF p=0.0024). Resolve it with a
+    # rule fixed in ADVANCE rather than by trying both and keeping the winner:
+    # the MORE volatile series becomes the dependent variable, so the cleaner
+    # series is the regressor. That is the standard errors-in-variables
+    # mitigation -- noise in a regressor attenuates beta -- and because the
+    # rule never inspects a p-value it adds no multiple testing at all.
+    usable = [(a, b) if np.std(np.diff(logp[a].values)) >=
+                        np.std(np.diff(logp[b].values)) else (b, a)
+              for a, b in CANDIDATES
               if a in logp.columns and b in logp.columns]
     sel_cfg = SelectionConfig(
         fdr_q=cfg.fdr_q,
@@ -184,12 +235,14 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict) -> None:
     )
     table = select_pairs(logp, candidates=usable, cfg=sel_cfg)
     passed = table[table.passed]
+    reject_counts: dict = {}
     log(f"refit: {len(passed)}/{len(table)} candidates pass the gate")
     if len(passed) < len(table):
         # Why the rest were rejected — surfaced in the live logs so a quiet
         # day is legible (genuine no-cointegration vs a tunable mismatch).
-        reasons = table.loc[~table.passed, "reject_reason"].value_counts()
-        log(f"refit: rejects {reasons.to_dict()}")
+        reject_counts = table.loc[~table.passed,
+                                  "reject_reason"].value_counts().to_dict()
+        log(f"refit: rejects {reject_counts}")
 
     fits = {}
     for _, row in passed.iterrows():
@@ -231,6 +284,22 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict) -> None:
            active=sorted(keep_keys),
            bands={k: {"entry_z": f["entry_z"], "exit_z": f["exit_z"],
                       "half_life": f["half_life"]} for k, f in fits.items()})
+
+    # STRATEGY ADAPTATION (Track A reasoning audit): the organizer LLM reads
+    # today's selection outcome and records an honest account of how the
+    # tradeable universe is adapting. Advisory only — it never edits the
+    # selection, and a failure here must not disturb the refit.
+    if analyst is not None:
+        rows = [{"pair": f"{r.a.split('_')[2]}/{r.b.split('_')[2]}",
+                 "adf_p": float(r.adf_pvalue), "hurst": float(r.hurst),
+                 "half_life": float(r.half_life), "beta": float(r.beta),
+                 "crossings": int(r.crossings)}
+                for _, r in passed.iterrows()]
+        review = analyst.review_refit(rows, reject_counts, sorted(old.keys()))
+        if review:
+            log(f"  ai refit review: {str(review.get('assessment', ''))[:160]}")
+            ledger("ai_refit_review", passed=int(len(passed)),
+                   tested=int(len(table)), active=sorted(keep_keys), **review)
 
 
 # ------------------------------------------------------------------ trading --
@@ -301,8 +370,86 @@ def derisk(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                 f"at next bar")
 
 
+def reconcile_positions(broker: RapidXBroker, state: dict, dry: bool) -> None:
+    """Make the exchange the source of truth about what we are holding.
+
+    State and reality can disagree in two directions, and both are dangerous:
+
+      - The exchange holds a position the strategy has no record of. Causes
+        seen live: a wiped or stale state file, and a crash (or an API error)
+        between placing the first and second leg of an entry. Nothing will
+        ever exit or stop that position, and because the pair still reads as
+        flat the agent can open a SECOND position in the same direction.
+      - The strategy believes it holds a pair the exchange has already closed,
+        so its side, hold clock and gross-exposure accounting are all wrong.
+
+    Anything the strategy cannot account for is FLATTENED rather than adopted.
+    Adopting would mean reconstructing the entry price, the hold clock and the
+    hedge ratio the legs were originally sized under -- and a mis-adopted pair
+    is a mis-hedged pair, which is a directional bet wearing a market-neutral
+    costume. Flattening costs one round trip of fees, always reduces risk, and
+    the strategy re-enters cleanly on its own terms if the signal still holds.
+
+    The half-open case (one leg live, one not) is the worst of all: naked
+    directional exposure in a book whose entire premise is being hedged. It is
+    closed on sight.
+    """
+    live: dict[str, dict] = {}
+    for p in broker.positions():
+        if abs(broker._position_qty(p)) > 0:
+            sym = p.get("sym") or p.get("symbol")
+            if sym:
+                live[sym] = p
+
+    def _close(sym: str, why: str, pair_key: str) -> None:
+        pos = live.get(sym, {})
+        val = abs(float(pos.get("positionValue") or 0.0)) or 1000.0
+        log(f"  reconcile: {why} — closing unmanaged {sym}")
+        ledger("reconcile", action=why, symbol=sym, pair=pair_key,
+               qty=broker._position_qty(pos), dry=dry,
+               reasoning=(
+                   f"The exchange reports an open {sym} position that the "
+                   f"strategy's own state does not account for ({why}). An "
+                   f"unmanaged position has no exit, no stop and no place in "
+                   f"the gross-exposure budget, and a pair that reads as flat "
+                   f"can be entered again on top of it. It is closed rather "
+                   f"than adopted, because adopting it would mean guessing the "
+                   f"hedge ratio it was sized under."))
+        if not dry:
+            broker.op_context = {"decision": "reconcile", "pair": pair_key}
+            broker.close_position(sym, pos.get("positionSide") or "LONG",
+                                  max_notional=max(2.0 * val, 100.0))
+            broker.op_context = {}
+        live.pop(sym, None)
+
+    # 1. pairs the state believes are open: confirm both legs really are
+    for key, pair in state.get("pairs", {}).items():
+        if pair.get("side", 0) == 0:
+            continue
+        a_live, b_live = pair["a"] in live, pair["b"] in live
+        if a_live and b_live:
+            continue                       # consistent, leave it alone
+        if not a_live and not b_live:
+            log(f"  reconcile: {key} recorded open but the exchange is flat; "
+                f"clearing stale side")
+            ledger("reconcile", action="clear_stale_side", pair=key,
+                   side=pair.get("side"), dry=dry)
+            pair["side"], pair["hold"] = 0, 0
+        else:
+            _close(pair["a"] if a_live else pair["b"], "half_open_pair", key)
+            pair["side"], pair["hold"] = 0, 0
+
+    # 2. anything still live that no open pair accounts for is an orphan
+    expected = {s for pair in state.get("pairs", {}).values()
+                if pair.get("side", 0) != 0 for s in (pair["a"], pair["b"])}
+    for sym in list(live):
+        if sym not in expected:
+            _close(sym, "unknown_position", "*")
+
+
 def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
-               dry: bool, sentinel: NewsSentinel | None = None) -> None:
+               dry: bool, sentinel: NewsSentinel | None = None,
+               analyst=None) -> None:
     nav = broker.equity_usdt()
 
     # A bad equity read must never be mistaken for a drawdown. A funded
@@ -322,6 +469,7 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
         return
 
     state["peak_equity"] = max(state["peak_equity"], nav)
+    save_hwm(cfg.hwm_path, state["peak_equity"])   # ratchet the durable mark
     dd = 1.0 - nav / state["peak_equity"] if state["peak_equity"] > 0 else 0.0
 
     if state["halted"]:
@@ -371,6 +519,29 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
         z = (spread - pair["mu"]) / pair["sigma"]
         short_name = f"{a.split('_')[2]}/{b.split('_')[2]}"
 
+        # rolling z path, kept in state so the analyst (and the audit) can see
+        # the shape of the divergence, not just its latest value
+        z_path = (pair.get("z_path") or [])[-23:] + [round(float(z), 3)]
+        pair["z_path"] = z_path
+
+        # MARKET ANOMALY DETECTION (Track A reasoning audit): the organizer
+        # LLM judges whether this spread still behaves like the mean-reverting
+        # process the model assumes. Logged every bar; a "broken" verdict can
+        # only VETO an entry below — never open, size up, or re-enter.
+        assessment = {}
+        if analyst is not None and not dry:
+            news_note = (sentinel.note(base_asset(a), base_asset(b))
+                         if sentinel else "news sentinel disabled")
+            assessment = analyst.assess_spread(
+                pair=short_name, z=float(z), entry_z=pair["entry_z"],
+                exit_z=pair["exit_z"], stop_z=cfg.stop_z,
+                half_life=pair["half_life"], beta=pair["beta"],
+                z_path=z_path, news_note=news_note,
+                holding=pair.get("side", 0) != 0)
+            if assessment:
+                ledger("ai_spread_assessment", pair=short_name, z=float(z),
+                       holding=pair.get("side", 0) != 0, **assessment)
+
         # heal the post-stop one-sided block once z is back inside the band
         if pair.get("blocked", 0) == +1 and z > -pair["entry_z"]:
             pair["blocked"] = 0
@@ -419,6 +590,25 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                 continue
             news_note = sentinel.note(base_asset(a), base_asset(b)) if sentinel \
                 else "news sentinel disabled"
+            # Anomaly veto: the analyst judged the spread structurally broken,
+            # so the mean-reversion premise does not hold. Risk-reducing only.
+            if analyst is not None and assessment:
+                broken = analyst.anomaly_veto(assessment)
+                if broken:
+                    log(f"  {short_name}: ANOMALY VETO — {broken}")
+                    ledger("skip", pair=short_name, reason="anomaly_veto", z=z,
+                           assessment=assessment, nav=nav,
+                           reasoning=(
+                               f"The quantitative entry signal was live "
+                               f"(z={z:+.2f} beyond the cost-aware band "
+                               f"{pair['entry_z']:.2f}), but the spread's live "
+                               f"regime was rated broken rather than merely "
+                               f"stretched: {broken}. Mean reversion presumes "
+                               f"the spread is a spring; when the evidence says "
+                               f"the relationship itself has changed, entering "
+                               f"would be betting on a spring that has snapped, "
+                               f"so no position is opened."))
+                    continue
             if sentinel is not None:
                 rationale = sentinel.veto(base_asset(a), base_asset(b))
                 if rationale:
@@ -447,7 +637,11 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                               f"the spread: risk-budgeted {g:.0f} USDT against "
                               f"hedge ratio beta={pair['beta']:.2f}. Pair passed "
                               f"FDR-corrected cointegration + split-half stability "
-                              f"at the last refit. {news_note}."))
+                              f"at the last refit. {news_note}."
+                              + (f" Spread-regime analysis: "
+                                 f"{assessment.get('regime')} — "
+                                 f"{assessment.get('rationale', '')}"
+                                 if assessment else "")))
             if not dry:
                 broker.op_context = {"decision": "enter", "pair": short_name}
                 broker.place_market(a, "BUY" if want > 0 else "SELL",
@@ -510,6 +704,9 @@ def main() -> None:
     cfg = AgentConfig()
     broker = RapidXBroker(on_operation=ledger_operation)
     state = load_state(cfg.state_path)
+    # Anchor the drawdown peak from the durable high-water mark so a state
+    # wipe (e.g. forcing a refit) can't re-anchor the kill switch downward.
+    log(f"drawdown peak anchored at {anchor_peak(cfg, state):.2f} USDT")
 
     check = broker.self_check()
     if not check.ok:
@@ -526,8 +723,15 @@ def main() -> None:
         if args.dry_run or time.time() - session_started < 23 * 3600:
             return
         symbols = sorted({t for p in CANDIDATES for t in p})
+        # Per-order cap is 1x NAV (1000): the risk-sizing puts ~0.5x NAV of
+        # notional on a leg, but the order's safety ceiling is 1.1x that, and
+        # the hedge leg of a higher-beta pair scales with beta — so 500 was
+        # below the ceiling and blocked legitimate orders (RCLI26005). 1000
+        # clears both legs of the selected pairs and still sits under the 2x
+        # leverage limit. Total stays 4000 as a coarse net; the strategy's own
+        # gross cap (max_gross_mult=2x) is the real total-exposure limiter.
         sid = broker.start_automation(
-            symbols, max_per_order="500", max_total="4000",
+            symbols, max_per_order="1000", max_total="4000",
             expires_s=24 * 3600, consent_text=consent)
         session_started = time.time()
         log(f"automation session {sid}")
@@ -539,6 +743,9 @@ def main() -> None:
         sys.exit(1)
 
     sentinel = NewsSentinel()
+    # Reasoning-depth layer: anomaly detection + strategy adaptation, logged
+    # for the Track A audit. Analyses only; it can veto an entry, never open one.
+    analyst = StrategyAnalyst()
 
     def active_assets() -> list[str]:
         return [base_asset(s) for p in state["pairs"].values()
@@ -555,13 +762,30 @@ def main() -> None:
         try:
             ensure_session()
             if state["bar"] % cfg.refit_every_bars == 0:
-                refit(broker, cfg, state)
+                refit(broker, cfg, state, analyst)
+            # Reality check before acting: a restart, a wiped state file or a
+            # failure between an entry's two legs can leave the exchange
+            # holding something the strategy doesn't know about. Run this
+            # BEFORE trade_step so nothing is ever stacked on top of an
+            # unmanaged position.
+            reconcile_positions(broker, state, args.dry_run)
             assets = active_assets()
             if assets:
                 sentinel.refresh(assets)
-            trade_step(broker, cfg, state, args.dry_run, sentinel)
+            trade_step(broker, cfg, state, args.dry_run, sentinel,
+                       analyst)
         except RapidXError as exc:
             log(f"bar error (will retry next bar): {exc}")
+        except Exception as exc:
+            # An always-on agent must not die on a data or model problem: a
+            # single bad symbol (constant series, NaN, a numerical edge case
+            # in a fit) used to propagate out of refit and kill the process,
+            # which then restarted straight back into the same refit. Log it
+            # loudly, keep the state, and let the next bar retry -- a live
+            # agent that is down cannot de-risk.
+            log(f"UNEXPECTED bar error ({type(exc).__name__}: {exc}); "
+                f"continuing to next bar")
+            ledger("bar_error", error_type=type(exc).__name__, error=str(exc)[:500])
         state["bar"] += 1
         save_state(cfg.state_path, state)
         if args.once:
