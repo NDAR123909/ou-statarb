@@ -1,5 +1,19 @@
 # CLAUDE.md — project context for Claude Code
 
+## If the task involves the LTP competition, READ THIS FIRST
+
+The agent is **live in the LTP Liquidity Arena 2026 competition** (Track A,
+Phase I runs to 2026-08-21). Before answering questions about it, reviewing its
+performance, or changing anything under `deploy/`, read
+**`deploy/WEEKLY_REVIEW.md`** — it is the durable record that survives context
+loss: standing rules and scoring, what each weekly review decided and why,
+open incidents, and the agenda the next review must pick up. Then read
+`deploy/LTP_STRATEGY.md` for the pre-registration and every disclosed change.
+
+Weekly reviews happen on Sundays. At each one: read `WEEKLY_REVIEW.md`, work
+the agenda it lists, then **append a new week's entry and write the next
+week's agenda** so the next session can resume cold.
+
 ## What this project is
 
 `ou-statarb` is an Ornstein-Uhlenbeck pairs-trading framework, upgraded in v0.2
