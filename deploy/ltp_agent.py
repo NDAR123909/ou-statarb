@@ -370,6 +370,48 @@ def derisk(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                 f"at next bar")
 
 
+def track_news_gate(state: dict, sentinel: NewsSentinel, previous: str) -> None:
+    """Surface sentinel health loudly, and persist it for `status.py`.
+
+    The sentinel fails OPEN on purpose — an LLM outage must not halt a working
+    strategy, and the z-stop, vol-targeted sizing and gross cap all still
+    apply. But failing open *silently* turns a risk control into a placebo:
+    entries would quietly stop being screened for delistings and hacks, and a
+    daily glance would show a perfectly healthy agent. The competition's AI
+    allocation is USD 10/day with no rollover and nothing granted once it is
+    spent, so 'quota' in particular is a predictable whole-day outage.
+
+    Logged on TRANSITION rather than every bar, so a long outage is one loud
+    event instead of hourly noise, and the ledger shows precisely the window
+    in which screening was inactive.
+    """
+    state["news_gate"] = {"status": sentinel.status,
+                          "error": sentinel.last_error[:200],
+                          "rated": len(sentinel.verdicts),
+                          "ts": sentinel.last_refresh}
+    if sentinel.status == previous:
+        return
+    if sentinel.degraded:
+        log(f"NEWS GATE DEGRADED ({sentinel.status}): entries are no longer "
+            f"screened for event risk. {sentinel.last_error[:160]}")
+        ledger("sentinel_degraded", status=sentinel.status,
+               error=sentinel.last_error[:300],
+               reasoning=(
+                   f"The news sentinel stopped returning verdicts ("
+                   f"{sentinel.status}). It fails open by design, so the "
+                   f"systematic strategy keeps trading and the z-stop, "
+                   f"vol-targeted sizing and gross cap remain in force — but "
+                   f"until this clears, entries are NOT screened for "
+                   f"structural events and 'watch' ratings are not halving "
+                   f"size. Recorded so the audit can see exactly which "
+                   f"decisions were made without event-risk screening."))
+    elif previous in NewsSentinel.DEGRADED_STATES:
+        log(f"news gate restored ({sentinel.status}); "
+            f"{len(sentinel.verdicts)} assets rated")
+        ledger("sentinel_restored", status=sentinel.status,
+               rated=len(sentinel.verdicts))
+
+
 def reconcile_positions(broker: RapidXBroker, state: dict, dry: bool) -> None:
     """Make the exchange the source of truth about what we are holding.
 
@@ -771,7 +813,9 @@ def main() -> None:
             reconcile_positions(broker, state, args.dry_run)
             assets = active_assets()
             if assets:
+                previous_gate = sentinel.status
                 sentinel.refresh(assets)
+                track_news_gate(state, sentinel, previous_gate)
             trade_step(broker, cfg, state, args.dry_run, sentinel,
                        analyst)
         except RapidXError as exc:

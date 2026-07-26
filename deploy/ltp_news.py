@@ -183,6 +183,23 @@ def organizer_client():
     return None
 
 
+# Markers that distinguish "we ran out of tokens" from any other API failure.
+# The daily allocation does not roll over and nothing is granted once it is
+# gone, so quota exhaustion is a *predictable, whole-day* outage of the risk
+# gate rather than a transient blip — it has to be named separately.
+_QUOTA_MARKERS = ("quota", "credit", "balance", "exceeded", "insufficient",
+                  "rate limit", "rate_limit", "too many requests")
+
+
+def classify_api_error(exc: Exception) -> str:
+    """'quota' if the gateway refused us on allocation, else 'api_error'."""
+    status = getattr(exc, "status_code", None)
+    text = f"{status or ''} {exc}".lower()
+    if status in (429,) or any(m in text for m in _QUOTA_MARKERS):
+        return "quota"
+    return "api_error"
+
+
 def model_name() -> str:
     return (os.environ.get("LTP_AI_MODEL")
             or os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-8"))
@@ -192,9 +209,26 @@ def model_name() -> str:
 class NewsSentinel:
     """Hourly news -> per-asset severity verdicts, consumed by the agent."""
 
+    # The gate is DOWN (as opposed to merely quiet) in these states. A quiet
+    # news window is normal; a dark gate means entries are going unscreened
+    # for event risk, which the operator and the audit both need told.
+    DEGRADED_STATES = ("no_client", "quota", "api_error", "parse_error")
+
     max_items: int = 30
     verdicts: dict = field(default_factory=dict)   # base asset -> verdict dict
     last_refresh: str = ""
+    # ok | no_news | no_client | quota | api_error | parse_error
+    status: str = "unknown"
+    last_error: str = ""
+
+    @property
+    def degraded(self) -> bool:
+        """True when the sentinel is failing, not merely finding no news.
+
+        The sentinel fails OPEN by design — an LLM outage must not halt a
+        working strategy — but failing open silently would turn a risk control
+        into a placebo. Callers use this to say so out loud."""
+        return self.status in self.DEGRADED_STATES
 
     @staticmethod
     def _client():
@@ -221,8 +255,11 @@ class NewsSentinel:
         return None
 
     def _classify(self, assets: list[str], items: list[dict]) -> dict:
+        """Verdicts for the listed assets. Sets `status`/`last_error` on every
+        path so a failure is never indistinguishable from a quiet news day."""
         client = self._client()
         if client is None:
+            self.status, self.last_error = "no_client", ""
             return {}
 
         digest = []
@@ -230,6 +267,7 @@ class NewsSentinel:
             syms = ",".join((c.get("symbol") or "") for c in (it.get("currencies") or []))
             digest.append(f"- [{syms or 'general'}] {(it.get('title') or '')[:200]}")
         if not digest:
+            self.status, self.last_error = "no_news", ""
             return {}
 
         instruction = (
@@ -251,14 +289,19 @@ class NewsSentinel:
                 system=SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": prompt}],
             )
-        except Exception:
+        except Exception as exc:
+            self.status = classify_api_error(exc)
+            self.last_error = f"{type(exc).__name__}: {exc}"[:300]
             return {}
         if getattr(response, "stop_reason", None) == "refusal":
+            self.status, self.last_error = "api_error", "model refused"
             return {}
         text = next((b.text for b in response.content
                      if getattr(b, "type", None) == "text"), "")
         parsed = self._extract_json(text)
         if not isinstance(parsed, dict):
+            self.status = "parse_error"
+            self.last_error = f"unparseable response: {text[:120]}"
             return {}
         out = {}
         for a in parsed.get("assessments", []):
@@ -266,12 +309,20 @@ class NewsSentinel:
             sev = a.get("severity")
             if sym and sev in ("none", "watch", "critical"):
                 out[sym] = a
+        if out:
+            self.status, self.last_error = "ok", ""
+        else:
+            self.status = "parse_error"
+            self.last_error = "response contained no usable assessments"
         return out
 
     def refresh(self, base_assets: list[str]) -> None:
         """One feeds call + one Claude call; fail-open on any problem."""
         items = fetch_news()
-        self.verdicts = self._classify(sorted(set(base_assets)), items) if items else {}
+        if not items:
+            self.verdicts, self.status, self.last_error = {}, "no_news", ""
+        else:
+            self.verdicts = self._classify(sorted(set(base_assets)), items)
         self.last_refresh = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     def veto(self, *base_assets: str) -> str | None:
@@ -293,8 +344,15 @@ class NewsSentinel:
 
     def note(self, *base_assets: str) -> str:
         """One-line news context for the reasoning log, always available."""
+        if self.degraded:
+            # Say plainly that this entry was NOT screened. A reasoning log
+            # that implies event-risk screening which never happened would
+            # misrepresent the decision to the audit.
+            return (f"news gate DOWN ({self.status}"
+                    + (f": {self.last_error[:120]}" if self.last_error else "")
+                    + ") — entry NOT screened for event risk")
         if not self.verdicts:
-            return "news sentinel: no verdicts (feed empty or LLM unavailable)"
+            return "news sentinel: no relevant news items in the last window"
         parts = []
         for a in base_assets:
             v = self.verdicts.get(a.upper())

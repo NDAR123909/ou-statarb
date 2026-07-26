@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass, field
 
 from deploy.ltp_news import organizer_client, model_name
@@ -116,7 +117,10 @@ class StrategyAnalyst:
     """LLM analysis of spread regime and selection adaptation, for the log."""
 
     max_daily_spend: float = 8.0     # of the USD 10/day allocation
+    spend_ttl: float = 300.0         # seconds; the meter needn't be re-read
+                                     # once per assessment (~73 HTTP calls/day)
     _spend: float | None = field(default=None, repr=False)
+    _spend_at: float = field(default=0.0, repr=False)
     last_error: str = ""
 
     # ------------------------------------------------------------- budget --
@@ -124,6 +128,9 @@ class StrategyAnalyst:
         """USD spent on the organizer gateway today, or None if unreadable.
         The gateway exposes /key/info with a `spend` field (organizer Q&A,
         2026-07)."""
+        if (self._spend is not None
+                and time.monotonic() - self._spend_at < self.spend_ttl):
+            return self._spend
         base = os.environ.get("LTP_AI_BASE_URL")
         key = os.environ.get("LTP_AI_API_KEY")
         if not (base and key and requests is not None):
@@ -139,6 +146,7 @@ class StrategyAnalyst:
                 for node in (body, body.get("data") or {}):
                     if isinstance(node, dict) and node.get("spend") is not None:
                         self._spend = float(node["spend"])
+                        self._spend_at = time.monotonic()
                         return self._spend
             except (requests.RequestException, ValueError, TypeError):
                 continue
