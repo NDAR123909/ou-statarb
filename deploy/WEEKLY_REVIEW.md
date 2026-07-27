@@ -142,6 +142,66 @@ between the two legs of an entry. Fixed structurally by item 11.
   gates; doing so would forfeit the low-MDD advantage that is our banked
   strength.
 
+### Post-review addition (same day) — news-gate failure visibility
+The operator flagged that the depth layer's step up in token use (~32k -> a few
+hundred k/day) raises a real risk: the USD 10/day allocation does not roll
+over, and if it is exhausted mid-day the *sentiment gate* goes quiet. An audit
+confirmed the concern was worse than suspected — `_classify` had six silent
+`return {}` paths including a bare `except Exception`, `note()` conflated "no
+news" with "LLM unavailable", the sentinel had no budget awareness at all, and
+`status.py` showed nothing about it. A quota outage would have stopped entries
+being vetoed and `watch` ratings being halved, while the daily glance showed a
+perfectly healthy agent.
+
+Fixed: typed sentinel status (`ok`/`no_news`/`no_client`/**`quota`**/
+`api_error`/`parse_error`) with quota detected specifically (HTTP 429 or
+quota/credit/balance/exceeded in the text); `sentinel_degraded` /
+`sentinel_restored` ledger events logged **on transition** so an outage is one
+loud event and the audit can see exactly which decisions were unscreened; a
+`note()` that states plainly "entry NOT screened for event risk"; a `news gate:`
+line in `status.py` (and a non-zero exit code) so the daily glance catches it;
+and the analyst's spend meter cached (5 min) so the guard stops costing ~73
+HTTP calls/day. Pinned by `tests/test_ltp_news_gate.py`.
+
+**Decision taken: fail-open, but loud.** When the gate is dark the agent keeps
+trading at full size rather than halving it, because the news veto is a
+secondary guard — the z-stop, vol-targeted sizing and gross cap are unaffected —
+and halting or shrinking on an operational outage would cost return for a
+non-market reason. Operator concurred. Revisit if the veto ever proves it earns
+its keep (see below).
+
+### Post-review addition (2026-07-27) — audit-log gaps found by operator review
+The operator audited the ledger's actual contents (not just its existence) and
+found three gaps. Verified against source before acting:
+
+1. **`anomaly` is free text — but it never drives behaviour.** The veto reads
+   `regime`, which IS enum-validated (`ltp_analyst.py`: anything outside
+   `normal|stressed|broken` returns `{}`). So a model answering "no anomalies
+   detected" in prose cannot change trading. Concern was well-reasoned; the
+   design already separated description from control.
+2. **The hourly news verdicts were never persisted** — CONFIRMED and the
+   important one. Severities lived in memory and were flattened into one prose
+   sentence inside an entry's `reasoning`; with no trade that bar, the
+   sentiment call left **no trace at all**. An auditor pulling a quiet stretch
+   would have seen no evidence that sentiment analysis ran — the audit theme we
+   have claimed longest and described to the organizer.
+3. **Screened vs unscreened entries were distinguishable only in prose**, not
+   in structured fields, defeating the programmatic correlation the organizer
+   says it will run.
+
+Fixed (logging only — no behavioural change, no extra AI spend):
+`news_assessment` ledger event on every refresh with per-asset severity and
+rationale (logged on `no_news` too: "we looked, nothing relevant" is itself
+evidence of cadence); `screening_provenance()` attaches `screened`,
+`news_status`, `news_severity{leg}`, `regime`, `regime_confidence` to every
+`enter` and `skip`; and the analyst gained the sentinel's typed status so a
+missing assessment emits `ai_assessment_unavailable` instead of silence — the
+same blind spot, one file over. Pinned by `tests/test_ltp_news_gate.py`.
+
+**Method note for future checks:** `grep '"severity":"..."'` returns nothing
+even when the field is present — `json.dumps` writes `"severity": "none"` WITH
+a space. Count event types instead; the event tally is the reliable probe.
+
 ### Known-unexplained / watch
 - **50% stop rate** (3 of 6 round-trips). Entry band is model-derived (~3.0)
   but `stop_z` is a hardcoded 3.5 — only 0.5z of room. Possible mis-calibration,
@@ -170,20 +230,25 @@ Carried from week 1. Do these in order; the analysis gates the tuning.
    - **funding carry**: total paid/received per pair over the period, so the
      unmodelled gap is finally a number;
    - fee drag per round-trip vs the assumed 5 bps taker.
-2. **Anomaly-veto rate**: `grep -c anomaly_veto deploy/ltp_ledger.jsonl` and read
+2. **Has the news veto EVER fired?** `grep -c news_veto deploy/ltp_ledger.jsonl`.
+   If it has never fired in weeks, its practical protective value is unproven,
+   which further supports the fail-open decision — and is worth stating
+   honestly in the post-mortem rather than assuming the gate is earning its
+   keep. Also check `sentinel_degraded` events for any dark windows.
+3. **Anomaly-veto rate**: `grep -c anomaly_veto deploy/ltp_ledger.jsonl` and read
    the rationales. If it is blocking entries that would have been profitable,
    tighten the prompt; the veto must stay rare and evidence-based.
-3. **AI token spend**: `GET https://ai.ltp-contest.com/key/info` → `spend`.
+4. **AI token spend**: `GET https://ai.ltp-contest.com/key/info` → `spend`.
    Confirm the depth layer sits comfortably under USD 10/day (expected ~72
    spread assessments + 24 news + 1 refit review per day). Also confirm the
    `ai_refit_review` / `ai_spread_assessment` records look substantive, since
    the audit judges *logical depth*, not volume.
-4. **Entry/stop geometry — ONLY if (1) supports it.** The question is whether a
+5. **Entry/stop geometry — ONLY if (1) supports it.** The question is whether a
    fixed `stop_z=3.5` against a model-derived entry (~3.0) is too tight, e.g.
    making the stop relative to the entry band. A wider stop means fewer
    stop-outs but larger individual losses, and MDD is permanent — so this needs
    real evidence, not six trades and a hunch. **Default action is no change.**
-5. **Self-ranking endpoint into `status.py`** (small, deferred from week 1):
+6. **Self-ranking endpoint into `status.py`** (small, deferred from week 1):
    surfaces rank, composite score, per-metric percentiles and AI cost directly.
 
 ### Deferred / open items (not scheduled, revisit if they matter)

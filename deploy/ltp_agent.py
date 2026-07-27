@@ -370,6 +370,93 @@ def derisk(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                 f"at next bar")
 
 
+def track_news_gate(state: dict, sentinel: NewsSentinel, previous: str) -> None:
+    """Surface sentinel health loudly, and persist it for `status.py`.
+
+    The sentinel fails OPEN on purpose — an LLM outage must not halt a working
+    strategy, and the z-stop, vol-targeted sizing and gross cap all still
+    apply. But failing open *silently* turns a risk control into a placebo:
+    entries would quietly stop being screened for delistings and hacks, and a
+    daily glance would show a perfectly healthy agent. The competition's AI
+    allocation is USD 10/day with no rollover and nothing granted once it is
+    spent, so 'quota' in particular is a predictable whole-day outage.
+
+    Logged on TRANSITION rather than every bar, so a long outage is one loud
+    event instead of hourly noise, and the ledger shows precisely the window
+    in which screening was inactive.
+    """
+    state["news_gate"] = {"status": sentinel.status,
+                          "error": sentinel.last_error[:200],
+                          "rated": len(sentinel.verdicts),
+                          "ts": sentinel.last_refresh}
+
+    # Persist the verdicts themselves, every refresh. Previously the hourly
+    # sentiment call left NO trace unless a trade happened that bar — the
+    # per-asset severities lived in memory and were flattened into one prose
+    # sentence inside an entry's `reasoning`. An auditor pulling the ledger
+    # for a quiet stretch would have seen no evidence that sentiment analysis
+    # ran at all, which is the one audit theme we have claimed longest. This
+    # costs no extra AI call: it writes down what was already computed.
+    # `no_news` is logged too — "we looked and nothing was relevant" is itself
+    # evidence the sentinel ran on cadence.
+    ledger("news_assessment", status=sentinel.status,
+           rated=len(sentinel.verdicts), assets=sorted(sentinel.verdicts),
+           verdicts={a: {"severity": v.get("severity"),
+                         "rationale": str(v.get("rationale", ""))[:300]}
+                     for a, v in sentinel.verdicts.items()},
+           refreshed_at=sentinel.last_refresh,
+           error=sentinel.last_error[:200])
+
+    if sentinel.status == previous:
+        return
+    if sentinel.degraded:
+        log(f"NEWS GATE DEGRADED ({sentinel.status}): entries are no longer "
+            f"screened for event risk. {sentinel.last_error[:160]}")
+        ledger("sentinel_degraded", status=sentinel.status,
+               error=sentinel.last_error[:300],
+               reasoning=(
+                   f"The news sentinel stopped returning verdicts ("
+                   f"{sentinel.status}). It fails open by design, so the "
+                   f"systematic strategy keeps trading and the z-stop, "
+                   f"vol-targeted sizing and gross cap remain in force — but "
+                   f"until this clears, entries are NOT screened for "
+                   f"structural events and 'watch' ratings are not halving "
+                   f"size. Recorded so the audit can see exactly which "
+                   f"decisions were made without event-risk screening."))
+    elif previous in NewsSentinel.DEGRADED_STATES:
+        log(f"news gate restored ({sentinel.status}); "
+            f"{len(sentinel.verdicts)} assets rated")
+        ledger("sentinel_restored", status=sentinel.status,
+               rated=len(sentinel.verdicts))
+
+
+def screening_provenance(sentinel: NewsSentinel | None, assessment: dict,
+                         a: str, b: str) -> dict:
+    """Structured record of which gates actually screened this decision.
+
+    The reasoning prose already distinguishes a screened entry from an
+    unscreened one, but only in words. The audit correlates AI decision logs
+    with executed orders programmatically, so the provenance has to be
+    machine-readable: `df[df.event=='enter']` should answer "was this trade
+    screened, by what, and with what verdict" without parsing English.
+    """
+    ba, bb = base_asset(a), base_asset(b)
+    if sentinel is None:
+        news = {"news_status": "disabled", "news_severity": {}}
+        screened = False
+    else:
+        news = {"news_status": sentinel.status,
+                "news_severity": {ba: (sentinel.verdicts.get(ba.upper()) or {})
+                                       .get("severity"),
+                                  bb: (sentinel.verdicts.get(bb.upper()) or {})
+                                       .get("severity")}}
+        screened = (not sentinel.degraded) and bool(sentinel.verdicts)
+    return {"screened": screened,
+            "regime": (assessment or {}).get("regime"),
+            "regime_confidence": (assessment or {}).get("confidence"),
+            **news}
+
+
 def reconcile_positions(broker: RapidXBroker, state: dict, dry: bool) -> None:
     """Make the exchange the source of truth about what we are holding.
 
@@ -541,6 +628,11 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
             if assessment:
                 ledger("ai_spread_assessment", pair=short_name, z=float(z),
                        holding=pair.get("side", 0) != 0, **assessment)
+            elif getattr(analyst, "degraded", False):
+                # A missing assessment must not be indistinguishable from a bar
+                # that was never assessed -- same blind spot the news gate had.
+                ledger("ai_assessment_unavailable", pair=short_name, z=float(z),
+                       status=analyst.status, error=analyst.last_error[:300])
 
         # heal the post-stop one-sided block once z is back inside the band
         if pair.get("blocked", 0) == +1 and z > -pair["entry_z"]:
@@ -577,7 +669,8 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
             if gross + add > cfg.max_gross_mult * nav:
                 log(f"  {short_name}: entry skipped, gross cap")
                 ledger("skip", pair=short_name, reason="gross_cap", z=z,
-                       gross=gross, add=add, nav=nav)
+                       gross=gross, add=add, nav=nav,
+                       **screening_provenance(sentinel, assessment, a, b))
                 continue
             qa = broker.round_qty(a, g / prices[a])
             qb = broker.round_qty(b, abs(pair["beta"]) * g / prices[b])
@@ -586,7 +679,8 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                     or not broker.meets_min_notional(b, qb, prices[b])):
                 log(f"  {short_name}: below min notional at NAV {nav:.0f}, skipped")
                 ledger("skip", pair=short_name, reason="min_notional", z=z,
-                       qa=qa, qb=qb, nav=nav)
+                       qa=qa, qb=qb, nav=nav,
+                       **screening_provenance(sentinel, assessment, a, b))
                 continue
             news_note = sentinel.note(base_asset(a), base_asset(b)) if sentinel \
                 else "news sentinel disabled"
@@ -598,6 +692,7 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                     log(f"  {short_name}: ANOMALY VETO — {broken}")
                     ledger("skip", pair=short_name, reason="anomaly_veto", z=z,
                            assessment=assessment, nav=nav,
+                           **screening_provenance(sentinel, assessment, a, b),
                            reasoning=(
                                f"The quantitative entry signal was live "
                                f"(z={z:+.2f} beyond the cost-aware band "
@@ -615,6 +710,7 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                     log(f"  {short_name}: NEWS VETO — {rationale}")
                     ledger("skip", pair=short_name, reason="news_veto", z=z,
                            news=rationale, nav=nav,
+                           **screening_provenance(sentinel, assessment, a, b),
                            reasoning=(f"Quantitative entry signal was live "
                                       f"(z={z:+.2f} beyond band {pair['entry_z']:.2f}) "
                                       f"but the news sentinel rated a leg critical: "
@@ -629,6 +725,7 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                    qa=qa, qb=qb, price_a=prices[a], price_b=prices[b],
                    beta=pair["beta"], entry_z=pair["entry_z"],
                    half_life=pair["half_life"], nav=nav, dry=dry,
+                   **screening_provenance(sentinel, assessment, a, b),
                    reasoning=(f"Spread z={z:+.2f} crossed the cost-aware optimal "
                               f"entry band ±{pair['entry_z']:.2f} (fitted OU "
                               f"half-life {pair['half_life']:.0f}h; band maximizes "
@@ -771,7 +868,9 @@ def main() -> None:
             reconcile_positions(broker, state, args.dry_run)
             assets = active_assets()
             if assets:
+                previous_gate = sentinel.status
                 sentinel.refresh(assets)
+                track_news_gate(state, sentinel, previous_gate)
             trade_step(broker, cfg, state, args.dry_run, sentinel,
                        analyst)
         except RapidXError as exc:

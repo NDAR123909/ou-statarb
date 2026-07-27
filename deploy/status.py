@@ -36,6 +36,8 @@ from deploy.ltp_broker import RapidXBroker, RapidXError          # noqa: E402
 from deploy.ltp_agent import AgentConfig, _LEDGER_PATH, load_state  # noqa: E402
 
 ELIMINATION_FLOOR = 800.0     # contest: equity < 800 USDT (NAV<0.8) = out
+# Sentinel states in which the news gate is DOWN rather than merely quiet.
+DEGRADED_GATE = ("no_client", "quota", "api_error", "parse_error")
 
 
 def _systemd(unit: str = "ltp-agent") -> dict | None:
@@ -172,6 +174,10 @@ def build_report(cfg: AgentConfig, use_marks: bool, ledger_n: int) -> dict:
     rep["ledger_tally"] = tally
     rep["recent"] = recent
 
+    # News-gate health. The sentinel fails open, so a dead gate does not stop
+    # trading — which is exactly why it has to be visible here.
+    rep["news_gate"] = state.get("news_gate") or {}
+
     rep["service"] = _systemd()
     return rep
 
@@ -205,6 +211,19 @@ def _print_human(rep: dict) -> None:
                 f"{rep['headroom_to_floor']:.2f} to the 800 floor"
                 if "headroom_to_kill" in rep else ""))
     line("halted", "YES — trading stopped" if rep["halted"] else "no")
+
+    gate = rep.get("news_gate") or {}
+    gstatus = gate.get("status", "unknown")
+    if gstatus in DEGRADED_GATE:
+        line("news gate", f"** DEGRADED ({gstatus}) — entries are NOT being "
+                          f"screened for event risk ** {gate.get('error', '')[:80]}")
+    elif gstatus == "ok":
+        line("news gate", f"ok — {gate.get('rated', 0)} assets rated "
+                          f"@ {gate.get('ts', '?')}")
+    elif gstatus == "no_news":
+        line("news gate", f"ok — no relevant news in window @ {gate.get('ts', '?')}")
+    else:
+        line("news gate", f"{gstatus} (no reading yet)")
     nxt = (rep["refit_every_bars"] - rep["bar"] % rep["refit_every_bars"]) \
         % rep["refit_every_bars"]
     line("bar", f"{rep['bar']}   (refit every {rep['refit_every_bars']}; "
@@ -268,6 +287,8 @@ def main() -> int:
     # exit non-zero on the two states worth alarming on
     if rep.get("halted") or rep.get("equity") is None:
         return 1
+    if (rep.get("news_gate") or {}).get("status") in DEGRADED_GATE:
+        return 1                      # risk gate dark: worth alarming on
     return 0
 
 
