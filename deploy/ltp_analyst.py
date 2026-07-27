@@ -43,7 +43,8 @@ import os
 import time
 from dataclasses import dataclass, field
 
-from deploy.ltp_news import organizer_client, model_name
+from deploy.ltp_news import (organizer_client, model_name,
+                            classify_api_error)
 
 try:
     import requests
@@ -116,12 +117,25 @@ def _extract_json(text: str) -> dict | None:
 class StrategyAnalyst:
     """LLM analysis of spread regime and selection adaptation, for the log."""
 
+    # States in which analysis is FAILING rather than simply quiet. Mirrors
+    # NewsSentinel.DEGRADED_STATES: an assessment that silently returns
+    # nothing is indistinguishable from a bar that was never assessed, which
+    # is the same blind spot the news gate had.
+    DEGRADED_STATES = ("no_client", "quota", "api_error", "parse_error",
+                       "budget_exhausted")
+
     max_daily_spend: float = 8.0     # of the USD 10/day allocation
     spend_ttl: float = 300.0         # seconds; the meter needn't be re-read
                                      # once per assessment (~73 HTTP calls/day)
     _spend: float | None = field(default=None, repr=False)
     _spend_at: float = field(default=0.0, repr=False)
+    # ok | no_client | quota | api_error | parse_error | budget_exhausted
+    status: str = "unknown"
     last_error: str = ""
+
+    @property
+    def degraded(self) -> bool:
+        return self.status in self.DEGRADED_STATES
 
     # ------------------------------------------------------------- budget --
     def spend_today(self) -> float | None:
@@ -162,20 +176,28 @@ class StrategyAnalyst:
     def _ask(self, system: str, prompt: str, max_tokens: int) -> dict:
         client = organizer_client()
         if client is None:
+            self.status, self.last_error = "no_client", ""
             return {}
         try:
             response = client.messages.create(
                 model=model_name(), max_tokens=max_tokens, system=system,
                 messages=[{"role": "user", "content": prompt}])
         except Exception as exc:                  # never break the trade loop
-            self.last_error = str(exc)[:200]
+            self.status = classify_api_error(exc)
+            self.last_error = f"{type(exc).__name__}: {exc}"[:300]
             return {}
         if getattr(response, "stop_reason", None) == "refusal":
+            self.status, self.last_error = "api_error", "model refused"
             return {}
         text = next((b.text for b in response.content
                      if getattr(b, "type", None) == "text"), "")
         parsed = _extract_json(text)
-        return parsed if isinstance(parsed, dict) else {}
+        if not isinstance(parsed, dict):
+            self.status = "parse_error"
+            self.last_error = f"unparseable response: {text[:120]}"
+            return {}
+        self.status, self.last_error = "ok", ""
+        return parsed
 
     # ------------------------------------------- market anomaly detection --
     def assess_spread(self, pair: str, z: float, entry_z: float, exit_z: float,
@@ -184,6 +206,8 @@ class StrategyAnalyst:
                       holding: bool) -> dict:
         """Regime verdict for one pair on one bar. {} if unavailable."""
         if not self.within_budget():
+            self.status = "budget_exhausted"
+            self.last_error = f"daily spend at or above {self.max_daily_spend}"
             return {}
         path = ", ".join(f"{v:+.2f}" for v in z_path[-12:]) or f"{z:+.2f}"
         prompt = (
@@ -201,7 +225,13 @@ class StrategyAnalyst:
             f"Recent hourly z path (oldest to newest): {path}\n"
             f"{news_note}")
         out = self._ask(ANOMALY_SYSTEM, prompt, max_tokens=512)
+        if not out:
+            return {}                         # _ask already recorded why
+        # `regime` is the ONLY field the veto reads, and it is enum-checked
+        # here, so free-text fields like `anomaly` can never alter behaviour.
         if out.get("regime") not in ("normal", "stressed", "broken"):
+            self.status = "parse_error"
+            self.last_error = f"invalid regime: {out.get('regime')!r}"
             return {}
         return out
 
@@ -221,6 +251,8 @@ class StrategyAnalyst:
         """Daily reading of how the tradeable universe is adapting. {} if
         unavailable. Advisory only — it never edits the selection."""
         if not self.within_budget():
+            self.status = "budget_exhausted"
+            self.last_error = f"daily spend at or above {self.max_daily_spend}"
             return {}
         if passed:
             lines = "\n".join(

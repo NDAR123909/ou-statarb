@@ -81,32 +81,97 @@ def _track(status, previous, error="", verdicts=None):
         agent.track_news_gate(state, s, previous)
     finally:
         agent.ledger = original
-    return state, [ev for ev, _ in events]
+    # `news_assessment` is emitted on EVERY refresh (the audit trail of the
+    # hourly sentiment call); transitions are the separate, rarer signal.
+    return state, ([ev for ev, _ in events if ev != "news_assessment"],
+                   [f for ev, f in events if ev == "news_assessment"])
 
 
 def test_going_dark_is_logged_once_on_transition():
-    state, events = _track("quota", previous="ok", error="insufficient quota")
+    state, (events, _) = _track("quota", previous="ok", error="insufficient quota")
     assert events == ["sentinel_degraded"]
     assert state["news_gate"]["status"] == "quota"
 
 
 def test_staying_dark_does_not_spam_the_ledger():
-    _, events = _track("quota", previous="quota", error="insufficient quota")
+    _, (events, _) = _track("quota", previous="quota", error="insufficient quota")
     assert events == []                 # one loud event, not one per bar
 
 
 def test_recovery_is_logged():
-    _, events = _track("ok", previous="quota", verdicts={"TAO": {}})
+    _, (events, _) = _track("ok", previous="quota", verdicts={"TAO": {}})
     assert events == ["sentinel_restored"]
 
 
-def test_healthy_operation_is_silent_but_recorded():
-    state, events = _track("ok", previous="ok", verdicts={"TAO": {}})
+def test_healthy_operation_logs_no_transition_but_records_state():
+    state, (events, _) = _track("ok", previous="ok", verdicts={"TAO": {}})
     assert events == []
     assert state["news_gate"]["status"] == "ok"
     assert state["news_gate"]["rated"] == 1
 
 
 def test_quiet_news_window_is_not_reported_as_failure():
-    _, events = _track("no_news", previous="ok")
+    _, (events, _) = _track("no_news", previous="ok")
     assert events == []
+
+
+# --- the hourly sentiment call always leaves a trace -------------------------
+
+def test_every_refresh_records_the_verdicts():
+    """Previously the hourly sentiment call left NO ledger trace unless a
+    trade happened, so a quiet stretch looked like the sentinel never ran."""
+    verdicts = {"TAO": {"severity": "none", "rationale": "ordinary commentary"},
+                "RENDER": {"severity": "watch", "rationale": "large unlock"}}
+    _, (_, assessments) = _track("ok", previous="ok", verdicts=verdicts)
+    assert len(assessments) == 1
+    rec = assessments[0]
+    assert rec["status"] == "ok" and rec["rated"] == 2
+    assert rec["verdicts"]["RENDER"]["severity"] == "watch"
+    assert "large unlock" in rec["verdicts"]["RENDER"]["rationale"]
+
+
+def test_quiet_window_still_records_that_the_sentinel_ran():
+    _, (_, assessments) = _track("no_news", previous="no_news")
+    assert len(assessments) == 1
+    assert assessments[0]["status"] == "no_news"
+    assert assessments[0]["rated"] == 0
+
+
+# --- screening provenance is machine-readable --------------------------------
+
+TAO, REN = "BINANCE_PERP_TAO_USDT", "BINANCE_PERP_RENDER_USDT"
+
+
+def _sentinel(status, verdicts=None):
+    s = NewsSentinel()
+    s.status, s.verdicts = status, verdicts or {}
+    return s
+
+
+def test_provenance_marks_a_screened_entry():
+    """The audit correlates AI logs with orders programmatically, so 'was this
+    trade screened, by what, with what verdict' must be filterable without
+    parsing English out of the reasoning prose."""
+    s = _sentinel("ok", {"TAO": {"severity": "none"},
+                         "RENDER": {"severity": "watch"}})
+    prov = agent.screening_provenance(s, {"regime": "normal",
+                                          "confidence": "high"}, TAO, REN)
+    assert prov["screened"] is True
+    assert prov["news_status"] == "ok"
+    assert prov["news_severity"] == {"TAO": "none", "RENDER": "watch"}
+    assert prov["regime"] == "normal" and prov["regime_confidence"] == "high"
+
+
+def test_provenance_marks_an_unscreened_entry():
+    """A trade taken while the gate was dark must be distinguishable from a
+    screened one in structured data, not only in the narrative."""
+    prov = agent.screening_provenance(_sentinel("quota"), {}, TAO, REN)
+    assert prov["screened"] is False
+    assert prov["news_status"] == "quota"
+    assert prov["news_severity"] == {"TAO": None, "RENDER": None}
+    assert prov["regime"] is None
+
+
+def test_provenance_without_a_sentinel_at_all():
+    prov = agent.screening_provenance(None, {}, TAO, REN)
+    assert prov["screened"] is False and prov["news_status"] == "disabled"

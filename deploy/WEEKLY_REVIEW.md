@@ -170,6 +170,38 @@ and halting or shrinking on an operational outage would cost return for a
 non-market reason. Operator concurred. Revisit if the veto ever proves it earns
 its keep (see below).
 
+### Post-review addition (2026-07-27) — audit-log gaps found by operator review
+The operator audited the ledger's actual contents (not just its existence) and
+found three gaps. Verified against source before acting:
+
+1. **`anomaly` is free text — but it never drives behaviour.** The veto reads
+   `regime`, which IS enum-validated (`ltp_analyst.py`: anything outside
+   `normal|stressed|broken` returns `{}`). So a model answering "no anomalies
+   detected" in prose cannot change trading. Concern was well-reasoned; the
+   design already separated description from control.
+2. **The hourly news verdicts were never persisted** — CONFIRMED and the
+   important one. Severities lived in memory and were flattened into one prose
+   sentence inside an entry's `reasoning`; with no trade that bar, the
+   sentiment call left **no trace at all**. An auditor pulling a quiet stretch
+   would have seen no evidence that sentiment analysis ran — the audit theme we
+   have claimed longest and described to the organizer.
+3. **Screened vs unscreened entries were distinguishable only in prose**, not
+   in structured fields, defeating the programmatic correlation the organizer
+   says it will run.
+
+Fixed (logging only — no behavioural change, no extra AI spend):
+`news_assessment` ledger event on every refresh with per-asset severity and
+rationale (logged on `no_news` too: "we looked, nothing relevant" is itself
+evidence of cadence); `screening_provenance()` attaches `screened`,
+`news_status`, `news_severity{leg}`, `regime`, `regime_confidence` to every
+`enter` and `skip`; and the analyst gained the sentinel's typed status so a
+missing assessment emits `ai_assessment_unavailable` instead of silence — the
+same blind spot, one file over. Pinned by `tests/test_ltp_news_gate.py`.
+
+**Method note for future checks:** `grep '"severity":"..."'` returns nothing
+even when the field is present — `json.dumps` writes `"severity": "none"` WITH
+a space. Count event types instead; the event tally is the reliable probe.
+
 ### Known-unexplained / watch
 - **50% stop rate** (3 of 6 round-trips). Entry band is model-derived (~3.0)
   but `stop_z` is a hardcoded 3.5 — only 0.5z of room. Possible mis-calibration,
