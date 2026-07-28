@@ -52,6 +52,60 @@ def test_optimal_bands_widen_with_cost():
         assert dear.profit_rate < cheap.profit_rate
 
 
+def test_optimal_bands_actually_maximizes_the_objective():
+    """The returned bands must beat every other cell on the search grid.
+
+    Regression test for a unit mismatch that survived for months because the
+    other band tests only assert DIRECTION: the search compared a raw
+    profit/cycle rate against an incumbent stored as rate * sigma_eq, so with
+    sigma_eq ~0.03 (log-price units) the bar was deflated ~30x and nearly any
+    later grid cell won. Since the loops ascend in a and b, the result walked
+    to the largest feasible cell -- the grid corner -- rather than the
+    optimum. Two saturated results satisfy `dear.entry_z >= cheap.entry_z`
+    vacuously, so nothing caught it; on live crypto pairs it produced entry
+    bands whose expected round trip ran from 83 days to 3.7 years.
+
+    This checks optimality directly instead of by proxy.
+    """
+    ou = fit_ou(simulate_ou(np.random.default_rng(4), 0.05, 0.0, 0.02, 6000))
+    roundtrip = 0.0008
+    res = optimal_bands(ou, roundtrip)
+    assert res.tradeable
+
+    theta = ou.theta
+    sigma_std = np.sqrt(2.0 * theta)
+    cost_z = roundtrip / ou.sigma_eq
+
+    def rate_at(a, b):
+        profit = (a - b) - cost_z
+        if profit <= 0:
+            return -np.inf
+        cycle = (ou_expected_passage_time(-a, -b, theta, sigma_std)
+                 + ou_expected_passage_time(-b, -a, theta, sigma_std))
+        return profit / cycle if cycle > 0 else -np.inf
+
+    chosen = rate_at(res.entry_z, res.exit_z)
+    assert np.isfinite(chosen)
+    for a in np.arange(0.4, 3.01, 0.2):
+        for b in np.arange(0.0, 1.51, 0.25):
+            if b >= a - 0.1:
+                continue
+            assert rate_at(a, b) <= chosen + 1e-12, (
+                f"({a:.1f},{b:.2f}) beats the returned "
+                f"({res.entry_z:.1f},{res.exit_z:.2f})")
+
+
+def test_cheap_costs_do_not_pin_the_entry_band_to_the_grid_edge():
+    """With costs small relative to the spread's amplitude, the optimal entry
+    is interior: waiting for a 3-sigma excursion costs far more in cycle time
+    than it gains in profit per trip. A result sitting exactly on the grid
+    maximum is the signature of the comparison bug, not of an optimum."""
+    ou = fit_ou(simulate_ou(np.random.default_rng(5), 0.05, 0.0, 0.02, 6000))
+    res = optimal_bands(ou, roundtrip_cost=0.0005)
+    assert res.tradeable
+    assert res.entry_z < 3.0, "entry pinned to the a_grid maximum"
+
+
 def test_optimal_bands_untradeable_when_costs_dominate():
     """A weak spring with huge costs must be flagged untradeable, not traded."""
     ou = fit_ou(simulate_ou(np.random.default_rng(1), 0.01, 0.0, 0.005, 6000))

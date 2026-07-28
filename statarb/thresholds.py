@@ -117,6 +117,15 @@ def optimal_bands(ou: OUParams, roundtrip_cost: float,
     cost_z = roundtrip_cost / ou.sigma_eq          # cost in z-units
 
     best = OptimalBands(2.0, 0.5, -np.inf, -np.inf, np.inf, False)
+    # Track the incumbent's rate in the SAME units the candidates are scored
+    # in. `profit_rate` on the result is deliberately reported in spread
+    # units (rate * sigma_eq), so comparing a raw candidate rate against it
+    # deflated the bar by ~1/sigma_eq -- with sigma_eq ~0.03 in log-price
+    # units, almost any later grid cell "won", and because the loops ascend
+    # the search walked to the largest feasible cell instead of the optimum.
+    # Live crypto pairs came back with entry bands whose expected round trip
+    # was 83 days to 3.7 years. Keep the comparison raw and separate.
+    best_rate = -np.inf
     # Cache passage times: cycle = tau(-a -> -b) + tau(-b -> -a)
     for a in a_grid:
         for b in b_grid:
@@ -131,7 +140,8 @@ def optimal_bands(ou: OUParams, roundtrip_cost: float,
             if cycle <= 0:
                 continue
             rate = profit / cycle
-            if rate > best.profit_rate:
+            if rate > best_rate:
+                best_rate = rate
                 best = OptimalBands(
                     entry_z=float(a), exit_z=float(b),
                     profit_rate=float(rate * ou.sigma_eq),
