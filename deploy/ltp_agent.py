@@ -100,7 +100,17 @@ class AgentConfig:
     taker_fee: float = 5e-4           # 5 bps per leg per trade, until measured
     stop_z: float = 3.5
     max_hold_mult: float = 3.0
-    risk_per_pair: float = 0.004      # 40 bps of NAV per bar of spread vol
+    # SANDBOX RISK BUDGET (Phase I, from 2026-07-28). Halved from 0.004.
+    # Track A Phase I advances the top 30 of a 29-team field, so rank here is
+    # worth nothing and only the 800 USDT floor matters. That makes Phase I
+    # what its name says -- a sandbox -- and the corrected band optimiser
+    # (see LTP_STRATEGY.md) is being tested live to get real crypto evidence
+    # before Phase II, where ranking and the prize actually exist. Scaling
+    # size scales return and drawdown together without changing Sharpe, so
+    # halving it costs nothing in evidence while bounding the downside.
+    risk_per_pair: float = 0.002
+    # Entry bands must clear this many standard errors of the FITTED mean.
+    min_entry_se: float = 1.0
     max_pairs: int = 4
     max_gross_mult: float = 2.0       # gross notional cap, x NAV
     per_leg_cap_mult: float = 0.5     # single leg cap, x NAV
@@ -249,7 +259,12 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict,
         a, b = row.a, row.b
         m = fit_spread_model(logp[a].values, logp[b].values)
         roundtrip = 2.0 * cfg.taker_fee * (1.0 + abs(m.beta))
-        bands = optimal_bands(m.ou, roundtrip)
+        # n_obs is the window the OU was fitted on, so the optimiser refuses
+        # entry bands sitting inside the uncertainty of the fitted mean. This
+        # binds on slow-reverting pairs (a 267h half-life on 960 bars leaves
+        # the mean known only to ~0.9 sigma) and is inert on the fast ones.
+        bands = optimal_bands(m.ou, roundtrip, n_obs=len(logp[a].values),
+                              min_entry_se=cfg.min_entry_se)
         if not bands.tradeable:
             log(f"  {a.split('_')[2]}/{b.split('_')[2]}: costs eat the edge, skipped")
             continue

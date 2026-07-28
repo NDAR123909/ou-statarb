@@ -303,6 +303,66 @@ round trip of fees, always reduces risk, and the strategy re-enters cleanly on
 its own terms if the signal still holds. Pinned by `tests/test_ltp_reconcile.py`,
 including the requirement that a *healthy* open pair is never churned.
 
+## Addendum — a bug in the band optimiser, and Phase I as a sandbox (2026-07-28)
+
+The largest finding of the competition so far, and it is a defect in our own
+core math rather than anything about the market.
+
+**The bug.** `optimal_bands` grid-searches (entry, exit) to maximise expected
+profit per unit time. It scored each cell with a raw `profit / cycle` rate but
+compared that against an incumbent stored as `rate * sigma_eq`. With `sigma_eq`
+~0.03 in log-price units the incumbent's bar was deflated ~30x, so nearly any
+later cell "won"; because the loops ascend in `a` and `b`, the search walked to
+the largest feasible cell instead of the optimum. Every live pair reported
+entry 3.0 / exit 1.5 — the exact grid corner.
+
+**What it cost.** On the 15 live candidates the shipped optimiser chose bands
+whose expected round trip ran from **83 days (RENDER/TAO) to 3.7 years
+(BCH/LTC)**, against corrected optima cycling in 38–400 hours — 18–21x less
+profit per hour. This, not thin crypto cointegration, is the explanation for a
+book that has sat idle. One pair, PAXG/XAUT (`cost_z` 2.96), is *unchanged* by
+the fix: the corner genuinely is its optimum, which is a useful check that the
+objective itself is sound.
+
+**Why nothing caught it.** The band tests asserted direction only
+(`dear.entry_z >= cheap.entry_z`), which two saturated results satisfy
+vacuously. Tests now check that the returned bands *are* the grid optimum.
+
+**The honest cost of fixing it.** The reference equity backtest (31 names,
+2006–2017, 19 OOS folds) moves from Sharpe 0.44 / 0.31% annual / −1.14% MDD to
+**Sharpe 0.36 / 1.07% annual / −5.13% MDD**, with average gross leverage going
+0.02x → 0.37x. The old, better-looking Sharpe came from a book that was almost
+never on. `IMPROVEMENTS.md` has been corrected to the lower figure with the old
+one left visible.
+
+**A guard that did not work.** Hypothesis: the corrected 0.4–0.6 sigma bands
+trade inside the noise of the fitted mean, since an autocorrelated OU series
+gives far fewer independent observations than its length suggests (±0.22 sigma
+for a 17h half-life on 960 bars; ±0.90 sigma for a 267h one). Adding an
+estimation-error floor did **not** rescue the Sharpe — sweeping it showed
+results identical up to 1.0 SE and strictly worse above. It is kept at 1.0
+anyway, not as a performance tweak but as a safety rail: inert on the reference
+data, and binding exactly where that data has no examples — slow-reverting
+crypto pairs like ADA/DOT (0.6 SE) and BCH/LTC (0.45 SE).
+
+**Phase I is now explicitly a sandbox, and this is a deliberate risk choice.**
+Track A Phase I advances the **top 30 of a 29-team field**, and Track B does not
+compete in Phase I, so a combined leaderboard is structurally impossible.
+Advancement is therefore assured for anyone who stays above the 800 USDT floor,
+and Phase I *rank is worth nothing*. What Phase I is still worth is evidence:
+we would otherwise enter Phase II — where the ranking and the USD 300k actually
+exist — with no data on how the corrected bands behave on crypto. So the
+corrected optimiser is going live now, with `risk_per_pair` **halved from 0.004
+to 0.002**. Scaling size scales return and drawdown together without changing
+Sharpe, so the reduced budget costs nothing in evidence while bounding the
+downside. Worst case is the kill switch latching near 889 USDT: still above the
+floor, still advancing, and we will have learned the bands are too aggressive
+for this asset class before that lesson could cost real money.
+
+Stated plainly so the post-mortem can hold us to it: this is a decision to
+spend drawdown budget on information, justified by advancement being assured.
+If advancement turns out not to be assured, the decision was wrong.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;
