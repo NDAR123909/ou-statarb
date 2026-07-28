@@ -28,7 +28,8 @@ from .risk import (
 from .broker import (
     Fill, Broker, MockBroker, AlpacaPaperBroker, run_pairs_session,
 )
-from .thresholds import OptimalBands, optimal_bands, ou_expected_passage_time
+from .thresholds import (OptimalBands, optimal_bands,
+                         ou_expected_passage_time, ou_mean_standard_error)
 from .costs import CostModel, apply_costs
 from .selection import (
     SelectionConfig, select_pairs, benjamini_hochberg, hurst_exponent,
@@ -47,6 +48,7 @@ __all__ = [
     "proportional_size", "rolling_half_life", "regime_ok", "backtest_sized_gated",
     "Fill", "Broker", "MockBroker", "AlpacaPaperBroker", "run_pairs_session",
     "OptimalBands", "optimal_bands", "ou_expected_passage_time",
+    "ou_mean_standard_error",
     "CostModel", "apply_costs",
     "SelectionConfig", "select_pairs", "benjamini_hochberg", "hurst_exponent",
     "mean_crossings",

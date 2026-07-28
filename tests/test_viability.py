@@ -5,7 +5,7 @@ import pytest
 
 from statarb import (
     fit_ou, fit_spread_model, backtest, BacktestConfig, SpreadModel,
-    ou_expected_passage_time, optimal_bands,
+    ou_expected_passage_time, optimal_bands, ou_mean_standard_error,
     CostModel, benjamini_hochberg, hurst_exponent, mean_crossings,
     SelectionConfig, select_pairs,
     PortfolioConfig, walk_forward_portfolio,
@@ -104,6 +104,56 @@ def test_cheap_costs_do_not_pin_the_entry_band_to_the_grid_edge():
     res = optimal_bands(ou, roundtrip_cost=0.0005)
     assert res.tradeable
     assert res.entry_z < 3.0, "entry pinned to the a_grid maximum"
+
+
+def test_mean_standard_error_matches_monte_carlo():
+    """The fitted mean's standard error must match simulation.
+
+    An OU series is autocorrelated, so the sample mean is far noisier than
+    sqrt(n) suggests. This pins the AR(1) formula against 400 independent
+    simulated paths -- the entry-band floor is derived from it, so a wrong
+    constant here would silently mis-size every band.
+    """
+    theta, sigma, n = 0.04, 0.02, 960
+    rng = np.random.default_rng(11)
+    means = [simulate_ou(rng, theta, 0.0, sigma, n).mean() for _ in range(400)]
+    ou = fit_ou(simulate_ou(np.random.default_rng(12), theta, 0.0, sigma, 40000))
+    empirical_z = float(np.std(means, ddof=1)) / ou.sigma_eq
+    predicted_z = ou_mean_standard_error(ou, n)
+    assert predicted_z == pytest.approx(empirical_z, rel=0.25), (
+        f"predicted {predicted_z:.3f} vs simulated {empirical_z:.3f}")
+
+
+def test_slow_reverting_spread_has_a_badly_known_mean():
+    """A long half-life on a fixed window leaves the mean barely estimated --
+    the case where a narrow entry band is most dangerous."""
+    fast = fit_ou(simulate_ou(np.random.default_rng(13), 0.04, 0.0, 0.02, 6000))
+    slow = fit_ou(simulate_ou(np.random.default_rng(13), 0.0026, 0.0, 0.02, 6000))
+    assert (ou_mean_standard_error(slow, 960)
+            > 3 * ou_mean_standard_error(fast, 960))
+
+
+def test_entry_floor_rejects_bands_inside_the_fit_noise():
+    """With n_obs supplied, the optimiser may not choose an entry band smaller
+    than min_entry_se standard errors of the fitted mean."""
+    ou = fit_ou(simulate_ou(np.random.default_rng(14), 0.04, 0.0, 0.02, 6000))
+    floor = 2.0 * ou_mean_standard_error(ou, 960)
+    assert floor > 0.4, "test needs a floor above the unconstrained optimum"
+
+    free = optimal_bands(ou, roundtrip_cost=0.0005)
+    guarded = optimal_bands(ou, roundtrip_cost=0.0005, n_obs=960,
+                            min_entry_se=2.0)
+    assert free.tradeable and guarded.tradeable
+    assert free.entry_z < floor          # unconstrained sits in the noise
+    assert guarded.entry_z >= floor      # guarded does not
+
+
+def test_entry_floor_is_opt_in():
+    """Omitting n_obs must leave existing callers' behaviour unchanged."""
+    ou = fit_ou(simulate_ou(np.random.default_rng(15), 0.04, 0.0, 0.02, 6000))
+    a = optimal_bands(ou, roundtrip_cost=0.0005)
+    b = optimal_bands(ou, roundtrip_cost=0.0005, n_obs=None)
+    assert (a.entry_z, a.exit_z) == (b.entry_z, b.exit_z)
 
 
 def test_optimal_bands_untradeable_when_costs_dominate():
