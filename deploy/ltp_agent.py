@@ -773,7 +773,16 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
             stopped = (side > 0 and z < -cfg.stop_z) or \
                       (side < 0 and z > cfg.stop_z)
             stale = pair["hold"] >= cfg.max_hold_mult * pair["half_life"]
-            reverted = abs(z) < pair["exit_z"]
+            # Directional, not symmetric. A long spread was entered below the
+            # mean and profits as z RISES, so it exits once z climbs back to
+            # -exit_z; the short side mirrors. The old `abs(z) < exit_z` form
+            # happened to agree on the path that matters while exit_z was
+            # permanently 1.5 (the band-optimiser bug), but it cannot express
+            # exit_z = 0 -- "take profit at the mean" -- because abs(z) < 0 is
+            # never true. That left a position with no reachable profit exit,
+            # reachable only via the stop or the max-hold clock.
+            exit_z = pair["exit_z"]
+            reverted = (side > 0 and z >= -exit_z) or (side < 0 and z <= exit_z)
             if stopped:
                 log(f"  {short_name}: Z-STOP z={z:+.2f}, closing + blocking side")
                 ledger("stop", pair=short_name, side=side, z=z,

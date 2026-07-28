@@ -363,6 +363,25 @@ Stated plainly so the post-mortem can hold us to it: this is a decision to
 spend drawdown budget on information, justified by advancement being assured.
 If advancement turns out not to be assured, the decision was wrong.
 
+**A second bug the first fix exposed, within the hour.** The corrected
+optimiser chose `exit_z = 0.0` — take profit when the spread returns to its
+mean. The exit condition was `abs(z) < exit_z`, which is never true at zero,
+so the first position opened under the new bands had **no reachable profit
+exit**: it could leave only via the structural-break stop or the max-hold
+clock (~64 hours). The symmetric test had been correct-by-accident for as long
+as the optimiser bug pinned `exit_z` at 1.5 forever. The exit is now
+directional, which is what it always should have been — a long spread is
+opened below the mean and profits as z rises, so it closes when z climbs back
+to `-exit_z`, and the short side mirrors. Identical behaviour for `exit_z > 0`;
+`exit_z = 0` is now expressible. Pinned by `tests/test_ltp_exit.py`, including
+a source check so a refactor cannot quietly restore the symmetric form.
+
+Worth recording as a pattern rather than a one-off: a long-lived bug had
+been holding a second, dependent bug harmless. Fixing the first made the
+second live immediately, in production, on a real position. The lesson is not
+"fix fewer bugs" — it is that the first trade after a change to core maths
+deserves to be watched, not assumed.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;
