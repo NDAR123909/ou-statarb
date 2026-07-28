@@ -65,15 +65,30 @@ leverage cap. Runs on QuantConnect against LEAN's brokerage cost model.
 
 | metric | value |
 |---|---|
-| net Sharpe | **0.44** |
-| costs / gross PnL | 10% |
-| max drawdown | ~1.1× the annual return (scales with risk budget) |
+| net Sharpe | **0.36** |
+| annual return on NAV | 1.07% |
+| max drawdown on NAV | -5.13% |
+| costs / gross PnL | 15% |
 | pair-folds traded | 20 of ~800 tested (the selector rejects ~97%) |
 
-Read that table the right way. 0.44 net is a real, positive, out-of-sample edge
+> **Correction (2026-07-28).** This table previously reported net Sharpe
+> **0.44** with 10% costs. That figure was produced by a defect in
+> `optimal_bands`: the grid search compared a raw `profit/cycle` rate against
+> an incumbent stored as `rate * sigma_eq`, so with `sigma_eq` ~0.03 the bar
+> was deflated ~30x and the search walked to the largest feasible grid cell
+> instead of the optimum. The effect was to trade a far wider band than the
+> cost model actually implies — average gross leverage was **0.02x**, i.e. the
+> book was almost never on. Correcting the comparison raises the annual return
+> from 0.31% to 1.07% and gross leverage to 0.37x, and *lowers* net Sharpe from
+> 0.44 to 0.36 with a deeper drawdown. The corrected, less flattering figure is
+> the one reported above. The old number is left visible here rather than
+> quietly overwritten, because a headline result computed by broken code is
+> exactly the kind of thing this repo says it will not paper over.
+
+Read that table the right way. 0.36 net is a real, positive, out-of-sample edge
 after realistic costs on a deliberately small universe during a period when the
 daily pairs edge was publicly known and decaying. It is not income yet. The two
-levers that turn 0.44 into something fundable are both breadth, not cleverness:
+levers that turn 0.36 into something fundable are both breadth, not cleverness:
 
 1. **A bigger universe.** Sharpe scales roughly with √(number of independent
    bets). 42 candidates in 7 sectors is a toy; 300–500 liquid names across 20+

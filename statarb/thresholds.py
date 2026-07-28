@@ -92,9 +92,37 @@ class OptimalBands:
     tradeable: bool          # False if costs eat the whole edge
 
 
+def ou_mean_standard_error(ou: OUParams, n_obs: int) -> float:
+    """Standard error of the FITTED long-run mean, in units of sigma_eq.
+
+    The entry band is measured from an estimated mean, not a known one, and
+    that estimate is far noisier than the raw sample count suggests: an OU
+    series is heavily autocorrelated, so 960 hourly bars of a spread with a
+    17-hour half-life carry only ~20 independent observations. For an AR(1)
+    with phi = exp(-theta) the sample mean has
+
+        Var(mean) = (sigma_eq^2 / n) * (1 + phi) / (1 - phi)
+
+    so in z-units the standard error is sqrt((1+phi) / ((1-phi) * n)).
+
+    This matters because an entry band NARROWER than this is inside the noise
+    of our own fit: "the spread is 0.4 sigma below its mean" is then not
+    distinguishable from "the spread is at its mean", and the trade is a coin
+    flip dressed as a signal. Long half-lives are the dangerous case — a
+    267-hour half-life on the same window gives barely one independent
+    observation and a standard error near a full sigma.
+    """
+    phi = float(np.exp(-ou.theta))
+    if not (0.0 < phi < 1.0) or n_obs is None or n_obs <= 1:
+        return float("inf")
+    return float(np.sqrt((1.0 + phi) / ((1.0 - phi) * n_obs)))
+
+
 def optimal_bands(ou: OUParams, roundtrip_cost: float,
                   a_grid: np.ndarray | None = None,
-                  b_grid: np.ndarray | None = None) -> OptimalBands:
+                  b_grid: np.ndarray | None = None,
+                  n_obs: int | None = None,
+                  min_entry_se: float = 1.0) -> OptimalBands:
     """
     Grid-search the (entry, exit) bands that maximize expected profit per day.
 
@@ -117,8 +145,27 @@ def optimal_bands(ou: OUParams, roundtrip_cost: float,
     cost_z = roundtrip_cost / ou.sigma_eq          # cost in z-units
 
     best = OptimalBands(2.0, 0.5, -np.inf, -np.inf, np.inf, False)
+    # Track the incumbent's rate in the SAME units the candidates are scored
+    # in. `profit_rate` on the result is deliberately reported in spread
+    # units (rate * sigma_eq), so comparing a raw candidate rate against it
+    # deflated the bar by ~1/sigma_eq -- with sigma_eq ~0.03 in log-price
+    # units, almost any later grid cell "won", and because the loops ascend
+    # the search walked to the largest feasible cell instead of the optimum.
+    # Live crypto pairs came back with entry bands whose expected round trip
+    # was 83 days to 3.7 years. Keep the comparison raw and separate.
+    best_rate = -np.inf
+
+    # Estimation-error floor. Pass n_obs (the number of observations the OU was
+    # fitted on) to refuse entry bands that sit inside the uncertainty of the
+    # fitted mean. Default None keeps the previous behaviour for callers that
+    # have not opted in.
+    entry_floor = 0.0
+    if n_obs:
+        entry_floor = min_entry_se * ou_mean_standard_error(ou, n_obs)
     # Cache passage times: cycle = tau(-a -> -b) + tau(-b -> -a)
     for a in a_grid:
+        if a < entry_floor:
+            continue          # inside the noise of the fitted mean
         for b in b_grid:
             if b >= a - 0.1:
                 continue
@@ -131,7 +178,8 @@ def optimal_bands(ou: OUParams, roundtrip_cost: float,
             if cycle <= 0:
                 continue
             rate = profit / cycle
-            if rate > best.profit_rate:
+            if rate > best_rate:
+                best_rate = rate
                 best = OptimalBands(
                     entry_z=float(a), exit_z=float(b),
                     profit_rate=float(rate * ou.sigma_eq),

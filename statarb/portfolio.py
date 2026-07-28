@@ -58,6 +58,9 @@ class PortfolioConfig:
     risk_per_pair_bps: float = 10.0   # target daily PnL vol per pair, bps of NAV
     max_gross_leverage: float = 4.0   # portfolio gross / NAV cap
     use_optimal_bands: bool = True
+    # Entry bands must clear this many standard errors of the FITTED mean.
+    # 0.0 reproduces the unguarded behaviour.
+    min_entry_se: float = 1.0
     entry_z: float = 2.0              # fallback bands if not using optimal
     exit_z: float = 0.5
     stop_z: float = 3.5               # structural-break stop
@@ -226,7 +229,11 @@ def walk_forward_portfolio(
                 # round-trip cost in spread units: 4 leg-trades at per_leg_bps
                 # on gross (1+|beta|)/unit... expressed per unit of spread:
                 rt_cost = 2.0 * (1.0 + abs(model.beta)) * cfg.costs.per_leg_bps / 1e4
-                bands = optimal_bands(model.ou, rt_cost)
+                # n_obs = the training window the OU was fitted on, so the
+                # optimiser can refuse entry bands that sit inside the
+                # uncertainty of the fitted mean (see ou_mean_standard_error).
+                bands = optimal_bands(model.ou, rt_cost, n_obs=len(la_tr),
+                                      min_entry_se=cfg.min_entry_se)
                 if not bands.tradeable:
                     pair_rows.append({"fold": fold, "pair": f"{a}/{b}",
                                       "skipped": "costs exceed edge"})

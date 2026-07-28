@@ -21,7 +21,8 @@ from single-pair research code to a multi-pair portfolio engine with production
 risk controls. The owner's goal is NOT to maximize backtest numbers — it is to
 build a **verifiable live paper-trading track record** that proves the work is
 real. Read `IMPROVEMENTS.md` for the full v0.2 changelog and the honest
-real-data results (net Sharpe 0.44 OOS on a 31-name universe, 2006-2017).
+real-data results (net Sharpe 0.36 OOS on a 31-name universe, 2006-2017;
+corrected from a previously published 0.44 — see the correction note there).
 
 Guiding principle, non-negotiable: **honesty over performance.** This repo's
 credibility comes from being upfront about what doesn't work. Never add code or
