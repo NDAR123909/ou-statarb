@@ -14,6 +14,30 @@ Weekly reviews happen on Sundays. At each one: read `WEEKLY_REVIEW.md`, work
 the agenda it lists, then **append a new week's entry and write the next
 week's agenda** so the next session can resume cold.
 
+### Session close-out — do this before ending any session that changed anything
+
+This project spans months and many sessions; working context is reset
+repeatedly. **Everything written to a file survives. Everything left in
+conversation does not.** Four commitments made in chat were lost in a single
+session on 2026-07-28/30, and the review log meanwhile described a parameter
+that had already changed — a later session would have read a stale premise as
+fact. So, before finishing:
+
+1. **Append to `deploy/WEEKLY_REVIEW.md`**: what changed, the current numbers,
+   and anything that is now out of date elsewhere in the file. Correct stale
+   statements rather than leaving them to be believed.
+2. **Record every promise in the "Open commitments" table the moment it is
+   made** — any "I'll look at that Sunday" belongs there immediately, with its
+   date and trigger, not at the end of the session.
+3. **Disclose behavioural changes in `deploy/LTP_STRATEGY.md`**, naming the
+   config or function involved so a future session can grep for it.
+4. **Pin new behaviour with a test.** Tests are the only part of this record
+   that fails loudly when forgotten; prose is not.
+
+`tests/test_review_log.py` enforces the freshness of the record — if the log
+goes stale, CI goes red. Fix that by appending what actually happened, never by
+editing a date.
+
 ## What this project is
 
 `ou-statarb` is an Ornstein-Uhlenbeck pairs-trading framework, upgraded in v0.2

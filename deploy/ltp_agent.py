@@ -124,6 +124,8 @@ class AgentConfig:
     # to the funded starting equity, which is also the peak's floor.
     hwm_path: str = "deploy/ltp_hwm.json"
     initial_equity: float = 1000.0
+    # Minutes before an announced venue maintenance window to go flat.
+    maintenance_lead_minutes: int = 30
 
 
 def log(msg: str) -> None:
@@ -443,6 +445,51 @@ def track_news_gate(state: dict, sentinel: NewsSentinel, previous: str) -> None:
             f"{len(sentinel.verdicts)} assets rated")
         ledger("sentinel_restored", status=sentinel.status,
                rated=len(sentinel.verdicts))
+
+
+def parse_maintenance_windows(spec: str) -> list[tuple[datetime, datetime]]:
+    """Parse LTP_MAINTENANCE_WINDOWS: "START/END,START/END" in ISO-8601 UTC.
+
+    Announced venue upgrades disable the place/cancel order APIs, which means
+    the agent temporarily cannot de-risk — the same condition as being down,
+    just with the outage on their side. Pausing for a scheduled blackout is an
+    OPERATIONAL fact, not a market prediction, so it does not compromise the
+    "the math decides trades" contract.
+
+    Malformed entries are skipped rather than raised: a typo in an env var
+    must never stop a live agent from trading."""
+    out: list[tuple[datetime, datetime]] = []
+    for chunk in (spec or "").split(","):
+        chunk = chunk.strip()
+        if not chunk or "/" not in chunk:
+            continue
+        start_s, _, end_s = chunk.partition("/")
+        try:
+            start = datetime.fromisoformat(start_s.strip().replace("Z", "+00:00"))
+            end = datetime.fromisoformat(end_s.strip().replace("Z", "+00:00"))
+        except ValueError:
+            log(f"maintenance: ignoring unparseable window {chunk!r}")
+            continue
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+        if end > start:
+            out.append((start, end))
+        else:
+            log(f"maintenance: ignoring window with end <= start: {chunk!r}")
+    return out
+
+
+def maintenance_state(now: datetime, windows: list, lead_minutes: int) -> str:
+    """'active' inside a window, 'prepare' in the run-up to one, else 'clear'."""
+    for start, end in windows:
+        if start <= now < end:
+            return "active"
+        lead = start - pd.Timedelta(minutes=lead_minutes).to_pytimedelta()
+        if lead <= now < start:
+            return "prepare"
+    return "clear"
 
 
 def screening_provenance(sentinel: NewsSentinel | None, assessment: dict,
@@ -879,9 +926,34 @@ def main() -> None:
         log("news stream: websockets not installed, hourly poll only")
         stream = None
 
+    windows = parse_maintenance_windows(
+        os.environ.get("LTP_MAINTENANCE_WINDOWS", ""))
+    if windows:
+        log("maintenance windows: " + ", ".join(
+            f"{a.isoformat()} -> {b.isoformat()}" for a, b in windows))
+    maint = "clear"
+
     while True:
         try:
             ensure_session()
+            # Announced venue upgrades take the place/cancel order APIs down,
+            # so the agent cannot exit or stop anything while one is running.
+            # Go flat in the run-up and open nothing during: a scheduled
+            # blackout is an operational fact, not a market call.
+            prev_maint, maint = maint, maintenance_state(
+                datetime.now(timezone.utc), windows,
+                cfg.maintenance_lead_minutes)
+            if maint != prev_maint:
+                log(f"maintenance state: {prev_maint} -> {maint}")
+                ledger("maintenance", state=maint, previous=prev_maint,
+                       reasoning=(
+                           "The venue announced a maintenance window in which "
+                           "the place/cancel order APIs are unavailable. While "
+                           "it runs the agent cannot exit, stop, or de-risk a "
+                           "position, so it goes flat beforehand and opens "
+                           "nothing until the window closes. This is an "
+                           "operational response to a scheduled outage, not a "
+                           "view on the market."))
             if state["bar"] % cfg.refit_every_bars == 0:
                 refit(broker, cfg, state, analyst)
             # Reality check before acting: a restart, a wiped state file or a
@@ -889,7 +961,21 @@ def main() -> None:
             # holding something the strategy doesn't know about. Run this
             # BEFORE trade_step so nothing is ever stacked on top of an
             # unmanaged position.
+            if maint == "active":
+                # Orders would be refused; skip the write paths entirely
+                # rather than generate a bar of avoidable errors.
+                log("maintenance active: trading suspended this bar")
+                state["bar"] += 1
+                save_state(cfg.state_path, state)
+                if args.once:
+                    break
+                time.sleep(max(60.0, 3600 - (time.time() % 3600) + 5))
+                continue
             reconcile_positions(broker, state, args.dry_run)
+            if maint == "prepare":
+                nav_now = broker.equity_usdt()
+                log("maintenance imminent: flattening before the window")
+                flatten_everything(broker, state, nav_now, args.dry_run)
             assets = active_assets()
             if assets:
                 previous_gate = sentinel.status

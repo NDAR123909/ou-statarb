@@ -339,11 +339,13 @@ one left visible.
 trade inside the noise of the fitted mean, since an autocorrelated OU series
 gives far fewer independent observations than its length suggests (±0.22 sigma
 for a 17h half-life on 960 bars; ±0.90 sigma for a 267h one). Adding an
-estimation-error floor did **not** rescue the Sharpe — sweeping it showed
-results identical up to 1.0 SE and strictly worse above. It is kept at 1.0
-anyway, not as a performance tweak but as a safety rail: inert on the reference
-data, and binding exactly where that data has no examples — slow-reverting
-crypto pairs like ADA/DOT (0.6 SE) and BCH/LTC (0.45 SE).
+estimation-error floor (`ou_mean_standard_error`, exposed as the
+`min_entry_se` config on both `AgentConfig` and `PortfolioConfig`) did **not**
+rescue the Sharpe — sweeping it showed results identical up to 1.0 SE and
+strictly worse above. `min_entry_se` is kept at 1.0 anyway, not as a
+performance tweak but as a safety rail: inert on the reference data, and
+binding exactly where that data has no examples — slow-reverting crypto pairs
+like ADA/DOT (0.6 SE) and BCH/LTC (0.45 SE).
 
 **Phase I is now explicitly a sandbox, and this is a deliberate risk choice.**
 Track A Phase I advances the **top 30 of a 29-team field**, and Track B does not

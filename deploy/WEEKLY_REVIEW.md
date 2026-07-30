@@ -213,6 +213,75 @@ a space. Count event types instead; the event tally is the reliable probe.
 
 ---
 
+## Mid-week — 2026-07-28 → 2026-07-30 (not a scheduled review)
+
+Recorded out of cycle because three days of consequential change would
+otherwise have reached Sunday only as chat context, which does not survive.
+
+### Position now
+Rank **#4 of 29** (was #9), equity **1019.76 at a new high** (was 1006.42),
+drawdown **none since the day-1 event**, peak 1019.64, kill switch 897.28.
+Live pair AVAX/SOL, entry ±0.6 / exit ±0.0 / stop ±3.5.
+
+### What changed, and why it was the biggest find of the competition
+- **`optimal_bands` had a unit-mismatch bug** (full account in LTP_STRATEGY.md,
+  2026-07-28). It compared a raw `profit/cycle` rate against an incumbent
+  stored as `rate * sigma_eq`, deflating the bar ~30x, so the greedy search
+  walked to the grid corner instead of the optimum. Every live pair reported
+  entry 3.0 / exit 1.5 with expected round trips of **83 days to 3.7 years**.
+  That — not thin crypto cointegration — was why the book sat idle.
+- **Fixing it exposed a second bug within the hour**: the corrected optimiser
+  chose `exit_z = 0.0`, and the exit test was `abs(z) < exit_z`, never true at
+  zero, so the first position had no reachable profit exit. Exit is now
+  directional. Both pinned by tests.
+- **Corrected bands validated live**: entry at z=-0.68 (a level the old bands
+  could never trade) → exit on reversion at z=+0.37, **2-hour round trip**.
+- **Estimation-error floor** added (`ou_mean_standard_error`, `min_entry_se`).
+  Honest result: it did NOT rescue the Sharpe, which was the hypothesis. Kept
+  at 1.0 as a safety rail only — inert on the reference data, binding on
+  slow-reverting crypto pairs the reference data has no examples of.
+- **`IMPROVEMENTS.md` corrected 0.44 → 0.36** net Sharpe. The old figure came
+  from the bug barely trading (0.02x gross leverage), which flattered Sharpe
+  while forgoing most of the return.
+- **Maintenance-window guard** (`LTP_MAINTENANCE_WINDOWS`): flatten before,
+  trade nothing during an announced order-API blackout. The 2026-07-30 06:00
+  UTC window passed with no damage, but only because the book happened to be
+  flat — that was luck, and is now handled.
+
+### The decision that governs this phase
+`risk_per_pair` **halved 0.004 → 0.002** and the corrected bands deployed live,
+deliberately spending drawdown budget to buy evidence. Justification: Track A
+Phase I advances the **top 30 of a 29-team field** and Track B does not compete
+in Phase I, so advancement is assured above the 800 floor and **Phase I rank is
+worth nothing** — but Phase II ranking and the prize are real, and we would
+otherwise enter it with no crypto evidence for the corrected bands. Stated in
+LTP_STRATEGY.md so the post-mortem can hold us to it: *if advancement turns out
+not to be assured, the decision was wrong.*
+
+### Pattern worth remembering
+A long-lived bug had been holding a second, dependent bug harmless. Fixing the
+first made the second live immediately, in production, on a real position. The
+lesson is not "fix fewer bugs" — it is that **the first trade after a change to
+core maths deserves to be watched, not assumed.**
+
+---
+
+## Open commitments (write these down WHEN PROMISED, not later)
+
+Anything said in chat as "I'll look at that Sunday" belongs here immediately.
+Four such promises were lost in a single session on 2026-07-28/30 before this
+section existed; that is what it is for.
+
+| promised | on | trigger / when |
+|---|---|---|
+| Decide whether to **restore `risk_per_pair` 0.002 → 0.004** | 2026-07-30 | Sunday review, only if the fills analysis shows drawdown behaving |
+| Decide whether the sentinel should gain **macro-event awareness** (Fed/CPI/GDP are market-wide; our prompt is asset-specific and would rate them `none`) | 2026-07-28 | Sunday review; design question is whether market-wide risk should shrink size across all pairs, or whether the hedge already handles it |
+| **Sample the AI rationales for genuine depth**, not just presence — the audit judges logical depth, and quiet-day rationales read as boilerplate | 2026-07-27 | Sunday review |
+| **Reboot the droplet** (kernel update pending, banner shows restart required) | 2026-07-28 | any time you can glance at `status.py` after |
+| **Rotate LTP + AI keys** (pasted in chat; mitigated by IP allowlist) | 2026-07-20 | when convenient before Phase II |
+
+---
+
 ## Week 2 agenda — review due Sun 2026-08-02
 
 Carried from week 1. Do these in order; the analysis gates the tuning.
@@ -243,11 +312,13 @@ Carried from week 1. Do these in order; the analysis gates the tuning.
    spread assessments + 24 news + 1 refit review per day). Also confirm the
    `ai_refit_review` / `ai_spread_assessment` records look substantive, since
    the audit judges *logical depth*, not volume.
-5. **Entry/stop geometry — ONLY if (1) supports it.** The question is whether a
-   fixed `stop_z=3.5` against a model-derived entry (~3.0) is too tight, e.g.
-   making the stop relative to the entry band. A wider stop means fewer
-   stop-outs but larger individual losses, and MDD is permanent — so this needs
-   real evidence, not six trades and a hunch. **Default action is no change.**
+5. **Entry/stop geometry — ONLY if (1) supports it.** NOTE: the premise here
+   changed on 2026-07-28. Entry is no longer ~3.0 — the corrected optimiser
+   chooses ~0.6, so `stop_z=3.5` now sits ~3 sigma away rather than 0.5. The
+   old worry (entry too close to the stop) is gone; the new question is the
+   opposite — whether a stop that far out lets losers run too long, given the
+   trade profile is now many small wins against rare large losses. Needs the
+   fills analysis, not a hunch. **Default action is no change.**
 6. **Self-ranking endpoint into `status.py`** (small, deferred from week 1):
    surfaces rank, composite score, per-metric percentiles and AI cost directly.
 

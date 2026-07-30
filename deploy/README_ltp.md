@@ -110,6 +110,29 @@ async def p():
 asyncio.run(p())"
 ```
 
+## Announced venue maintenance
+
+RapidX schedules upgrades that disable the **place/cancel order APIs**. During
+one the agent can still read prices but cannot exit, stop, or de-risk anything
+it holds — and a window that catches it mid-entry leaves a naked directional
+leg it cannot close. Set the announced windows (ISO-8601 UTC, comma-separated
+`START/END` ranges) and the agent goes flat beforehand and opens nothing until
+they close:
+
+```bash
+export LTP_MAINTENANCE_WINDOWS="2026-07-30T06:00:00Z/2026-07-30T08:00:00Z"
+```
+
+Notices are given in GMT+8; subtract 8 hours. Each transition is written to the
+ledger as a `maintenance` event with its reasoning, so a gap in trading is
+explained rather than unexplained. Nothing configured means always-clear, and a
+malformed value is ignored with a log line rather than stopping the agent.
+
+This is deliberately not market discretion: "do not hold positions you cannot
+exit during an announced order-API blackout" is an operational fact. Cutting
+risk because a macro event is scheduled would be a price prediction, and this
+agent does not make those.
+
 ## Honest notes
 
 - **Funding carry is not modeled.** Both perp legs pay/receive funding; the
