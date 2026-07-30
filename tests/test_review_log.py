@@ -88,6 +88,53 @@ def test_claude_md_points_at_the_durable_record():
     assert "LTP_STRATEGY.md" in body
 
 
+def test_cold_start_protocol_is_documented():
+    """The record is kept fresh by the tests above; this keeps it READ.
+
+    A reset session does not feel reset -- it will answer a narrow question
+    confidently from a premise that changed weeks ago. So the operator has a
+    trigger phrase, and the protocol behind it names an ordered set of sources
+    and a mandatory summary-back. If either the phrase or the read order goes
+    missing, the protocol has quietly rotted in exactly the way it exists to
+    prevent, and this fails.
+    """
+    with open(CLAUDE_MD) as fh:
+        body = fh.read()
+
+    assert "Cold start" in body, "the cold-start protocol section is gone"
+    assert "read the record and tell me where we are" in body, (
+        "the operator's trigger phrase is no longer documented, so the "
+        "protocol has no way to be invoked")
+
+    # The sources a cold session must actually open, in the order given.
+    for source in ("CLAUDE.md",
+                   "deploy/WEEKLY_REVIEW.md",
+                   "deploy/LTP_STRATEGY.md",
+                   "track_record/ltp_state_history.jsonl",
+                   "git log",
+                   "deploy/status.py"):
+        assert source in body, f"cold-start read order lost {source}"
+
+    # The stop is the load-bearing part: report first, act second.
+    idx = body.find("Cold start")
+    section = body[idx:body.find("### Session close-out", idx)]
+    assert "summarise back" in section.lower() or \
+           "summarize back" in section.lower(), (
+        "the cold-start protocol no longer requires reporting state back "
+        "before acting")
+    assert "disagree" in section, (
+        "the protocol no longer requires flagging sources that conflict -- "
+        "that is the finding a cold start exists to produce")
+
+
+def test_review_log_points_at_the_cold_start_protocol():
+    """The record should tell a cold reader how it is meant to be entered."""
+    with open(REVIEW) as fh:
+        body = fh.read()
+    assert "Cold start" in body, (
+        "WEEKLY_REVIEW.md no longer mentions the cold-start protocol")
+
+
 def test_strategy_doc_records_the_disclosed_changes():
     """LTP_STRATEGY.md is the pre-registration: behavioural changes are
     disclosed there, not silently made. Spot-check the load-bearing ones."""
