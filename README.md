@@ -207,18 +207,6 @@ pairs edge in this era (QuantConnect scores it Sharpe −0.59 against the T-bill
 hurdle; most of the account's +20% total return is parked-cash yield). The
 numbers are unflattering and that is the point of linking them.
 
-## Why this isn't slop
-
-The short version is that it tries hard to disprove itself. There's a stated
-economic mechanism, and it gets tested with an ADF check before any trade rather
-than assumed. The estimators are validated against ground truth before I trust
-them on data. Nothing is evaluated on the window it was fit on; the in-sample fit
-is frozen and the walk-forward goes further. Costs and slippage are charged on
-every position change, and the Kalman backtest pays for both legs, including the
-small daily rebalance as β drifts. Results are reported as distributions instead
-of one hand-picked equity curve. And the code is upfront about where it breaks,
-with tests covering the parts that are easy to get wrong.
-
 ## Quickstart
 
 ```bash
