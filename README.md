@@ -35,7 +35,11 @@ The gap between them has no particular reason to run off forever. When it widens
 substitution and arbitrage tend to reel it back in. That pull is the θ in
 
 ```
-dX = θ(μ − X)dt + σ dW
+dX(t)
+\,=\,
+\theta\big(\mu - X(t)\big)\,dt
+\,+\,
+\sigma\,dW(t).
 ```
 
 a spring of stiffness θ getting kicked by noise σ. Three useful quantities fall
