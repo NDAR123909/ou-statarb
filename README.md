@@ -34,7 +34,7 @@ sector ETF, get pushed around by the same shocks, so that they tend to drift tog
 The gap between them has no particular reason to run off forever. When it widens,
 substitution and arbitrage tend to reel it back in. That pull is the θ in
 
-```
+```math
 dX(t)
 \,=\,
 \theta\big(\mu - X(t)\big)\,dt
