@@ -211,6 +211,56 @@ class RapidXBroker:
         data = self._must(["position", "query"], self._scope() or None)
         return data if isinstance(data, list) else []
 
+    # -------------------------------------------------------- trade history --
+    # Read-only post-mortem surface. None of these can place, cancel or modify
+    # anything -- RapidX types them TRADE_READ -- so they are safe to run
+    # against the live competition account while the agent trades.
+
+    @staticmethod
+    def _rows(data) -> list[dict]:
+        """List payloads arrive as a bare list or wrapped under one of a few
+        names, depending on the endpoint. Take whichever is actually there."""
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            for k in ("list", "rows", "items", "records", "data", "executions"):
+                v = data.get(k)
+                if isinstance(v, list):
+                    return v
+        return []
+
+    def executions(self, order_id: str) -> list[dict]:
+        """Fills for one order, carrying the fee the venue actually charged.
+
+        This is how the 5 bps taker assumption stops being an assumption. The
+        quoted alternative, `portfolio user-fee-rate`, fails on the contest's
+        simulated portfolio (upstream 2002 'API Invalid Authorization') because
+        there is no real exchange account behind it to have a fee tier -- and
+        what we were charged is the better number anyway."""
+        return self._rows(self._must(["transaction", "executions"],
+                                     {**self._scope(), "orderId": order_id}))
+
+    def order_history(self, symbol: str | None = None,
+                      page: int = 1, page_size: int = 200) -> list[dict]:
+        inp = {**self._scope(), "page": page, "pageSize": page_size}
+        if symbol:
+            inp["symbol"] = symbol
+        return self._rows(self._must(["order", "history"], inp))
+
+    def statement(self, coin: str = "USDT", statement_type: str | None = None,
+                  page: int = 1, page_size: int = 200) -> list[dict]:
+        """Account statement lines. Funding settlements live here if they are
+        exposed at all -- the CSV exports carry no funding column, so this is
+        the only route to the carry number that has been an open gap since
+        launch. The statement type filter is left to the caller because the
+        venue's vocabulary for it is not documented in the schema; fetching
+        unfiltered and grouping by whatever type comes back is the honest way
+        to find out what exists."""
+        inp = {**self._scope(), "coin": coin, "page": page, "pageSize": page_size}
+        if statement_type:
+            inp["statementType"] = statement_type
+        return self._rows(self._must(["portfolio", "statement"], inp))
+
     @staticmethod
     def _position_qty(p: dict) -> float:
         """Signed size of a live position, tolerant of field naming.
