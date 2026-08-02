@@ -256,7 +256,8 @@ def test_history_window_is_derived_from_the_ledger_not_a_hardcoded_date():
     from deploy.fills_report import history_window
 
     trips = round_trips(_short_spread_round_trip())
-    begin_ms, end_ms = history_window(trips)
+    now = datetime.fromisoformat("2026-08-02T12:00:00+00:00")
+    begin_ms, end_ms = history_window(trips, now=now)
     entry = datetime.fromisoformat("2026-08-02T05:00:30+00:00").timestamp()
     exit_ = datetime.fromisoformat("2026-08-02T09:00:30+00:00").timestamp()
     assert begin_ms == int((entry - 3600.0) * 1000)
@@ -355,3 +356,34 @@ def test_one_failing_window_does_not_discard_the_others():
     assert len(pools[A]) == 2, "a partial history beats none"
     assert stat["windows_failed"] == 1
     assert stat["symbols_failed"] == 1
+
+
+def test_the_window_stops_asking_for_fills_the_venue_has_expired():
+    """Fills older than ~7 days are gone, and the ledger's start never moves.
+
+    Unclamped, the daily run would request one more dead six-day window every
+    week until Phase I ends -- 32 failed calls a night by late August. The cost
+    is not the wasted calls, it is that a log which always contains failures is
+    a log where a real failure stops standing out.
+    """
+    from deploy.fills_report import history_window, VENUE_RETENTION_S
+
+    trips = round_trips(_short_spread_round_trip())
+    # Two weeks after the trades, everything recorded is past retention.
+    late = datetime.fromisoformat("2026-08-16T12:00:00+00:00")
+    assert history_window(trips, now=late) == (None, None), (
+        "an inverted window must fall back to the venue default, not be sent")
+
+    # Three days after: the ledger start is still inside retention, untouched.
+    soon = datetime.fromisoformat("2026-08-05T12:00:00+00:00")
+    begin_ms, _ = history_window(trips, now=soon)
+    entry = datetime.fromisoformat("2026-08-02T05:00:30+00:00").timestamp()
+    assert begin_ms == int((entry - 3600.0) * 1000)
+
+    # Right at the edge: begin is floored at what the venue will serve rather
+    # than reaching back to a ledger start that no longer exists there.
+    edge = datetime.fromisoformat("2026-08-08T20:00:00+00:00")
+    begin_ms, end_ms = history_window(trips, now=edge)
+    assert begin_ms is not None and begin_ms < end_ms
+    assert begin_ms == int((edge.timestamp() - VENUE_RETENTION_S) * 1000)
+    assert begin_ms > int((entry - 3600.0) * 1000), "the floor must bind here"

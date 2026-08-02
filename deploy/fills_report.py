@@ -37,7 +37,7 @@ import json
 import statistics
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -408,19 +408,39 @@ HISTORY_MARGIN_S = 3600.0
 FILL_LIMIT = 1000
 
 
-def history_window(trips: list[RoundTrip]) -> tuple[int | None, int | None]:
-    """The millisecond span the ledger actually covers, padded.
+# The venue does not serve fills older than about seven days -- retention, not
+# a query-width cap: a six-day window over Jul 20-26 was rejected on 2026-08-02
+# while two LATER windows of identical width succeeded. Asking anyway is not
+# free. The ledger's start never moves, so an unclamped window would request
+# more dead days every night until Phase I ends, and a log that always contains
+# failures is a log where a real failure no longer stands out. 6.5 days keeps
+# comfortable margin inside the limit, which the daily cron more than covers.
+VENUE_RETENTION_S = 6.5 * 24 * 3600.0
+
+
+def history_window(trips: list[RoundTrip],
+                   now: datetime | None = None
+                   ) -> tuple[int | None, int | None]:
+    """The millisecond span worth asking the venue for, padded and clamped.
 
     Derived from the ledger rather than hardcoded to a competition start date,
-    so the report keeps covering all of its own history next month without
-    anyone remembering to move a constant.
+    so the report keeps covering its own history next month without anyone
+    remembering to move a constant -- then floored at what the venue will
+    actually serve, so it stops asking for what has already expired.
     """
     stamps = [t for trip in trips for leg in trip.legs.values()
               for t in (leg.entry_ts, leg.exit_ts) if t is not None]
     if not stamps:
         return None, None
-    return (int((min(stamps).timestamp() - HISTORY_MARGIN_S) * 1000),
-            int((max(stamps).timestamp() + HISTORY_MARGIN_S) * 1000))
+    now = now or datetime.now(timezone.utc)
+    floor = now.timestamp() - VENUE_RETENTION_S
+    begin = max(min(stamps).timestamp() - HISTORY_MARGIN_S, floor)
+    end = max(stamps).timestamp() + HISTORY_MARGIN_S
+    if begin >= end:
+        # Every recorded trade is older than the venue will serve. Fall back to
+        # its own default rather than sending an inverted window.
+        return None, None
+    return int(begin * 1000), int(end * 1000)
 
 
 # The venue rejects a query whose begin/end span is too wide -- upstream
