@@ -19,6 +19,7 @@ number by hand before being fixed here:
 import json
 import os
 import sys
+from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -130,25 +131,108 @@ def test_trip_slippage_uses_the_opposite_side_on_the_close():
     assert round(slips[1], 1) == 0.0
 
 
-def test_fee_lookup_is_summed_per_leg_and_survives_a_failing_order():
-    from deploy.fills_report import attach_fees
+def test_a_failing_symbol_fetch_is_reported_not_swallowed():
+    from deploy.fills_report import attach_executions
 
     class Broker:
-        def executions(self, order_id):
-            if order_id == "o3":
-                raise RuntimeError("upstream said no")
-            return [{"fee": "0.10"}, {"fee": "0.05"}]
+        def executions(self, order_id=None, symbol=None):
+            raise RuntimeError("upstream said no")
 
     trips = round_trips(_short_spread_round_trip())
-    priced = attach_fees(trips, Broker())
-    assert priced == 2
-    # leg a: entry o1 priced (0.15), exit o3 raised -> only the entry counts.
-    assert round(trips[0].legs["a"].fee, 4) == 0.15
-    assert round(trips[0].legs["b"].fee, 4) == 0.30
+    stat = attach_executions(trips, Broker())
+    assert stat["symbols_failed"] == 2
+    assert stat["legs_priced"] == 0
+    # The ledger-derived entry prices survive; only the venue half is missing.
+    assert trips[0].opened
 
-    s = summarise(trips)
-    assert s["fees_paid"] == 0.45
-    assert s["net_pnl"] == round(4.6876 - 0.45, 4)
+
+def _close_op_without_a_price(ts, symbol, oid):
+    """What `close_position` actually writes: the order id and whether the
+    position went flat, but no executed_price and no executed_qty -- unlike
+    `place_market`, which emits both. Every exit price in the report has to be
+    recovered from the venue because of this."""
+    return {"ts": ts, "event": "operation", "op": "close", "decision": "reverted",
+            "pair": PAIR, "symbol": symbol, "position_side": "NONE",
+            "result": "closed", "residual_qty": None, "order_id": oid}
+
+
+def test_exit_prices_are_recovered_from_executions_when_the_close_logged_none():
+    from deploy.fills_report import attach_executions
+
+    rows = [
+        {"ts": "2026-08-02T05:00:20+00:00", "event": "enter", "pair": PAIR,
+         "side": -1, "z": 1.74, "price_a": 6.51, "price_b": 73.53},
+        _op("2026-08-02T05:00:30+00:00", "enter", A, "SELL", 63.0, 6.50, "o1"),
+        _op("2026-08-02T05:00:44+00:00", "enter", B, "BUY", 2.78, 73.58, "o2"),
+        {"ts": "2026-08-02T09:00:10+00:00", "event": "exit", "pair": PAIR,
+         "side": -1, "z": -0.02, "reason": "reverted",
+         "price_a": 6.40, "price_b": 73.00},
+        _close_op_without_a_price("2026-08-02T09:00:20+00:00", A, "o3"),
+        _close_op_without_a_price("2026-08-02T09:00:30+00:00", B, "o4"),
+    ]
+
+    trips = round_trips(rows)
+    # Before the venue is asked, the round trip has no exit and no P&L.
+    assert trips[0].opened and not trips[0].closed
+    assert trips[0].gross_pnl is None
+
+    # The venue is asked by SYMBOL, because a close carries no order id.
+    # createAt is epoch ms, a little BEFORE the operation that reports it.
+    def ms(iso):
+        return int(datetime.fromisoformat(iso).timestamp() * 1000)
+
+    class Broker:
+        rows = {
+            A: [{"transactionId": "t1", "price": "6.50", "quantity": "63",
+                 "fee": "0.02", "createAt": ms("2026-08-02T05:00:25+00:00")},
+                {"transactionId": "t3", "price": "6.40", "quantity": "63",
+                 "fee": "0.02", "rpnl": "6.30",
+                 "createAt": ms("2026-08-02T09:00:15+00:00")}],
+            B: [{"transactionId": "t2", "price": "73.58", "quantity": "2.78",
+                 "fee": "0.01", "createAt": ms("2026-08-02T05:00:40+00:00")},
+                {"transactionId": "t4", "price": "73.00", "quantity": "2.78",
+                 "fee": "0.01", "rpnl": "-1.6124",
+                 "createAt": ms("2026-08-02T09:00:25+00:00")}],
+        }
+
+        def executions(self, order_id=None, symbol=None, **kw):
+            return list(self.rows[symbol])
+
+    stat = attach_executions(trips, Broker())
+    assert stat["exit_prices"] == 2
+    assert stat["entry_prices"] == 0      # entries already had a logged price
+    assert stat["legs_unmatched"] == 0
+    assert trips[0].closed
+    assert round(trips[0].gross_pnl, 4) == 4.6876
+    # The venue's own rpnl must corroborate the reconstruction, not replace it.
+    assert round(trips[0].venue_pnl, 4) == 4.6876
+    assert round(trips[0].fees, 4) == 0.06
+
+
+def test_vwap_weights_partial_fills_rather_than_averaging_them():
+    from deploy.fills_report import _vwap
+    # 90 units at 10.00 and 10 at 20.00 is 11.00 weighted, 15.00 unweighted.
+    fills = [{"price": "10.00", "qty": "90"}, {"price": "20.00", "qty": "10"}]
+    assert round(_vwap(fills), 6) == 11.0
+    # With no quantity reported there is nothing to weight by; say so by
+    # falling back rather than silently treating one fill as the whole order.
+    assert round(_vwap([{"price": "10.0"}, {"price": "20.0"}]), 6) == 15.0
+    assert _vwap([{"nothing": "useful"}]) is None
+
+
+def test_funding_summary_shows_its_working_when_amounts_look_empty():
+    """A zero total and an unreadable amount field are indistinguishable in a
+    number, and only one of them means funding is free."""
+    from deploy.fills_report import funding_summary
+
+    class Broker:
+        def statement(self, coin="USDT", **kw):
+            return [{"statementType": "FUNDING_FEE", "weirdAmountName": "-0.3"}]
+
+    out = funding_summary(Broker())
+    assert out["amounts_parsed"] == 0
+    assert "sample_row" in out, "must expose the raw shape, not just a zero"
+    assert out["sample_row"]["weirdAmountName"] == "-0.3"
 
 
 def test_load_ledger_skips_malformed_lines(tmp_path):
@@ -163,3 +247,143 @@ def test_summarise_on_an_empty_ledger_does_not_divide_by_zero():
     assert s["round_trips"] == 0
     assert s["win_rate"] is None
     assert s["gross_pnl"] is None
+
+
+def test_history_window_is_derived_from_the_ledger_not_a_hardcoded_date():
+    """The venue defaults to 7 days if `begin` is omitted, so a month-long
+    competition would silently report only its last week -- and a truncated
+    post-mortem that looks complete is worse than no post-mortem."""
+    from deploy.fills_report import history_window
+
+    trips = round_trips(_short_spread_round_trip())
+    now = datetime.fromisoformat("2026-08-02T12:00:00+00:00")
+    begin_ms, end_ms = history_window(trips, now=now)
+    entry = datetime.fromisoformat("2026-08-02T05:00:30+00:00").timestamp()
+    exit_ = datetime.fromisoformat("2026-08-02T09:00:30+00:00").timestamp()
+    assert begin_ms == int((entry - 3600.0) * 1000)
+    assert end_ms == int((exit_ + 3600.0) * 1000)
+
+    assert history_window([]) == (None, None)
+
+
+def test_the_window_and_an_explicit_limit_reach_the_broker():
+    from deploy.fills_report import attach_executions, FILL_LIMIT
+
+    seen = []
+
+    class Broker:
+        def executions(self, order_id=None, symbol=None, begin_ms=None,
+                       end_ms=None, limit=None):
+            seen.append((symbol, begin_ms, end_ms, limit))
+            return []
+
+    attach_executions(round_trips(_short_spread_round_trip()), Broker())
+    assert len(seen) == 2
+    for symbol, begin_ms, end_ms, limit in seen:
+        assert symbol in (A, B)
+        assert begin_ms is not None and end_ms is not None
+        assert begin_ms < end_ms
+        assert limit == FILL_LIMIT
+
+
+def test_hitting_the_fill_limit_is_counted_as_truncation(capsys):
+    from deploy.fills_report import attach_executions, FILL_LIMIT
+
+    class Broker:
+        def executions(self, symbol=None, **kw):
+            return [{"transactionId": str(i), "price": "1", "quantity": "1",
+                     "createAt": "0"} for i in range(FILL_LIMIT)]
+
+    stat = attach_executions(round_trips(_short_spread_round_trip()), Broker())
+    assert stat["symbols_truncated"] == 2
+    assert "truncated" in capsys.readouterr().err
+
+
+def test_a_long_history_is_sliced_into_windows_the_venue_accepts():
+    """RapidX rejects a wide begin/end span with upstream 400001 'Exceed
+    dayTime limit', so a competition longer than one slice -- the normal case
+    after week two -- must be fetched in pieces."""
+    from deploy.fills_report import slice_window, MAX_WINDOW_S
+
+    day = 86_400_000
+    windows = slice_window(0, 15 * day)
+    assert len(windows) == 3
+    assert windows[0][0] == 0 and windows[-1][1] == 15 * day
+    # Contiguous, no gaps: a gap would drop trades silently.
+    for (_, prev_end), (next_begin, _) in zip(windows, windows[1:]):
+        assert prev_end == next_begin
+    assert all(hi - lo <= MAX_WINDOW_S * 1000 for lo, hi in windows)
+
+    # A short span stays a single call, and an unknown span asks for the
+    # venue's own default rather than inventing one.
+    assert len(slice_window(0, day)) == 1
+    assert slice_window(None, None) == [(None, None)]
+
+
+def test_fills_repeated_across_a_window_edge_are_counted_once():
+    from deploy.fills_report import fetch_symbol_fills
+
+    stat = {"fills_fetched": 0, "symbols_failed": 0, "symbols_truncated": 0,
+            "windows_failed": 0, "sample_fill_keys": None}
+
+    class Broker:
+        def executions(self, symbol=None, **kw):
+            return [{"transactionId": "dup", "price": "1", "quantity": "1",
+                     "createAt": "0"}]
+
+    pools = fetch_symbol_fills(Broker(), [A], stat, 0, 15 * 86_400_000)
+    assert len(pools[A]) == 1, "the same transaction must not be banked twice"
+    assert stat["fills_fetched"] == 1
+
+
+def test_one_failing_window_does_not_discard_the_others():
+    from deploy.fills_report import fetch_symbol_fills
+
+    stat = {"fills_fetched": 0, "symbols_failed": 0, "symbols_truncated": 0,
+            "windows_failed": 0, "sample_fill_keys": None}
+
+    class Broker:
+        calls = 0
+
+        def executions(self, symbol=None, begin_ms=None, **kw):
+            self.calls += 1
+            if self.calls == 2:
+                raise RuntimeError("Exceed dayTime limit")
+            return [{"transactionId": f"t{self.calls}", "price": "1",
+                     "quantity": "1", "createAt": str(begin_ms)}]
+
+    pools = fetch_symbol_fills(Broker(), [A], stat, 0, 15 * 86_400_000)
+    assert len(pools[A]) == 2, "a partial history beats none"
+    assert stat["windows_failed"] == 1
+    assert stat["symbols_failed"] == 1
+
+
+def test_the_window_stops_asking_for_fills_the_venue_has_expired():
+    """Fills older than ~7 days are gone, and the ledger's start never moves.
+
+    Unclamped, the daily run would request one more dead six-day window every
+    week until Phase I ends -- 32 failed calls a night by late August. The cost
+    is not the wasted calls, it is that a log which always contains failures is
+    a log where a real failure stops standing out.
+    """
+    from deploy.fills_report import history_window, VENUE_RETENTION_S
+
+    trips = round_trips(_short_spread_round_trip())
+    # Two weeks after the trades, everything recorded is past retention.
+    late = datetime.fromisoformat("2026-08-16T12:00:00+00:00")
+    assert history_window(trips, now=late) == (None, None), (
+        "an inverted window must fall back to the venue default, not be sent")
+
+    # Three days after: the ledger start is still inside retention, untouched.
+    soon = datetime.fromisoformat("2026-08-05T12:00:00+00:00")
+    begin_ms, _ = history_window(trips, now=soon)
+    entry = datetime.fromisoformat("2026-08-02T05:00:30+00:00").timestamp()
+    assert begin_ms == int((entry - 3600.0) * 1000)
+
+    # Right at the edge: begin is floored at what the venue will serve rather
+    # than reaching back to a ledger start that no longer exists there.
+    edge = datetime.fromisoformat("2026-08-08T20:00:00+00:00")
+    begin_ms, end_ms = history_window(trips, now=edge)
+    assert begin_ms is not None and begin_ms < end_ms
+    assert begin_ms == int((edge.timestamp() - VENUE_RETENTION_S) * 1000)
+    assert begin_ms > int((entry - 3600.0) * 1000), "the floor must bind here"

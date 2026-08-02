@@ -97,7 +97,14 @@ class AgentConfig:
     # gates are untouched — this only fixes an asset-class mismatch.
     min_abs_beta: float = 0.20
     max_abs_beta: float = 5.0
-    taker_fee: float = 5e-4           # 5 bps per leg per trade, until measured
+    # MEASURED 2026-08-02, was 5e-4 assumed. The venue charges exactly 1.75 bps
+    # per side -- five significant figures across 22 fills, fee == tradingFee,
+    # zero rebate, execType TAKER throughout (deploy/fills_report.py). 2e-4 is
+    # a margin over that against a schedule change, not against measurement
+    # error. Expected to be inert: band_diagnostic puts cost_z at 0.01-0.08 for
+    # every candidate, so costs are ~8% of the entry band and sweeping the fee
+    # to zero admits no new pairs. Disclosed in LTP_STRATEGY.md, 2026-08-02.
+    taker_fee: float = 2e-4
     stop_z: float = 3.5
     max_hold_mult: float = 3.0
     # SANDBOX RISK BUDGET (Phase I, from 2026-07-28). Halved from 0.004.
@@ -704,7 +711,25 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
 
         if pair.get("flatten") and pair.get("side", 0) != 0:
             log(f"  {short_name}: dropped by refit, flattening")
-            leg_close(broker, pair, nav, dry)
+            # This close used to write nothing at all: the two orders reached
+            # the venue tagged decision="close" with no decision record behind
+            # them anywhere, so the audit chain began at the operations and no
+            # reasoning explained why a position was exited. Every other close
+            # path -- stop, exit, news_derisk, kill_switch, maintenance --
+            # logs one. Found 2026-08-02.
+            ledger("refit_drop", pair=short_name, side=pair["side"], z=float(z),
+                   hold_bars=pair.get("hold", 0), price_a=prices[a],
+                   price_b=prices[b], nav=nav, dry=dry,
+                   reasoning=(f"The latest refit no longer selects this pair, "
+                              f"so the cointegration evidence that justified "
+                              f"holding it is gone (z={z:+.2f}, held "
+                              f"{pair.get('hold', 0)} bars). Mean reversion is "
+                              f"a bet on a relationship the model has stopped "
+                              f"believing in; carrying the position on a "
+                              f"hypothesis we just rejected would be a "
+                              f"directional trade in a market-neutral "
+                              f"costume. Closed at the refit, not at a stop."))
+            leg_close(broker, pair, nav, dry, decision="refit_drop")
             del state["pairs"][key]
             continue
 
@@ -722,11 +747,32 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                 continue
             g = cfg.risk_per_pair * nav / max(pair["dvol"], 1e-9)
             g = min(g, cfg.per_leg_cap_mult * nav)
+            size_mult = 1.0
             if sentinel is not None:
-                mult = sentinel.size_mult(base_asset(a), base_asset(b))
-                if mult < 1.0:
-                    log(f"  {short_name}: news 'watch' rating, sizing x{mult}")
-                g *= mult
+                size_mult = sentinel.size_mult(base_asset(a), base_asset(b))
+                if size_mult < 1.0:
+                    log(f"  {short_name}: news 'watch' rating, "
+                        f"sizing x{size_mult}")
+                    # A risk control that acts and leaves no ledger trace is
+                    # indistinguishable from one that never fired. On
+                    # 2026-08-01 this halved the position on the single worst
+                    # trade of the competition -- turning a -12 into a -6 --
+                    # and the only evidence was a journal line that scrolls
+                    # away. The audit correlates decisions with orders; a
+                    # size reduction is a decision.
+                    ledger("size_reduced", pair=short_name, mult=size_mult,
+                           z=float(z), g_before=g, g_after=g * size_mult,
+                           nav=nav,
+                           reasoning=(f"News sentinel rates a leg 'watch': "
+                                      f"elevated event risk short of the "
+                                      f"critical threshold that would veto "
+                                      f"the entry outright. The trade still "
+                                      f"passes every statistical gate, so it "
+                                      f"is taken at half risk rather than "
+                                      f"skipped — the gate can only reduce "
+                                      f"exposure, never add it."),
+                           **screening_provenance(sentinel, assessment, a, b))
+                g *= size_mult
             add = (1 + abs(pair["beta"])) * g
             if gross + add > cfg.max_gross_mult * nav:
                 log(f"  {short_name}: entry skipped, gross cap")
@@ -787,6 +833,9 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                    qa=qa, qb=qb, price_a=prices[a], price_b=prices[b],
                    beta=pair["beta"], entry_z=pair["entry_z"],
                    half_life=pair["half_life"], nav=nav, dry=dry,
+                   # `g` is already multiplied, so without this the reduction
+                   # is invisible in the row that records the trade.
+                   size_mult=size_mult,
                    **screening_provenance(sentinel, assessment, a, b),
                    reasoning=(f"Spread z={z:+.2f} crossed the cost-aware optimal "
                               f"entry band ±{pair['entry_z']:.2f} (fitted OU "

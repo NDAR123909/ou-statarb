@@ -312,6 +312,184 @@ it is why the read order includes `git log`.
 
 ---
 
+## Week 2 — 2026-07-27 → 2026-08-02 (reviewed Sun 2026-08-02)
+
+### Position at review
+Rank **#2 of 29**, score 94.4 · Sharpe **9.30** · MDD **1.3%** · PnL **+27.32**
+· ROI **+2.7%** · 77 trades · turnover 28.83× · AI engagement 63k|9k|72k.
+Equity 1027.39, peak 1041.19, drawdown 1.33%, kill switch 916.25. One active
+pair, AVAX/SOL, short-spread and open at z=+3.31 against a 3.5 stop.
+
+> **Same-day amendment (2026-08-02 18:00 UTC).** That position **stopped at
+> z=+3.63** — 0.13 past the band, so the hourly check behaved correctly here and
+> yesterday's −10.25 overshoot is the anomaly rather than the norm. **Both sides
+> of AVAX/SOL have now stopped within 31 hours** (long at −10.25 on Aug 1,
+> short at +3.63 on Aug 2). The lifetime record moves to 12 round trips,
+> 9 reverted / 3 stops, and the last two trades were both losses. Equity, peak
+> and MDD in the table above predate this stop and need the next `status.py`
+> read. **`risk_per_pair` was NOT restored** — see the commitment below.
+
+**We beat first place on the two metrics we optimised for** and lose on the two
+that measure size:
+
+| | T.Anh (#1) | NDAR (#2) |
+|---|---|---|
+| Sharpe (40%) | 8.62 | **9.30** |
+| MDD (15%) | 3.1% | **1.3%** |
+| PnL (25%) | +58.57 | +27.32 |
+| ROI (20%) | +5.9% | +2.7% |
+
+### Agenda item 1 — the fills analysis (the main event)
+Built `deploy/fills_report.py`, which reconciles `ltp_ledger.jsonl` against the
+venue's own executions. Window Jul 26 → Aug 1, **11 round trips**:
+
+| | |
+|---|---|
+| gross P&L | **+23.25** (venue's own `rpnl`: +23.36 — an independent check that agrees) |
+| net after fees | **+20.79** |
+| win rate | **81.8%** · mean win +3.54 · mean loss −4.31 · worst −6.20 |
+| expectancy | **+2.11 / round trip** |
+| median / max hold | **2.0h** / 22.0h |
+| exits | 9 reverted, 2 stops, **0 max-hold** |
+| slippage | mean **0.57 bps**, median 0.0 |
+| fees | 2.46, **10.6% of gross** |
+| funding | **−0.024 USDT over 34 settlements** |
+
+Fitted half-life is 18.5h and the median round trip is **2 hours**; before the
+band fix, expected round trips were 83 days to 3.7 years. That correction is
+now measured rather than argued.
+
+### The three numbers that were assumptions and are now measurements
+1. **Taker fee is 1.75 bps, not the 5.0 assumed** — exact to five significant
+   figures across 22 fills, `fee == tradingFee`, zero rebate, `execType` TAKER
+   throughout. **But it does not matter**, which is the more useful finding:
+   `band_diagnostic.py` puts `cost_z` at 0.01–0.08 for every candidate, so
+   costs are ~8% of the entry band. Correcting the fee moves AVAX/SOL's entry
+   by at most one grid step (0.6 → 0.4), and the diagnostic's verdict on
+   breadth is explicit: *"HALVING EXECUTION COST would newly admit: NOTHING."*
+   Every candidate is already economically tradeable at any fee down to zero.
+2. **Funding is −0.024 USDT over 13 days**, 0.002% of NAV. The
+   "funding carry is not modelled" caveat carried since launch closes as a
+   measured near-zero. (`MODIFY_ASSET +1000.0` matching our deposit is what
+   confirms the parser reads the right field.)
+3. **Slippage is 0.57 bps mean, 0.0 median.** Execution quality is not where
+   the money goes.
+
+**So cost is not what limits us.** The refit rejected 14 of 15 candidates on
+*statistics* — split-half ×6, mean crossings ×3, Hurst ×2, beta range ×2,
+unstable hedge ratio ×1 — and those gates stay untouched. The only remaining
+PnL lever is size.
+
+### Agenda items 2–5
+- **2. Has the news veto ever fired? No — and the question was the wrong one.**
+  There are no `skip` events of any kind in the ledger: zero news vetoes, zero
+  anomaly vetoes, zero gross-cap or min-notional skips. **But `size_mult`
+  halved the position on 2026-08-01 08:00**, on the single trade that lost. At
+  full size that −6.20 would have been ≈−12.4. The venue's records corroborate
+  it: that stop shows `fees=0.105` against ~0.217 everywhere else, and the
+  closing fill shows `quantity: 32` against an entry of 63. The gate has never
+  vetoed; it has acted. n=1 and post-hoc, but "unproven" was wrong.
+- **3. Anomaly veto: zero**, confirmed.
+- **4. AI spend is USD 0.021/day against a 10.00/day budget — 0.2%.** The
+  quota-exhaustion machinery built in week 1 guards a constraint three orders
+  of magnitude from binding. Meanwhile output is **~22 tokens per call** across
+  404 calls, and the Reasoning Audit judges *logical depth*. This is the
+  clearest gap on the board and it costs nothing to close.
+- **5. Entry/stop geometry: no change, now for a stated reason.** Zero
+  max-hold timeouts in 16 lifetime round trips kills the "losers run too long"
+  hypothesis. The geometry is asymmetric — winners capture ~0.6σ to an exit at
+  zero, losers can run 2.9σ — but an 82% hit rate pays for it.
+- **6. Self-ranking into `status.py`: not done**, carried to week 3.
+
+### The stop fired at z = −10.25, not −3.5
+The Aug 1 loss entered long-spread at z=−1.39 (08:00) and stopped at
+**z=−10.25** (19:00) — an 8.9σ move in 11 hours on a pair fitted with an 18.5h
+half-life. The stop did not fail; **nothing looked between 18:00 and 19:00.**
+P&L is linear in Δz, so stopping at 3.5 rather than 10.25 would have cost
+≈−1.5 instead of −6.20: **the hourly-only risk check cost ~4.7 USDT, ~0.45% of
+NAV, permanently banked into MDD.** A stop is only as tight as its monitoring
+interval. This is the case for a sub-hourly, read-only pass that may only close
+or stop — see the agenda.
+
+### A logging bug class, found four times in one session
+Every path that opens a position is well instrumented. Almost nothing else is:
+
+| path | what is missing |
+|---|---|
+| refit-drop close (`ltp_agent.py:705`) | no ledger event at all; operations tagged `decision="close"` with no decision behind them |
+| `size_mult` (`ltp_news.py:336`) | risk halved, journal-only, no ledger record that a control acted |
+| `close_position` (`ltp_broker.py:445`) | no `executed_price` / `executed_qty`, unlike `place_market` |
+| `close_position` order id | `order_id: null` — the venue's close response has no `orderId`, so fills cannot be looked up by order at all |
+
+The last two mean **the ledger cannot say what any exit was ever done at.**
+`fills_report.py` works around it by matching each symbol's fills by timestamp,
+which also makes the report work retroactively — but the audit chain
+(decision → operations → outcomes) was missing its outcomes.
+
+**All four fixed the same day** (`tests/test_ltp_logging_gaps.py` pins them as
+behavioural contracts): a `refit_drop` decision event with reasoning, logged
+*before* the close so a failed close still records the intent; a `size_reduced`
+event plus a `size_mult` field on every `enter` row, so a halved position is
+visible programmatically rather than only in prose; and `executed_price`,
+`executed_qty` and a probed `order_id` on close operations — with the response's
+own keys recorded when a field cannot be found, so the next gap is diagnosed by
+reading the ledger instead of another live probing session. One principle, not
+four fixes: *every path that moves money or changes risk records what it did
+and what came back.*
+
+### Operational
+- **The Aug 1 06:24:58 restart was `unattended-upgrades`**, via `needrestart`,
+  not a crash — `NRestarts=0`, and all 12 lifetime starts were deliberate
+  stops. But a randomised timer restarting the trading agent could land between
+  the two legs of an entry (naked leg) or inside an announced venue
+  maintenance window. Blocked with
+  `/etc/needrestart/conf.d/99-ltp-agent.conf`; OS updates still install, the
+  restart is now ours to time.
+- **`portfolio user-fee-rate` returns upstream 2002 "API Invalid
+  Authorization"** — there is no real exchange account behind the simulated
+  portfolio to have a fee tier. Our credentials are fine.
+- **The platform's CSV exports return header-only files** (all three: order,
+  transaction, position history). Worth reporting to the organizers.
+- **`transaction executions` will not serve fills older than ~7 days, and this
+  is not a span limit we can slice around.** The report now fetches in six-day
+  windows; the Jul 20 → Jul 26 window failed on all 8 symbols with upstream
+  400001 "Exceed dayTime limit" while the two *later* windows of identical
+  width succeeded. It is retention, not width. **Week 1's fills are
+  permanently unavailable**, which is why the table above starts 2026-07-26 and
+  why the pre-band-fix era can never be compared against the post-fix era from
+  this endpoint. The operational consequence outranks the lost data:
+  **`fills_report.py` must run on a schedule or the evidence expires.**
+  `position history` may have longer retention — untested, week 3.
+
+### Decisions taken
+- **`risk_per_pair` 0.002 → 0.004: APPROVED, execution gated** on the current
+  position closing. The halving on 2026-07-28 bought evidence for the corrected
+  bands; that evidence now exists (11 round trips, 82% win rate, +20.79 net,
+  zero max-hold exits), so its justification has expired on its own terms. We
+  are trading 15% of the score (MDD ~1.3% → ~2.6%, still under T.Anh's 3.1%)
+  to compete for 45% of it. **Not executed today** because AVAX/SOL is our only
+  pair, it just moved 8.9σ, and it sits at z=+3.31 against a 3.5 stop — the
+  arithmetic is fine, the timing is not.
+- **`taker_fee` 5e-4 → 2e-4**, a small margin over the measured 1.75 bps
+  against a venue schedule change. Expected to be **inert**, which is exactly
+  why it is safe; a wrong input is worth fixing even when it changes nothing
+  today.
+- **No band geometry change**, no loosening of any selection gate.
+- **PAXG/XAUT is retired on evidence**: `cyc_h 2525` — 105 days per round trip.
+  Nominally tradeable, practically useless. The pre-registered gold anchor is
+  dead for a measured reason rather than an opinion.
+
+### Method note
+I misdiagnosed the fills report's empty output **twice** by reasoning from
+indirect evidence before reading a raw record, and separately back-solved σ_eq
+from a stop print and got it ~5× wrong, which briefly made a bookkeeping fix
+look like a PnL lever. The report now reports its own join quality
+(`closes_with_no_operations`, `legs_unmatched`, `windows_failed`,
+`symbols_truncated`) so the next failure announces itself instead of arriving
+as a plausible-looking zero. **Look at the record before theorising about it.**
+
+---
+
 ## Open commitments (write these down WHEN PROMISED, not later)
 
 Anything said in chat as "I'll look at that Sunday" belongs here immediately.
@@ -326,11 +504,64 @@ section existed; that is what it is for.
 | **Reboot the droplet** (kernel update pending, banner shows restart required) | 2026-07-28 | any time you can glance at `status.py` after |
 | **Rotate LTP + AI keys** (pasted in chat; mitigated by IP allowlist) | 2026-07-20 | when convenient before Phase II |
 | **Give the droplet a non-interactive git credential** (deploy key or stored PAT), then extend the 23:50 UTC cron to `git add track_record/ && git commit && git push` | 2026-07-30 | next time the operator is at the droplet terminal — until then `ltp_state_history.jsonl` exists only on that machine |
-| **Re-check rank** — the #4 of 29 figure dates from 2026-07-29 and has not been refreshed | 2026-07-30 | Sunday review, or whenever the self-ranking endpoint lands in `status.py` (agenda item 6) |
+| ~~Re-check rank~~ **DONE 2026-08-02**: #2 of 29, score 94.4 | 2026-07-30 | closed |
+| ~~Restore `risk_per_pair` 0.002 → 0.004~~ **APPROVED 2026-08-02, HELD the same evening** | 2026-07-30 | The position condition was met at 18:00 (stopped at z=+3.63) but the second-pair condition was not, and both sides of AVAX/SOL stopped inside 31 hours — new adverse evidence after the approval. **Re-decide at the Sun 2026-08-09 review** on: has selection produced a second pair, and has the pair stopped whipsawing. If we are still on one pair and it has settled, execute anyway and record that the concentration was accepted deliberately. Do NOT execute on a week where the only pair has just stopped twice |
+| **Report the header-only CSV exports to the organizers** — order, transaction and position history all export zero rows | 2026-08-02 | next organizer contact; a broken data export in a competition judged on auditability is worth raising |
+| **Decide on the sub-hourly risk check** (read-only pass that may only close or stop, never open). Measured cost of not having it: ~4.7 USDT on one trade | 2026-08-02 | week 3 review — needs a design, not a hunch |
+| **Schedule `fills_report.py` weekly** — venue fills expire after ~7 days and week 1's are already unrecoverable | 2026-08-02 | before Sun 2026-08-09, or another week of Phase I evidence is lost |
+| **Restart `ltp-agent`** so the measured `taker_fee` (2e-4) takes effect — the running process still holds 5e-4 | 2026-08-02 | when the open AVAX/SOL position closes; batch it with the `risk_per_pair` restore |
 
 ---
 
-## Week 2 agenda — review due Sun 2026-08-02
+## Week 3 agenda — review due Sun 2026-08-09
+
+Phase I ends **2026-08-21**. Two reviews left.
+
+1. **AI reasoning depth** (highest value, near-zero risk). Output is ~22 tokens
+   per call on a budget we use 0.2% of, and the Reasoning Audit scores logical
+   depth. Raise the token ceiling and enrich the prompts in `ltp_analyst.py` /
+   `ltp_news.py`. Trading behaviour must not change — the veto stays gated on
+   the `regime` enum, never on prose. Then sample the output and judge whether
+   it reads as reasoning or as boilerplate.
+2. **Re-decide the `risk_per_pair` restore** per the commitment above — it was
+   approved on 2026-08-02 and held the same evening when both sides of our only
+   pair stopped within 31 hours. Two questions decide it: did selection produce
+   a second pair, and has AVAX/SOL stopped whipsawing. If it goes ahead, watch
+   the first trades at the new size the way the band fix was watched.
+   **Also ask the prior question**: three of the last four AVAX/SOL trades were
+   stops. Is the pair's cointegration decaying, and should a pair that stops on
+   *both* sides in quick succession be benched until a refit re-validates it?
+   Today the one-sided block covers only the side that broke, by design. n=2 is
+   thin evidence for a new rule and a bad week is not a reason to invent one —
+   but the sequence is now in the record rather than in someone's memory.
+3. **The three logging fixes**: `refit_drop` decision event, a `size_mult`
+   record when the news gate reduces risk, and `executed_price`/`executed_qty`
+   plus a usable order id on `close_position`. One principle, one diff.
+4. **Sub-hourly risk check** — design it or drop it, with a written argument
+   either way. It is the only change with a measured price tag attached
+   (~4.7 USDT, ~0.45% of NAV, permanent in MDD).
+5. **Self-ranking endpoint into `status.py`** — carried twice now. Either do it
+   or delete it from the agenda.
+6. **Put `fills_report.py` on a schedule — this is now urgent, not tidy.**
+   Venue fills expire after ~7 days, so any week not captured is gone for good;
+   week 1's already are. A weekly cron writing
+   `track_record/fills_YYYY-MM-DD.json` (alongside `record_state.py`) preserves
+   the Phase I post-mortem evidence before it evaporates. Also test whether
+   `position history` retains longer — if it does, week 1 may be partly
+   recoverable through it.
+
+### Deferred from week 2
+- Sentinel macro-event awareness (Fed/CPI are market-wide; our prompt is
+  asset-specific and rates them `none`). Still undecided — the design question
+  is whether market-wide risk should shrink size across all pairs, or whether
+  the hedge already handles it.
+- Droplet reboot (kernel update pending). Safer now that `needrestart` will not
+  bounce the agent.
+- Key rotation before Phase II.
+
+---
+
+## Week 2 agenda — review due Sun 2026-08-02 (COMPLETED — see the week 2 entry above)
 
 Carried from week 1. Do these in order; the analysis gates the tuning.
 

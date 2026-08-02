@@ -229,16 +229,41 @@ class RapidXBroker:
                     return v
         return []
 
-    def executions(self, order_id: str) -> list[dict]:
-        """Fills for one order, carrying the fee the venue actually charged.
+    def executions(self, order_id: str | None = None,
+                   symbol: str | None = None,
+                   begin_ms: int | None = None, end_ms: int | None = None,
+                   limit: int | None = None) -> list[dict]:
+        """Fills, by order or by symbol, carrying the fee the venue charged.
 
         This is how the 5 bps taker assumption stops being an assumption. The
         quoted alternative, `portfolio user-fee-rate`, fails on the contest's
         simulated portfolio (upstream 2002 'API Invalid Authorization') because
         there is no real exchange account behind it to have a fee tier -- and
-        what we were charged is the better number anyway."""
-        return self._rows(self._must(["transaction", "executions"],
-                                     {**self._scope(), "orderId": order_id}))
+        what we were charged is the better number anyway.
+
+        The by-symbol form is not a convenience. `close_position` records
+        `order_id: null` because the venue's close response carries no orderId
+        field, so closing fills cannot be looked up by order at all; matching a
+        symbol's fills by time is the only route to what an exit was done at.
+
+        `begin_ms` matters as much. The schema says plainly: "If omitted,
+        RapidX defaults to up to 7 days ago." A post-mortem that silently
+        covers only the last week, over a competition that runs a month, is
+        worse than none -- it looks complete.
+        """
+        inp = {**self._scope()}
+        if order_id:
+            inp["orderId"] = order_id
+        if symbol:
+            inp["symbol"] = symbol
+        # begin/end are millisecond epochs, typed as strings by the schema.
+        if begin_ms is not None:
+            inp["begin"] = str(int(begin_ms))
+        if end_ms is not None:
+            inp["end"] = str(int(end_ms))
+        if limit is not None:
+            inp["limit"] = limit
+        return self._rows(self._must(["transaction", "executions"], inp))
 
     def order_history(self, symbol: str | None = None,
                       page: int = 1, page_size: int = 200) -> list[dict]:
@@ -442,12 +467,43 @@ class RapidXBroker:
         # documented normal path), so a position still showing here is logged
         # as 'resting', not raised — but if it went flat we record that.
         after = self._live_position(symbol, prefer_side=live_side or None)
+        # An outcome, not just an acknowledgement. `place_market` emits the
+        # executed price and quantity; this emitted neither, and its order id
+        # was always null because the venue's close response carries no
+        # `orderId` field -- so the ledger could not say what ANY exit was done
+        # at, and the fill could not even be looked up afterwards. Found
+        # 2026-08-02. The field names are probed rather than assumed, and when
+        # nothing matches the response's own keys are recorded, so diagnosing
+        # the next gap is a read of the ledger instead of a guess.
+        oid = self._first(data, "orderId", "orderID", "id", "closeOrderId",
+                          "clientOrderId")
+        price = self._first(data, "executedAvgPrice", "avgPrice", "price",
+                            "filledPrice")
+        qty = self._first(data, "executedQty", "filledQuantity", "quantity",
+                          "qty")
+        fields = {}
+        if oid is None or price is None:
+            fields["response_keys"] = (sorted(data)
+                                       if isinstance(data, dict) else None)
         self._emit("close", symbol=symbol, position_side=live_side or "NONE",
                    max_notional=max_notional_s,
                    result="closed" if after is None else "resting",
                    residual_qty=None if after is None else self._position_qty(after),
-                   order_id=data.get("orderId"))
+                   order_id=oid, executed_price=price, executed_qty=qty,
+                   **fields)
         return data
+
+    @staticmethod
+    def _first(data, *names):
+        """First present, non-empty value among `names`. The venue spells the
+        same concept differently across endpoints and documents none of it."""
+        if not isinstance(data, dict):
+            return None
+        for n in names:
+            v = data.get(n)
+            if v not in (None, "", 0, "0"):
+                return v
+        return None
 
     def get_leverage(self, symbol: str) -> float | None:
         """Current leverage setting for a symbol, or None if unavailable.

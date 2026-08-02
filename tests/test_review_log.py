@@ -145,3 +145,30 @@ def test_strategy_doc_records_the_disclosed_changes():
                    "sandbox",              # Phase I risk decision
                    "min_entry_se"):        # the estimation-error floor
         assert marker in body, f"LTP_STRATEGY.md no longer discloses {marker}"
+
+
+def test_measured_costs_are_disclosed_and_consistent_with_the_config():
+    """The fee stopped being an assumption on 2026-08-02.
+
+    `taker_fee` feeds `optimal_bands` through the round-trip toll, so it decides
+    the entry band and which pairs are tradeable at all. If someone edits it
+    back toward the old 5 bps guess without disclosing why, the pre-registration
+    stops describing the strategy that is actually running.
+    """
+    import re as _re
+    with open(STRATEGY) as fh:
+        body = fh.read()
+    for marker in ("taker_fee", "1.75", "deltaAmount", "cost_z"):
+        assert marker in body, f"LTP_STRATEGY.md no longer discloses {marker}"
+
+    agent = os.path.join(ROOT, "deploy", "ltp_agent.py")
+    with open(agent) as fh:
+        src = fh.read()
+    m = _re.search(r"^\s*taker_fee:\s*float\s*=\s*([0-9.e-]+)", src, _re.M)
+    assert m, "taker_fee is no longer a plain AgentConfig default"
+    fee_bps = float(m.group(1)) * 1e4
+    assert 1.75 <= fee_bps <= 3.0, (
+        f"taker_fee is {fee_bps:.2f} bps. The measured venue rate is 1.75 bps; "
+        f"a value below it under-charges the band optimiser, and one far above "
+        f"it re-creates the assumption that was just removed. Change it only "
+        f"with a fresh measurement and an addendum in LTP_STRATEGY.md.")

@@ -37,7 +37,7 @@ import json
 import statistics
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -93,7 +93,12 @@ class Leg:
     intended_exit: float | None = None
     entry_order_id: str | None = None
     exit_order_id: str | None = None
+    # When the operation was recorded. Closing operations carry no order id, so
+    # this is the only handle on which of a symbol's fills belong to them.
+    entry_ts: datetime | None = None
+    exit_ts: datetime | None = None
     fee: float | None = None       # summed over fills, once the API is queried
+    venue_rpnl: float | None = None   # the venue's own realised P&L on the exit
 
     @property
     def pnl(self) -> float | None:
@@ -140,6 +145,16 @@ class RoundTrip:
     @property
     def gross_pnl(self) -> float | None:
         vals = [l.pnl for l in self.legs.values() if l.pnl is not None]
+        return sum(vals) if vals else None
+
+    @property
+    def venue_pnl(self) -> float | None:
+        """The venue's own realised P&L on the closing fills. An independent
+        check on `gross_pnl`, which is reconstructed from prices and sizes --
+        if the two disagree the reconstruction is wrong, and a report nobody
+        can falsify is not evidence."""
+        vals = [l.venue_rpnl for l in self.legs.values()
+                if l.venue_rpnl is not None]
         return sum(vals) if vals else None
 
     @property
@@ -241,6 +256,7 @@ def _fill_entry(trip: RoundTrip, d: dict) -> None:
             trip.legs[key] = leg
         leg.entry_price = _f(op.get("executed_price"))
         leg.entry_order_id = op.get("order_id")
+        leg.entry_ts = _ts(op)
         leg.intended_entry = _f(d.get(f"price_{key}"))
 
 
@@ -254,6 +270,7 @@ def _fill_exit(trip: RoundTrip, d: dict) -> None:
             trip.legs[key] = leg
         leg.exit_price = _f(op.get("executed_price"))
         leg.exit_order_id = op.get("order_id")
+        leg.exit_ts = _ts(op)
         leg.intended_exit = _f(d.get(f"price_{key}"))
 
 
@@ -296,6 +313,12 @@ def summarise(trips: list[RoundTrip]) -> dict:
     for t in done:
         reasons[t.reason] = reasons.get(t.reason, 0) + 1
 
+    # Self-diagnosis. A close decision that picked up no operations means the
+    # join failed, and every downstream number is then silently missing that
+    # trade rather than visibly wrong. Report it instead of absorbing it.
+    closes = [t.close for t in trips if t.close is not None]
+    orphan_closes = sum(1 for c in closes if not c.get("_ops"))
+
     out = {
         "round_trips": len(done),
         "never_opened": sum(1 for t in trips if not t.opened and t.entry),
@@ -309,6 +332,11 @@ def summarise(trips: list[RoundTrip]) -> dict:
         "median_hold_h": round(statistics.median(holds), 2) if holds else None,
         "max_hold_h": round(max(holds), 2) if holds else None,
         "exit_reasons": reasons,
+        "close_decisions": len(closes),
+        "closes_with_no_operations": orphan_closes,
+        "venue_gross_pnl": (round(sum(v), 4) if (v := [t.venue_pnl for t in done
+                                                      if t.venue_pnl is not None])
+                            else None),
         "slippage_bps_mean": round(statistics.fmean(slips), 2) if slips else None,
         "slippage_bps_median": (round(statistics.median(slips), 2)
                                 if slips else None),
@@ -328,33 +356,232 @@ def summarise(trips: list[RoundTrip]) -> dict:
 
 
 # ------------------------------------------------------------------- I/O ---
-def attach_fees(trips: list[RoundTrip], broker) -> int:
-    """Sum the venue's own fee across every fill of every order. Failures are
-    per-order and non-fatal: a partial fee picture is worth more than none,
-    and the summary reports how many orders it managed to price."""
-    priced = 0
+# The venue's field names are not documented in the schema, and the CSV export
+# that would have shown them comes back header-only. Accept the plausible
+# spellings and say so loudly when none of them match, rather than returning a
+# tidy zero that reads as "this cost nothing".
+FEE_FIELDS = ("fee", "commission", "feeAmount", "feeCost", "tradeFee")
+PRICE_FIELDS = ("filledPrice", "execPrice", "executedPrice", "price",
+                "avgPrice", "tradePrice", "fillPrice")
+QTY_FIELDS = ("filledQuantity", "execQty", "executedQty", "quantity", "qty",
+              "filledQty", "size", "tradeQty")
+
+
+def _pick(row: dict, names: tuple[str, ...]) -> float | None:
+    for n in names:
+        v = _f(row.get(n))
+        if v is not None:
+            return v
+    return None
+
+
+def _vwap(fills: list[dict]) -> float | None:
+    """Volume-weighted average fill price, or the plain mean when the venue
+    does not give a per-fill quantity. An order that filled in one print --
+    which is all of ours so far -- makes the distinction moot, but a partial
+    fill priced by simple mean would silently misstate the entry."""
+    pairs = [(_pick(f, PRICE_FIELDS), _pick(f, QTY_FIELDS)) for f in fills]
+    pairs = [(p, q) for p, q in pairs if p is not None]
+    if not pairs:
+        return None
+    if all(q for _, q in pairs):
+        num = sum(p * abs(q) for p, q in pairs)
+        den = sum(abs(q) for _, q in pairs)
+        return num / den if den else None
+    return sum(p for p, _ in pairs) / len(pairs)
+
+
+# A fill lands before the operation record that reports it: the agent writes
+# the operation after preview -> submit -> readback, which is several
+# rate-limited calls. Generous behind, tight ahead. Entries and exits on one
+# symbol are at least a bar apart, so this cannot straddle two of ours.
+FILL_WINDOW_BEFORE_S = 300.0
+FILL_WINDOW_AFTER_S = 60.0
+
+
+# How far either side of the recorded history to ask the venue for. An hour is
+# more than enough to cover clock skew and the lag between a fill and the
+# operation record that reports it.
+HISTORY_MARGIN_S = 3600.0
+# Explicit, because the venue's default is undocumented and a silent cap would
+# look exactly like "we simply traded less than we thought".
+FILL_LIMIT = 1000
+
+
+# The venue does not serve fills older than about seven days -- retention, not
+# a query-width cap: a six-day window over Jul 20-26 was rejected on 2026-08-02
+# while two LATER windows of identical width succeeded. Asking anyway is not
+# free. The ledger's start never moves, so an unclamped window would request
+# more dead days every night until Phase I ends, and a log that always contains
+# failures is a log where a real failure no longer stands out. 6.5 days keeps
+# comfortable margin inside the limit, which the daily cron more than covers.
+VENUE_RETENTION_S = 6.5 * 24 * 3600.0
+
+
+def history_window(trips: list[RoundTrip],
+                   now: datetime | None = None
+                   ) -> tuple[int | None, int | None]:
+    """The millisecond span worth asking the venue for, padded and clamped.
+
+    Derived from the ledger rather than hardcoded to a competition start date,
+    so the report keeps covering its own history next month without anyone
+    remembering to move a constant -- then floored at what the venue will
+    actually serve, so it stops asking for what has already expired.
+    """
+    stamps = [t for trip in trips for leg in trip.legs.values()
+              for t in (leg.entry_ts, leg.exit_ts) if t is not None]
+    if not stamps:
+        return None, None
+    now = now or datetime.now(timezone.utc)
+    floor = now.timestamp() - VENUE_RETENTION_S
+    begin = max(min(stamps).timestamp() - HISTORY_MARGIN_S, floor)
+    end = max(stamps).timestamp() + HISTORY_MARGIN_S
+    if begin >= end:
+        # Every recorded trade is older than the venue will serve. Fall back to
+        # its own default rather than sending an inverted window.
+        return None, None
+    return int(begin * 1000), int(end * 1000)
+
+
+# The venue rejects a query whose begin/end span is too wide -- upstream
+# 400001 "Exceed dayTime limit" -- so the history is fetched in slices. Six
+# days leaves margin under the seven the lookback default implies.
+MAX_WINDOW_S = 6 * 24 * 3600.0
+
+
+def slice_window(begin_ms: int | None,
+                 end_ms: int | None) -> list[tuple[int | None, int | None]]:
+    """Cut a span into chunks the venue will accept. A competition longer than
+    one chunk is the normal case, not an edge case."""
+    if begin_ms is None or end_ms is None:
+        return [(None, None)]
+    step = int(MAX_WINDOW_S * 1000)
+    out, lo = [], begin_ms
+    while lo < end_ms:
+        hi = min(lo + step, end_ms)
+        out.append((lo, hi))
+        lo = hi
+    return out or [(begin_ms, end_ms)]
+
+
+def fetch_symbol_fills(broker, symbols: list[str], stat: dict,
+                       begin_ms: int | None = None,
+                       end_ms: int | None = None) -> dict:
+    out: dict[str, list[dict]] = {}
+    windows = slice_window(begin_ms, end_ms)
+    for sym in symbols:
+        rows: list[dict] = []
+        seen: set = set()
+        failed = 0
+        for lo, hi in windows:
+            try:
+                chunk = broker.executions(symbol=sym, begin_ms=lo, end_ms=hi,
+                                          limit=FILL_LIMIT)
+            except Exception as exc:                   # noqa: BLE001
+                print(f"  execution fetch failed for {sym} "
+                      f"[{lo}..{hi}]: {exc}", file=sys.stderr)
+                failed += 1
+                continue
+            if len(chunk) >= FILL_LIMIT:
+                # Hitting the cap means fills were dropped, and dropped fills
+                # look identical to trades that never happened. Say so.
+                print(f"  WARNING: {sym} returned {len(chunk)} fills in one "
+                      f"window, at the {FILL_LIMIT} limit -- truncated",
+                      file=sys.stderr)
+                stat["symbols_truncated"] += 1
+            for f in chunk:
+                # Chunk edges can repeat a fill; identity is the transaction.
+                key = f.get("transactionId") or id(f)
+                if key in seen:
+                    continue
+                seen.add(key)
+                rows.append(f)
+        if failed:
+            stat["symbols_failed"] += 1
+            stat["windows_failed"] += failed
+        if rows and stat["sample_fill_keys"] is None:
+            stat["sample_fill_keys"] = sorted(rows[0])
+        out[sym] = sorted(rows, key=lambda f: _f(f.get("createAt")) or 0.0)
+        stat["fills_fetched"] += len(rows)
+    return out
+
+
+def attach_executions(trips: list[RoundTrip], broker) -> dict:
+    """Match every leg to the venue's own fills, by symbol and time.
+
+    Not by order id, which is the obvious way and does not work: `close_position`
+    records `order_id: null` because the venue's close response carries no
+    orderId, and it emits no `executed_price` either -- unlike `place_market`,
+    which emits both. So the ledger alone cannot say what ANY exit was done at,
+    and looking one up by order is impossible. Pulling each symbol's fills and
+    assigning them by time is the only route, and it has the side benefit of
+    working retroactively over history recorded before the agent is fixed.
+
+    Fills are consumed as they are claimed, so two round trips on one symbol
+    cannot both bank the same fill. Legs are processed in time order for the
+    same reason.
+    """
+    stat = {"legs_priced": 0, "entry_prices": 0, "exit_prices": 0,
+            "fills_fetched": 0, "fills_matched": 0, "legs_unmatched": 0,
+            "symbols_failed": 0, "symbols_truncated": 0, "windows_failed": 0,
+            "sample_fill_keys": None}
+
+    symbols = sorted({l.symbol for t in trips for l in t.legs.values()
+                      if l.symbol})
+    begin_ms, end_ms = history_window(trips)
+    pools = fetch_symbol_fills(broker, symbols, stat, begin_ms, end_ms)
+
+    events: list[tuple[datetime, Leg, str]] = []
     for trip in trips:
         for leg in trip.legs.values():
-            total, got = 0.0, False
-            for oid in (leg.entry_order_id, leg.exit_order_id):
-                if not oid:
-                    continue
-                try:
-                    fills = broker.executions(oid)
-                except Exception as exc:               # noqa: BLE001
-                    print(f"  fee lookup failed for {oid}: {exc}",
-                          file=sys.stderr)
-                    continue
-                for f in fills:
-                    v = _f(f.get("fee") or f.get("commission")
-                           or f.get("feeAmount"))
-                    if v is not None:
-                        total += abs(v)
-                        got = True
-            if got:
-                leg.fee = total
-                priced += 1
-    return priced
+            if leg.entry_ts:
+                events.append((leg.entry_ts, leg, "entry"))
+            if leg.exit_ts:
+                events.append((leg.exit_ts, leg, "exit"))
+    events.sort(key=lambda e: e[0])
+
+    claimed: set = set()
+    for op_ts, leg, which in events:
+        hits = []
+        for f in pools.get(leg.symbol, []):
+            key = f.get("transactionId") or id(f)
+            if key in claimed:
+                continue
+            created = _f(f.get("createAt"))
+            if created is None:
+                continue
+            lag = op_ts.timestamp() - created / 1000.0
+            if -FILL_WINDOW_AFTER_S <= lag <= FILL_WINDOW_BEFORE_S:
+                hits.append((key, f))
+        if not hits:
+            stat["legs_unmatched"] += 1
+            continue
+        for key, _ in hits:
+            claimed.add(key)
+        fills = [f for _, f in hits]
+        stat["fills_matched"] += len(fills)
+
+        fee = sum(abs(_pick(f, FEE_FIELDS) or 0.0) for f in fills)
+        if fee:
+            leg.fee = (leg.fee or 0.0) + fee
+            stat["legs_priced"] += 1
+        px = _vwap(fills)
+        if which == "entry":
+            if leg.entry_price is None and px is not None:
+                leg.entry_price = px
+                stat["entry_prices"] += 1
+        else:
+            if leg.exit_price is None and px is not None:
+                leg.exit_price = px
+                stat["exit_prices"] += 1
+            rpnl = [_f(f.get("rpnl")) for f in fills]
+            rpnl = [v for v in rpnl if v is not None]
+            if rpnl:
+                leg.venue_rpnl = sum(rpnl)
+            if not leg.qty:
+                leg.qty = sum(abs(_pick(f, QTY_FIELDS) or 0.0)
+                              for f in fills) or leg.qty
+    return stat
 
 
 def funding_summary(broker, coin: str = "USDT") -> dict:
@@ -371,13 +598,27 @@ def funding_summary(broker, coin: str = "USDT") -> dict:
         return {"error": str(exc)[:300]}
     totals: dict[str, float] = {}
     counts: dict[str, int] = {}
+    parsed = 0
     for r in rows:
         kind = str(r.get("statementType") or r.get("type")
                    or r.get("bizType") or "unknown")
-        amt = _f(r.get("amount") or r.get("change") or r.get("income")) or 0.0
-        totals[kind] = round(totals.get(kind, 0.0) + amt, 6)
+        # deltaAmount is what RapidX actually calls it, confirmed against the
+        # row's own beforeAvailable/afterAvailable on 2026-08-02. The rest stay
+        # as fallbacks in case a different statement type spells it otherwise.
+        amt = _pick(r, ("deltaAmount", "delta", "amount", "change", "income",
+                        "value", "realizedPnl", "cashFlow"))
+        if amt is not None:
+            parsed += 1
+        totals[kind] = round(totals.get(kind, 0.0) + (amt or 0.0), 8)
         counts[kind] = counts.get(kind, 0) + 1
-    return {"lines": len(rows), "totals_by_type": totals, "counts": counts}
+    out = {"lines": len(rows), "totals_by_type": totals, "counts": counts,
+           "amounts_parsed": parsed}
+    if rows and (parsed == 0 or not any(totals.values())):
+        # Zero funding and an unreadable amount field look identical in a
+        # total. Show the raw shape so the difference is decidable instead of
+        # assumed -- "funding is free" is a claim that needs evidence.
+        out["sample_row"] = {k: rows[0][k] for k in sorted(rows[0])}
+    return out
 
 
 def main() -> int:
@@ -396,8 +637,11 @@ def main() -> int:
     if not args.no_api:
         from deploy.ltp_broker import RapidXBroker      # noqa: PLC0415
         broker = RapidXBroker()
-        priced = attach_fees(trips, broker)
-        print(f"priced {priced} legs from venue executions")
+        stat = attach_executions(trips, broker)
+        print("venue executions: " + "  ".join(f"{k}={v}" for k, v in stat.items()
+                                               if k != "sample_fill_keys"))
+        if stat["sample_fill_keys"]:
+            print(f"  fill fields seen: {stat['sample_fill_keys']}")
         funding = funding_summary(broker)
 
     s = summarise(trips)
@@ -435,7 +679,9 @@ def main() -> int:
                 "slippage_bps": trip_slippage(t),
                 "legs": {k: vars(l) for k, l in t.legs.items()},
             } for t in trips],
-        }, indent=2, default=float))
+            # default=str, not float: Leg carries datetimes now, and float()
+            # on one raises rather than degrading, taking the whole dump with it.
+        }, indent=2, default=str))
         print(f"\nwrote {args.json}")
     return 0
 

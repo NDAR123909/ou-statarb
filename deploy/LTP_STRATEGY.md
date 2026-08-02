@@ -384,6 +384,95 @@ second live immediately, in production, on a real position. The lesson is not
 "fix fewer bugs" — it is that the first trade after a change to core maths
 deserves to be watched, not assumed.
 
+## Addendum — costs measured instead of assumed (2026-08-02)
+
+Since launch the cost model has run on an assumption: `taker_fee = 5e-4`, 5 bps
+per leg, chosen from Binance's public schedule and never checked. It feeds
+`optimal_bands` through `roundtrip = 2 * taker_fee * (1 + |beta|)`
+(`ltp_agent.py`), which decides both the entry band and whether a pair is
+tradeable at all. A cost model built on an unverified fee is a backtest wearing
+a live-trading costume, so week 2 measured it.
+
+`portfolio user-fee-rate` — the obvious route — fails with upstream 2002 "API
+Invalid Authorization", because the contest's simulated portfolio has no real
+exchange account behind it to hold a fee tier. The platform's CSV exports come
+back header-only. So the fee was measured from fills instead, via
+`deploy/fills_report.py` and `transaction executions`, which is the better
+number regardless: what we were charged, not what is advertised.
+
+**Measured: 1.75 bps per side.** Exact to five significant figures across 22
+fills (`0.07165148 / (63 × 6.499)`), `fee == tradingFee`, `rebate` zero,
+`execType` TAKER throughout. `taker_fee` is therefore changed **5e-4 → 2e-4**,
+a small margin over the measurement against a venue schedule change rather than
+against measurement error.
+
+**This is disclosed as a behavioural change but is expected to be inert**, and
+that expectation is itself the finding. `deploy/band_diagnostic.py` reports
+`cost_z` (round-trip cost in units of `sigma_eq`) between 0.01 and 0.08 for
+every candidate: costs are roughly 8% of the entry band, not the dominant term.
+Sweeping the fee from 5.0 bps to zero moves AVAX/SOL's entry band by at most one
+grid step (0.6 → 0.4) and admits **no** new pairs — the diagnostic's own words:
+*"HALVING EXECUTION COST would newly admit: NOTHING."*
+
+Two further assumptions closed at the same time, both previously listed as
+honest gaps in `README_ltp.md`:
+
+- **Funding carry**, never modelled: **−0.024 USDT across 34 settlements** over
+  13 days, 0.002% of NAV. Read from `portfolio statement`, where the amount
+  field is `deltaAmount` and reconciles against each row's own
+  before/after balance.
+- **Slippage**, never quantified: **0.57 bps mean, 0.0 median**, signed so that
+  positive is adverse. Market orders on liquid perps cost essentially nothing.
+
+The honest consequence is deflationary and worth stating plainly: **execution
+cost is not what limits this strategy.** Breadth is limited by the statistical
+gates — the 2026-08-02 refit rejected 14 of 15 candidates on split-half
+cointegration, mean crossings, Hurst and beta stability, none of them on cost —
+and those gates will not be loosened to manufacture trades. The remaining lever
+on PnL and ROI is position size, which is why `risk_per_pair` is being restored
+rather than the bands being tightened.
+
+## Addendum — logging the paths that were not logged (2026-08-02)
+
+No change to what the agent trades; a change to what it records. Four paths
+that move money or change risk were leaving no durable trace, all found the
+same day and all in one shape — the entry path is well instrumented and
+everything else was thin:
+
+- **`refit_drop`** (`ltp_agent.py`, the `flatten` branch). When a refit stops
+  selecting a pair the agent flattens it, and wrote no ledger event at all: two
+  orders reached the venue tagged `decision="close"` with no decision behind
+  them and no reasoning for the exit. Now emits a `refit_drop` decision, before
+  the close, so a failed close still records the intent.
+- **`size_reduced`** (`ltp_news.py::size_mult`). A `watch` news rating halves
+  the risk budget. It logged to the journal only — and on 2026-08-01 it halved
+  the position on the worst trade of the competition, turning roughly −12 into
+  −6, with no ledger trace that a control had acted. A risk control that acts
+  silently is indistinguishable from one that never fires. Now emits
+  `size_reduced`, and every `enter` row carries a `size_mult` field, since `g`
+  is already multiplied by the time it is logged.
+- **`close_position` outcomes** (`ltp_broker.py`). It emitted neither
+  `executed_price` nor `executed_qty` — unlike `place_market`, which emits
+  both — and its `order_id` was always null because the venue's close response
+  has no `orderId` field. Together these meant **the ledger could not say what
+  any exit had ever been done at**, and the fill could not be looked up
+  afterwards either. Now probes several spellings for each and, when none
+  match, records the response's own keys so the next gap is diagnosed by
+  reading the ledger rather than by another live probing session.
+
+Pinned by `tests/test_ltp_logging_gaps.py` as behavioural contracts rather
+than style: Track A's Reasoning Audit correlates logged decisions against
+executed orders, so these omissions were audit exposure, not untidiness.
+
+One related limit worth pre-registering, because it constrains the Phase I
+post-mortem: **`transaction executions` does not serve fills older than about
+seven days.** This is retention, not a query-width cap — a six-day window over
+Jul 20–26 was rejected while two later windows of identical width succeeded.
+Week 1's fills are unrecoverable through that endpoint, so the fills analysis
+in the week 2 review covers 2026-07-26 onward, and `fills_report.py` must be
+run weekly for the rest of the competition or each week's evidence expires
+before it is captured.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;
