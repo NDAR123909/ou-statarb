@@ -229,16 +229,27 @@ class RapidXBroker:
                     return v
         return []
 
-    def executions(self, order_id: str) -> list[dict]:
-        """Fills for one order, carrying the fee the venue actually charged.
+    def executions(self, order_id: str | None = None,
+                   symbol: str | None = None) -> list[dict]:
+        """Fills, by order or by symbol, carrying the fee the venue charged.
 
         This is how the 5 bps taker assumption stops being an assumption. The
         quoted alternative, `portfolio user-fee-rate`, fails on the contest's
         simulated portfolio (upstream 2002 'API Invalid Authorization') because
         there is no real exchange account behind it to have a fee tier -- and
-        what we were charged is the better number anyway."""
-        return self._rows(self._must(["transaction", "executions"],
-                                     {**self._scope(), "orderId": order_id}))
+        what we were charged is the better number anyway.
+
+        The by-symbol form is not a convenience. `close_position` records
+        `order_id: null` because the venue's close response carries no orderId
+        field, so closing fills cannot be looked up by order at all; matching a
+        symbol's fills by time is the only route to what an exit was done at.
+        """
+        inp = {**self._scope()}
+        if order_id:
+            inp["orderId"] = order_id
+        if symbol:
+            inp["symbol"] = symbol
+        return self._rows(self._must(["transaction", "executions"], inp))
 
     def order_history(self, symbol: str | None = None,
                       page: int = 1, page_size: int = 200) -> list[dict]:

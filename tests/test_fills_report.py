@@ -19,6 +19,7 @@ number by hand before being fixed here:
 import json
 import os
 import sys
+from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -130,26 +131,19 @@ def test_trip_slippage_uses_the_opposite_side_on_the_close():
     assert round(slips[1], 1) == 0.0
 
 
-def test_fee_lookup_is_summed_per_leg_and_survives_a_failing_order():
+def test_a_failing_symbol_fetch_is_reported_not_swallowed():
     from deploy.fills_report import attach_executions
 
     class Broker:
-        def executions(self, order_id):
-            if order_id == "o3":
-                raise RuntimeError("upstream said no")
-            return [{"fee": "0.10"}, {"fee": "0.05"}]
+        def executions(self, order_id=None, symbol=None):
+            raise RuntimeError("upstream said no")
 
     trips = round_trips(_short_spread_round_trip())
     stat = attach_executions(trips, Broker())
-    assert stat["legs_priced"] == 2
-    assert stat["orders_failed"] == 1
-    # leg a: entry o1 priced (0.15), exit o3 raised -> only the entry counts.
-    assert round(trips[0].legs["a"].fee, 4) == 0.15
-    assert round(trips[0].legs["b"].fee, 4) == 0.30
-
-    s = summarise(trips)
-    assert s["fees_paid"] == 0.45
-    assert s["net_pnl"] == round(4.6876 - 0.45, 4)
+    assert stat["symbols_failed"] == 2
+    assert stat["legs_priced"] == 0
+    # The ledger-derived entry prices survive; only the venue half is missing.
+    assert trips[0].opened
 
 
 def _close_op_without_a_price(ts, symbol, oid):
@@ -182,19 +176,37 @@ def test_exit_prices_are_recovered_from_executions_when_the_close_logged_none():
     assert trips[0].opened and not trips[0].closed
     assert trips[0].gross_pnl is None
 
-    class Broker:
-        prices = {"o1": [("6.50", "63")], "o2": [("73.58", "2.78")],
-                  "o3": [("6.40", "63")], "o4": [("73.00", "2.78")]}
+    # The venue is asked by SYMBOL, because a close carries no order id.
+    # createAt is epoch ms, a little BEFORE the operation that reports it.
+    def ms(iso):
+        return int(datetime.fromisoformat(iso).timestamp() * 1000)
 
-        def executions(self, order_id):
-            return [{"filledPrice": p, "filledQuantity": q, "fee": "0.02"}
-                    for p, q in self.prices[order_id]]
+    class Broker:
+        rows = {
+            A: [{"transactionId": "t1", "price": "6.50", "quantity": "63",
+                 "fee": "0.02", "createAt": ms("2026-08-02T05:00:25+00:00")},
+                {"transactionId": "t3", "price": "6.40", "quantity": "63",
+                 "fee": "0.02", "rpnl": "6.30",
+                 "createAt": ms("2026-08-02T09:00:15+00:00")}],
+            B: [{"transactionId": "t2", "price": "73.58", "quantity": "2.78",
+                 "fee": "0.01", "createAt": ms("2026-08-02T05:00:40+00:00")},
+                {"transactionId": "t4", "price": "73.00", "quantity": "2.78",
+                 "fee": "0.01", "rpnl": "-1.6124",
+                 "createAt": ms("2026-08-02T09:00:25+00:00")}],
+        }
+
+        def executions(self, order_id=None, symbol=None):
+            return list(self.rows[symbol])
 
     stat = attach_executions(trips, Broker())
     assert stat["exit_prices"] == 2
     assert stat["entry_prices"] == 0      # entries already had a logged price
+    assert stat["legs_unmatched"] == 0
     assert trips[0].closed
     assert round(trips[0].gross_pnl, 4) == 4.6876
+    # The venue's own rpnl must corroborate the reconstruction, not replace it.
+    assert round(trips[0].venue_pnl, 4) == 4.6876
+    assert round(trips[0].fees, 4) == 0.06
 
 
 def test_vwap_weights_partial_fills_rather_than_averaging_them():

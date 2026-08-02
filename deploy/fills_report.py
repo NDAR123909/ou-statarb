@@ -93,7 +93,12 @@ class Leg:
     intended_exit: float | None = None
     entry_order_id: str | None = None
     exit_order_id: str | None = None
+    # When the operation was recorded. Closing operations carry no order id, so
+    # this is the only handle on which of a symbol's fills belong to them.
+    entry_ts: datetime | None = None
+    exit_ts: datetime | None = None
     fee: float | None = None       # summed over fills, once the API is queried
+    venue_rpnl: float | None = None   # the venue's own realised P&L on the exit
 
     @property
     def pnl(self) -> float | None:
@@ -140,6 +145,16 @@ class RoundTrip:
     @property
     def gross_pnl(self) -> float | None:
         vals = [l.pnl for l in self.legs.values() if l.pnl is not None]
+        return sum(vals) if vals else None
+
+    @property
+    def venue_pnl(self) -> float | None:
+        """The venue's own realised P&L on the closing fills. An independent
+        check on `gross_pnl`, which is reconstructed from prices and sizes --
+        if the two disagree the reconstruction is wrong, and a report nobody
+        can falsify is not evidence."""
+        vals = [l.venue_rpnl for l in self.legs.values()
+                if l.venue_rpnl is not None]
         return sum(vals) if vals else None
 
     @property
@@ -241,6 +256,7 @@ def _fill_entry(trip: RoundTrip, d: dict) -> None:
             trip.legs[key] = leg
         leg.entry_price = _f(op.get("executed_price"))
         leg.entry_order_id = op.get("order_id")
+        leg.entry_ts = _ts(op)
         leg.intended_entry = _f(d.get(f"price_{key}"))
 
 
@@ -254,6 +270,7 @@ def _fill_exit(trip: RoundTrip, d: dict) -> None:
             trip.legs[key] = leg
         leg.exit_price = _f(op.get("executed_price"))
         leg.exit_order_id = op.get("order_id")
+        leg.exit_ts = _ts(op)
         leg.intended_exit = _f(d.get(f"price_{key}"))
 
 
@@ -317,6 +334,9 @@ def summarise(trips: list[RoundTrip]) -> dict:
         "exit_reasons": reasons,
         "close_decisions": len(closes),
         "closes_with_no_operations": orphan_closes,
+        "venue_gross_pnl": (round(sum(v), 4) if (v := [t.venue_pnl for t in done
+                                                      if t.venue_pnl is not None])
+                            else None),
         "slippage_bps_mean": round(statistics.fmean(slips), 2) if slips else None,
         "slippage_bps_median": (round(statistics.median(slips), 2)
                                 if slips else None),
@@ -371,68 +391,103 @@ def _vwap(fills: list[dict]) -> float | None:
     return sum(p for p, _ in pairs) / len(pairs)
 
 
+# A fill lands before the operation record that reports it: the agent writes
+# the operation after preview -> submit -> readback, which is several
+# rate-limited calls. Generous behind, tight ahead. Entries and exits on one
+# symbol are at least a bar apart, so this cannot straddle two of ours.
+FILL_WINDOW_BEFORE_S = 300.0
+FILL_WINDOW_AFTER_S = 60.0
+
+
+def fetch_symbol_fills(broker, symbols: list[str], stat: dict) -> dict:
+    out: dict[str, list[dict]] = {}
+    for sym in symbols:
+        try:
+            rows = broker.executions(symbol=sym)
+        except Exception as exc:                       # noqa: BLE001
+            print(f"  execution fetch failed for {sym}: {exc}", file=sys.stderr)
+            stat["symbols_failed"] += 1
+            rows = []
+        if rows and stat["sample_fill_keys"] is None:
+            stat["sample_fill_keys"] = sorted(rows[0])
+        out[sym] = sorted(rows, key=lambda f: _f(f.get("createAt")) or 0.0)
+        stat["fills_fetched"] += len(rows)
+    return out
+
+
 def attach_executions(trips: list[RoundTrip], broker) -> dict:
-    """Pull every order's fills: the fee charged, and the price it filled at.
+    """Match every leg to the venue's own fills, by symbol and time.
 
-    The price half is not a nicety. `close_position` emits an operation with
-    the order id and whether the position went flat, but -- unlike
-    `place_market` -- no `executed_price`, so the ledger alone cannot say what
-    any close was DONE at. Every exit price in this report therefore comes from
-    here. That also makes the report work retroactively over history recorded
-    before the agent is fixed to log it.
+    Not by order id, which is the obvious way and does not work: `close_position`
+    records `order_id: null` because the venue's close response carries no
+    orderId, and it emits no `executed_price` either -- unlike `place_market`,
+    which emits both. So the ledger alone cannot say what ANY exit was done at,
+    and looking one up by order is impossible. Pulling each symbol's fills and
+    assigning them by time is the only route, and it has the side benefit of
+    working retroactively over history recorded before the agent is fixed.
 
-    Failures are per-order and non-fatal: a partial picture beats none, and the
-    return value reports exactly how much was recovered so a thin result is
-    never mistaken for a complete one.
+    Fills are consumed as they are claimed, so two round trips on one symbol
+    cannot both bank the same fill. Legs are processed in time order for the
+    same reason.
     """
     stat = {"legs_priced": 0, "entry_prices": 0, "exit_prices": 0,
-            "orders_failed": 0, "orders_empty": 0, "sample_fill_keys": None}
-    cache: dict[str, list[dict]] = {}
+            "fills_fetched": 0, "fills_matched": 0, "legs_unmatched": 0,
+            "symbols_failed": 0, "sample_fill_keys": None}
 
-    def fills_for(oid: str) -> list[dict]:
-        if oid not in cache:
-            try:
-                cache[oid] = broker.executions(oid)
-            except Exception as exc:                   # noqa: BLE001
-                print(f"  execution lookup failed for {oid}: {exc}",
-                      file=sys.stderr)
-                stat["orders_failed"] += 1
-                cache[oid] = []
-            if not cache[oid]:
-                stat["orders_empty"] += 1
-            elif stat["sample_fill_keys"] is None:
-                stat["sample_fill_keys"] = sorted(cache[oid][0])
-        return cache[oid]
+    symbols = sorted({l.symbol for t in trips for l in t.legs.values()
+                      if l.symbol})
+    pools = fetch_symbol_fills(broker, symbols, stat)
 
+    events: list[tuple[datetime, Leg, str]] = []
     for trip in trips:
         for leg in trip.legs.values():
-            total, got = 0.0, False
-            for which, oid in (("entry", leg.entry_order_id),
-                               ("exit", leg.exit_order_id)):
-                if not oid:
-                    continue
-                fills = fills_for(oid)
-                for f in fills:
-                    v = _pick(f, FEE_FIELDS)
-                    if v is not None:
-                        total += abs(v)
-                        got = True
-                px = _vwap(fills)
-                if px is None:
-                    continue
-                if which == "entry" and leg.entry_price is None:
-                    leg.entry_price = px
-                    stat["entry_prices"] += 1
-                elif which == "exit" and leg.exit_price is None:
-                    leg.exit_price = px
-                    stat["exit_prices"] += 1
-                    if not leg.qty:
-                        # A close-only leg (no matching entry) has no size yet.
-                        leg.qty = sum(abs(_pick(f, QTY_FIELDS) or 0.0)
-                                      for f in fills) or leg.qty
-            if got:
-                leg.fee = total
-                stat["legs_priced"] += 1
+            if leg.entry_ts:
+                events.append((leg.entry_ts, leg, "entry"))
+            if leg.exit_ts:
+                events.append((leg.exit_ts, leg, "exit"))
+    events.sort(key=lambda e: e[0])
+
+    claimed: set = set()
+    for op_ts, leg, which in events:
+        hits = []
+        for f in pools.get(leg.symbol, []):
+            key = f.get("transactionId") or id(f)
+            if key in claimed:
+                continue
+            created = _f(f.get("createAt"))
+            if created is None:
+                continue
+            lag = op_ts.timestamp() - created / 1000.0
+            if -FILL_WINDOW_AFTER_S <= lag <= FILL_WINDOW_BEFORE_S:
+                hits.append((key, f))
+        if not hits:
+            stat["legs_unmatched"] += 1
+            continue
+        for key, _ in hits:
+            claimed.add(key)
+        fills = [f for _, f in hits]
+        stat["fills_matched"] += len(fills)
+
+        fee = sum(abs(_pick(f, FEE_FIELDS) or 0.0) for f in fills)
+        if fee:
+            leg.fee = (leg.fee or 0.0) + fee
+            stat["legs_priced"] += 1
+        px = _vwap(fills)
+        if which == "entry":
+            if leg.entry_price is None and px is not None:
+                leg.entry_price = px
+                stat["entry_prices"] += 1
+        else:
+            if leg.exit_price is None and px is not None:
+                leg.exit_price = px
+                stat["exit_prices"] += 1
+            rpnl = [_f(f.get("rpnl")) for f in fills]
+            rpnl = [v for v in rpnl if v is not None]
+            if rpnl:
+                leg.venue_rpnl = sum(rpnl)
+            if not leg.qty:
+                leg.qty = sum(abs(_pick(f, QTY_FIELDS) or 0.0)
+                              for f in fills) or leg.qty
     return stat
 
 
