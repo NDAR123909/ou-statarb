@@ -296,3 +296,62 @@ def test_hitting_the_fill_limit_is_counted_as_truncation(capsys):
     stat = attach_executions(round_trips(_short_spread_round_trip()), Broker())
     assert stat["symbols_truncated"] == 2
     assert "truncated" in capsys.readouterr().err
+
+
+def test_a_long_history_is_sliced_into_windows_the_venue_accepts():
+    """RapidX rejects a wide begin/end span with upstream 400001 'Exceed
+    dayTime limit', so a competition longer than one slice -- the normal case
+    after week two -- must be fetched in pieces."""
+    from deploy.fills_report import slice_window, MAX_WINDOW_S
+
+    day = 86_400_000
+    windows = slice_window(0, 15 * day)
+    assert len(windows) == 3
+    assert windows[0][0] == 0 and windows[-1][1] == 15 * day
+    # Contiguous, no gaps: a gap would drop trades silently.
+    for (_, prev_end), (next_begin, _) in zip(windows, windows[1:]):
+        assert prev_end == next_begin
+    assert all(hi - lo <= MAX_WINDOW_S * 1000 for lo, hi in windows)
+
+    # A short span stays a single call, and an unknown span asks for the
+    # venue's own default rather than inventing one.
+    assert len(slice_window(0, day)) == 1
+    assert slice_window(None, None) == [(None, None)]
+
+
+def test_fills_repeated_across_a_window_edge_are_counted_once():
+    from deploy.fills_report import fetch_symbol_fills
+
+    stat = {"fills_fetched": 0, "symbols_failed": 0, "symbols_truncated": 0,
+            "windows_failed": 0, "sample_fill_keys": None}
+
+    class Broker:
+        def executions(self, symbol=None, **kw):
+            return [{"transactionId": "dup", "price": "1", "quantity": "1",
+                     "createAt": "0"}]
+
+    pools = fetch_symbol_fills(Broker(), [A], stat, 0, 15 * 86_400_000)
+    assert len(pools[A]) == 1, "the same transaction must not be banked twice"
+    assert stat["fills_fetched"] == 1
+
+
+def test_one_failing_window_does_not_discard_the_others():
+    from deploy.fills_report import fetch_symbol_fills
+
+    stat = {"fills_fetched": 0, "symbols_failed": 0, "symbols_truncated": 0,
+            "windows_failed": 0, "sample_fill_keys": None}
+
+    class Broker:
+        calls = 0
+
+        def executions(self, symbol=None, begin_ms=None, **kw):
+            self.calls += 1
+            if self.calls == 2:
+                raise RuntimeError("Exceed dayTime limit")
+            return [{"transactionId": f"t{self.calls}", "price": "1",
+                     "quantity": "1", "createAt": str(begin_ms)}]
+
+    pools = fetch_symbol_fills(Broker(), [A], stat, 0, 15 * 86_400_000)
+    assert len(pools[A]) == 2, "a partial history beats none"
+    assert stat["windows_failed"] == 1
+    assert stat["symbols_failed"] == 1

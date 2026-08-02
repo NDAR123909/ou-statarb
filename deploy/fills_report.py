@@ -423,25 +423,62 @@ def history_window(trips: list[RoundTrip]) -> tuple[int | None, int | None]:
             int((max(stamps).timestamp() + HISTORY_MARGIN_S) * 1000))
 
 
+# The venue rejects a query whose begin/end span is too wide -- upstream
+# 400001 "Exceed dayTime limit" -- so the history is fetched in slices. Six
+# days leaves margin under the seven the lookback default implies.
+MAX_WINDOW_S = 6 * 24 * 3600.0
+
+
+def slice_window(begin_ms: int | None,
+                 end_ms: int | None) -> list[tuple[int | None, int | None]]:
+    """Cut a span into chunks the venue will accept. A competition longer than
+    one chunk is the normal case, not an edge case."""
+    if begin_ms is None or end_ms is None:
+        return [(None, None)]
+    step = int(MAX_WINDOW_S * 1000)
+    out, lo = [], begin_ms
+    while lo < end_ms:
+        hi = min(lo + step, end_ms)
+        out.append((lo, hi))
+        lo = hi
+    return out or [(begin_ms, end_ms)]
+
+
 def fetch_symbol_fills(broker, symbols: list[str], stat: dict,
                        begin_ms: int | None = None,
                        end_ms: int | None = None) -> dict:
     out: dict[str, list[dict]] = {}
+    windows = slice_window(begin_ms, end_ms)
     for sym in symbols:
-        try:
-            rows = broker.executions(symbol=sym, begin_ms=begin_ms,
-                                     end_ms=end_ms, limit=FILL_LIMIT)
-        except Exception as exc:                       # noqa: BLE001
-            print(f"  execution fetch failed for {sym}: {exc}", file=sys.stderr)
+        rows: list[dict] = []
+        seen: set = set()
+        failed = 0
+        for lo, hi in windows:
+            try:
+                chunk = broker.executions(symbol=sym, begin_ms=lo, end_ms=hi,
+                                          limit=FILL_LIMIT)
+            except Exception as exc:                   # noqa: BLE001
+                print(f"  execution fetch failed for {sym} "
+                      f"[{lo}..{hi}]: {exc}", file=sys.stderr)
+                failed += 1
+                continue
+            if len(chunk) >= FILL_LIMIT:
+                # Hitting the cap means fills were dropped, and dropped fills
+                # look identical to trades that never happened. Say so.
+                print(f"  WARNING: {sym} returned {len(chunk)} fills in one "
+                      f"window, at the {FILL_LIMIT} limit -- truncated",
+                      file=sys.stderr)
+                stat["symbols_truncated"] += 1
+            for f in chunk:
+                # Chunk edges can repeat a fill; identity is the transaction.
+                key = f.get("transactionId") or id(f)
+                if key in seen:
+                    continue
+                seen.add(key)
+                rows.append(f)
+        if failed:
             stat["symbols_failed"] += 1
-            rows = []
-        if len(rows) >= FILL_LIMIT:
-            # Hitting the cap means fills were dropped, and dropped fills look
-            # identical to trades that never happened. Say so.
-            print(f"  WARNING: {sym} returned {len(rows)} fills, at the "
-                  f"{FILL_LIMIT} limit -- history is truncated",
-                  file=sys.stderr)
-            stat["symbols_truncated"] += 1
+            stat["windows_failed"] += failed
         if rows and stat["sample_fill_keys"] is None:
             stat["sample_fill_keys"] = sorted(rows[0])
         out[sym] = sorted(rows, key=lambda f: _f(f.get("createAt")) or 0.0)
@@ -466,7 +503,7 @@ def attach_executions(trips: list[RoundTrip], broker) -> dict:
     """
     stat = {"legs_priced": 0, "entry_prices": 0, "exit_prices": 0,
             "fills_fetched": 0, "fills_matched": 0, "legs_unmatched": 0,
-            "symbols_failed": 0, "symbols_truncated": 0,
+            "symbols_failed": 0, "symbols_truncated": 0, "windows_failed": 0,
             "sample_fill_keys": None}
 
     symbols = sorted({l.symbol for t in trips for l in t.legs.values()
