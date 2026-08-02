@@ -328,33 +328,104 @@ def summarise(trips: list[RoundTrip]) -> dict:
 
 
 # ------------------------------------------------------------------- I/O ---
-def attach_fees(trips: list[RoundTrip], broker) -> int:
-    """Sum the venue's own fee across every fill of every order. Failures are
-    per-order and non-fatal: a partial fee picture is worth more than none,
-    and the summary reports how many orders it managed to price."""
-    priced = 0
+# The venue's field names are not documented in the schema, and the CSV export
+# that would have shown them comes back header-only. Accept the plausible
+# spellings and say so loudly when none of them match, rather than returning a
+# tidy zero that reads as "this cost nothing".
+FEE_FIELDS = ("fee", "commission", "feeAmount", "feeCost", "tradeFee")
+PRICE_FIELDS = ("filledPrice", "execPrice", "executedPrice", "price",
+                "avgPrice", "tradePrice", "fillPrice")
+QTY_FIELDS = ("filledQuantity", "execQty", "executedQty", "quantity", "qty",
+              "filledQty", "size", "tradeQty")
+
+
+def _pick(row: dict, names: tuple[str, ...]) -> float | None:
+    for n in names:
+        v = _f(row.get(n))
+        if v is not None:
+            return v
+    return None
+
+
+def _vwap(fills: list[dict]) -> float | None:
+    """Volume-weighted average fill price, or the plain mean when the venue
+    does not give a per-fill quantity. An order that filled in one print --
+    which is all of ours so far -- makes the distinction moot, but a partial
+    fill priced by simple mean would silently misstate the entry."""
+    pairs = [(_pick(f, PRICE_FIELDS), _pick(f, QTY_FIELDS)) for f in fills]
+    pairs = [(p, q) for p, q in pairs if p is not None]
+    if not pairs:
+        return None
+    if all(q for _, q in pairs):
+        num = sum(p * abs(q) for p, q in pairs)
+        den = sum(abs(q) for _, q in pairs)
+        return num / den if den else None
+    return sum(p for p, _ in pairs) / len(pairs)
+
+
+def attach_executions(trips: list[RoundTrip], broker) -> dict:
+    """Pull every order's fills: the fee charged, and the price it filled at.
+
+    The price half is not a nicety. `close_position` emits an operation with
+    the order id and whether the position went flat, but -- unlike
+    `place_market` -- no `executed_price`, so the ledger alone cannot say what
+    any close was DONE at. Every exit price in this report therefore comes from
+    here. That also makes the report work retroactively over history recorded
+    before the agent is fixed to log it.
+
+    Failures are per-order and non-fatal: a partial picture beats none, and the
+    return value reports exactly how much was recovered so a thin result is
+    never mistaken for a complete one.
+    """
+    stat = {"legs_priced": 0, "entry_prices": 0, "exit_prices": 0,
+            "orders_failed": 0, "orders_empty": 0, "sample_fill_keys": None}
+    cache: dict[str, list[dict]] = {}
+
+    def fills_for(oid: str) -> list[dict]:
+        if oid not in cache:
+            try:
+                cache[oid] = broker.executions(oid)
+            except Exception as exc:                   # noqa: BLE001
+                print(f"  execution lookup failed for {oid}: {exc}",
+                      file=sys.stderr)
+                stat["orders_failed"] += 1
+                cache[oid] = []
+            if not cache[oid]:
+                stat["orders_empty"] += 1
+            elif stat["sample_fill_keys"] is None:
+                stat["sample_fill_keys"] = sorted(cache[oid][0])
+        return cache[oid]
+
     for trip in trips:
         for leg in trip.legs.values():
             total, got = 0.0, False
-            for oid in (leg.entry_order_id, leg.exit_order_id):
+            for which, oid in (("entry", leg.entry_order_id),
+                               ("exit", leg.exit_order_id)):
                 if not oid:
                     continue
-                try:
-                    fills = broker.executions(oid)
-                except Exception as exc:               # noqa: BLE001
-                    print(f"  fee lookup failed for {oid}: {exc}",
-                          file=sys.stderr)
-                    continue
+                fills = fills_for(oid)
                 for f in fills:
-                    v = _f(f.get("fee") or f.get("commission")
-                           or f.get("feeAmount"))
+                    v = _pick(f, FEE_FIELDS)
                     if v is not None:
                         total += abs(v)
                         got = True
+                px = _vwap(fills)
+                if px is None:
+                    continue
+                if which == "entry" and leg.entry_price is None:
+                    leg.entry_price = px
+                    stat["entry_prices"] += 1
+                elif which == "exit" and leg.exit_price is None:
+                    leg.exit_price = px
+                    stat["exit_prices"] += 1
+                    if not leg.qty:
+                        # A close-only leg (no matching entry) has no size yet.
+                        leg.qty = sum(abs(_pick(f, QTY_FIELDS) or 0.0)
+                                      for f in fills) or leg.qty
             if got:
                 leg.fee = total
-                priced += 1
-    return priced
+                stat["legs_priced"] += 1
+    return stat
 
 
 def funding_summary(broker, coin: str = "USDT") -> dict:
@@ -371,13 +442,24 @@ def funding_summary(broker, coin: str = "USDT") -> dict:
         return {"error": str(exc)[:300]}
     totals: dict[str, float] = {}
     counts: dict[str, int] = {}
+    parsed = 0
     for r in rows:
         kind = str(r.get("statementType") or r.get("type")
                    or r.get("bizType") or "unknown")
-        amt = _f(r.get("amount") or r.get("change") or r.get("income")) or 0.0
-        totals[kind] = round(totals.get(kind, 0.0) + amt, 6)
+        amt = _pick(r, ("amount", "change", "income", "value", "qty",
+                        "quantity", "realizedPnl", "cashFlow"))
+        if amt is not None:
+            parsed += 1
+        totals[kind] = round(totals.get(kind, 0.0) + (amt or 0.0), 8)
         counts[kind] = counts.get(kind, 0) + 1
-    return {"lines": len(rows), "totals_by_type": totals, "counts": counts}
+    out = {"lines": len(rows), "totals_by_type": totals, "counts": counts,
+           "amounts_parsed": parsed}
+    if rows and (parsed == 0 or not any(totals.values())):
+        # Zero funding and an unreadable amount field look identical in a
+        # total. Show the raw shape so the difference is decidable instead of
+        # assumed -- "funding is free" is a claim that needs evidence.
+        out["sample_row"] = {k: rows[0][k] for k in sorted(rows[0])}
+    return out
 
 
 def main() -> int:
@@ -396,8 +478,11 @@ def main() -> int:
     if not args.no_api:
         from deploy.ltp_broker import RapidXBroker      # noqa: PLC0415
         broker = RapidXBroker()
-        priced = attach_fees(trips, broker)
-        print(f"priced {priced} legs from venue executions")
+        stat = attach_executions(trips, broker)
+        print("venue executions: " + "  ".join(f"{k}={v}" for k, v in stat.items()
+                                               if k != "sample_fill_keys"))
+        if stat["sample_fill_keys"]:
+            print(f"  fill fields seen: {stat['sample_fill_keys']}")
         funding = funding_summary(broker)
 
     s = summarise(trips)

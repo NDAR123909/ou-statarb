@@ -131,7 +131,7 @@ def test_trip_slippage_uses_the_opposite_side_on_the_close():
 
 
 def test_fee_lookup_is_summed_per_leg_and_survives_a_failing_order():
-    from deploy.fills_report import attach_fees
+    from deploy.fills_report import attach_executions
 
     class Broker:
         def executions(self, order_id):
@@ -140,8 +140,9 @@ def test_fee_lookup_is_summed_per_leg_and_survives_a_failing_order():
             return [{"fee": "0.10"}, {"fee": "0.05"}]
 
     trips = round_trips(_short_spread_round_trip())
-    priced = attach_fees(trips, Broker())
-    assert priced == 2
+    stat = attach_executions(trips, Broker())
+    assert stat["legs_priced"] == 2
+    assert stat["orders_failed"] == 1
     # leg a: entry o1 priced (0.15), exit o3 raised -> only the entry counts.
     assert round(trips[0].legs["a"].fee, 4) == 0.15
     assert round(trips[0].legs["b"].fee, 4) == 0.30
@@ -149,6 +150,77 @@ def test_fee_lookup_is_summed_per_leg_and_survives_a_failing_order():
     s = summarise(trips)
     assert s["fees_paid"] == 0.45
     assert s["net_pnl"] == round(4.6876 - 0.45, 4)
+
+
+def _close_op_without_a_price(ts, symbol, oid):
+    """What `close_position` actually writes: the order id and whether the
+    position went flat, but no executed_price and no executed_qty -- unlike
+    `place_market`, which emits both. Every exit price in the report has to be
+    recovered from the venue because of this."""
+    return {"ts": ts, "event": "operation", "op": "close", "decision": "reverted",
+            "pair": PAIR, "symbol": symbol, "position_side": "NONE",
+            "result": "closed", "residual_qty": None, "order_id": oid}
+
+
+def test_exit_prices_are_recovered_from_executions_when_the_close_logged_none():
+    from deploy.fills_report import attach_executions
+
+    rows = [
+        {"ts": "2026-08-02T05:00:20+00:00", "event": "enter", "pair": PAIR,
+         "side": -1, "z": 1.74, "price_a": 6.51, "price_b": 73.53},
+        _op("2026-08-02T05:00:30+00:00", "enter", A, "SELL", 63.0, 6.50, "o1"),
+        _op("2026-08-02T05:00:44+00:00", "enter", B, "BUY", 2.78, 73.58, "o2"),
+        {"ts": "2026-08-02T09:00:10+00:00", "event": "exit", "pair": PAIR,
+         "side": -1, "z": -0.02, "reason": "reverted",
+         "price_a": 6.40, "price_b": 73.00},
+        _close_op_without_a_price("2026-08-02T09:00:20+00:00", A, "o3"),
+        _close_op_without_a_price("2026-08-02T09:00:30+00:00", B, "o4"),
+    ]
+
+    trips = round_trips(rows)
+    # Before the venue is asked, the round trip has no exit and no P&L.
+    assert trips[0].opened and not trips[0].closed
+    assert trips[0].gross_pnl is None
+
+    class Broker:
+        prices = {"o1": [("6.50", "63")], "o2": [("73.58", "2.78")],
+                  "o3": [("6.40", "63")], "o4": [("73.00", "2.78")]}
+
+        def executions(self, order_id):
+            return [{"filledPrice": p, "filledQuantity": q, "fee": "0.02"}
+                    for p, q in self.prices[order_id]]
+
+    stat = attach_executions(trips, Broker())
+    assert stat["exit_prices"] == 2
+    assert stat["entry_prices"] == 0      # entries already had a logged price
+    assert trips[0].closed
+    assert round(trips[0].gross_pnl, 4) == 4.6876
+
+
+def test_vwap_weights_partial_fills_rather_than_averaging_them():
+    from deploy.fills_report import _vwap
+    # 90 units at 10.00 and 10 at 20.00 is 11.00 weighted, 15.00 unweighted.
+    fills = [{"price": "10.00", "qty": "90"}, {"price": "20.00", "qty": "10"}]
+    assert round(_vwap(fills), 6) == 11.0
+    # With no quantity reported there is nothing to weight by; say so by
+    # falling back rather than silently treating one fill as the whole order.
+    assert round(_vwap([{"price": "10.0"}, {"price": "20.0"}]), 6) == 15.0
+    assert _vwap([{"nothing": "useful"}]) is None
+
+
+def test_funding_summary_shows_its_working_when_amounts_look_empty():
+    """A zero total and an unreadable amount field are indistinguishable in a
+    number, and only one of them means funding is free."""
+    from deploy.fills_report import funding_summary
+
+    class Broker:
+        def statement(self, coin="USDT", **kw):
+            return [{"statementType": "FUNDING_FEE", "weirdAmountName": "-0.3"}]
+
+    out = funding_summary(Broker())
+    assert out["amounts_parsed"] == 0
+    assert "sample_row" in out, "must expose the raw shape, not just a zero"
+    assert out["sample_row"]["weirdAmountName"] == "-0.3"
 
 
 def test_load_ledger_skips_malformed_lines(tmp_path):
