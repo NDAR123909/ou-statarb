@@ -296,6 +296,12 @@ def summarise(trips: list[RoundTrip]) -> dict:
     for t in done:
         reasons[t.reason] = reasons.get(t.reason, 0) + 1
 
+    # Self-diagnosis. A close decision that picked up no operations means the
+    # join failed, and every downstream number is then silently missing that
+    # trade rather than visibly wrong. Report it instead of absorbing it.
+    closes = [t.close for t in trips if t.close is not None]
+    orphan_closes = sum(1 for c in closes if not c.get("_ops"))
+
     out = {
         "round_trips": len(done),
         "never_opened": sum(1 for t in trips if not t.opened and t.entry),
@@ -309,6 +315,8 @@ def summarise(trips: list[RoundTrip]) -> dict:
         "median_hold_h": round(statistics.median(holds), 2) if holds else None,
         "max_hold_h": round(max(holds), 2) if holds else None,
         "exit_reasons": reasons,
+        "close_decisions": len(closes),
+        "closes_with_no_operations": orphan_closes,
         "slippage_bps_mean": round(statistics.fmean(slips), 2) if slips else None,
         "slippage_bps_median": (round(statistics.median(slips), 2)
                                 if slips else None),
@@ -446,8 +454,11 @@ def funding_summary(broker, coin: str = "USDT") -> dict:
     for r in rows:
         kind = str(r.get("statementType") or r.get("type")
                    or r.get("bizType") or "unknown")
-        amt = _pick(r, ("amount", "change", "income", "value", "qty",
-                        "quantity", "realizedPnl", "cashFlow"))
+        # deltaAmount is what RapidX actually calls it, confirmed against the
+        # row's own beforeAvailable/afterAvailable on 2026-08-02. The rest stay
+        # as fallbacks in case a different statement type spells it otherwise.
+        amt = _pick(r, ("deltaAmount", "delta", "amount", "change", "income",
+                        "value", "realizedPnl", "cashFlow"))
         if amt is not None:
             parsed += 1
         totals[kind] = round(totals.get(kind, 0.0) + (amt or 0.0), 8)
