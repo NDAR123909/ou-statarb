@@ -415,9 +415,18 @@ Every path that opens a position is well instrumented. Almost nothing else is:
 The last two mean **the ledger cannot say what any exit was ever done at.**
 `fills_report.py` works around it by matching each symbol's fills by timestamp,
 which also makes the report work retroactively — but the audit chain
-(decision → operations → outcomes) is missing its outcomes and should be
-fixed at the source. One principle, not four fixes: *every path that moves
-money or changes risk records what it did and what came back.*
+(decision → operations → outcomes) was missing its outcomes.
+
+**All four fixed the same day** (`tests/test_ltp_logging_gaps.py` pins them as
+behavioural contracts): a `refit_drop` decision event with reasoning, logged
+*before* the close so a failed close still records the intent; a `size_reduced`
+event plus a `size_mult` field on every `enter` row, so a halved position is
+visible programmatically rather than only in prose; and `executed_price`,
+`executed_qty` and a probed `order_id` on close operations — with the response's
+own keys recorded when a field cannot be found, so the next gap is diagnosed by
+reading the ledger instead of another live probing session. One principle, not
+four fixes: *every path that moves money or changes risk records what it did
+and what came back.*
 
 ### Operational
 - **The Aug 1 06:24:58 restart was `unattended-upgrades`**, via `needrestart`,
@@ -432,9 +441,16 @@ money or changes risk records what it did and what came back.*
   portfolio to have a fee tier. Our credentials are fine.
 - **The platform's CSV exports return header-only files** (all three: order,
   transaction, position history). Worth reporting to the organizers.
-- `transaction executions` defaults to a 7-day lookback and rejects wide
-  begin/end spans with upstream 400001 "Exceed dayTime limit"; the report
-  slices into six-day windows.
+- **`transaction executions` will not serve fills older than ~7 days, and this
+  is not a span limit we can slice around.** The report now fetches in six-day
+  windows; the Jul 20 → Jul 26 window failed on all 8 symbols with upstream
+  400001 "Exceed dayTime limit" while the two *later* windows of identical
+  width succeeded. It is retention, not width. **Week 1's fills are
+  permanently unavailable**, which is why the table above starts 2026-07-26 and
+  why the pre-band-fix era can never be compared against the post-fix era from
+  this endpoint. The operational consequence outranks the lost data:
+  **`fills_report.py` must run on a schedule or the evidence expires.**
+  `position history` may have longer retention — untested, week 3.
 
 ### Decisions taken
 - **`risk_per_pair` 0.002 → 0.004: APPROVED, execution gated** on the current
@@ -483,6 +499,8 @@ section existed; that is what it is for.
 | ~~Restore `risk_per_pair` 0.002 → 0.004~~ **APPROVED 2026-08-02, not yet executed** | 2026-07-30 | execute once the open AVAX/SOL position closes AND a second pair is active; if selection stays at one pair for another week, execute anyway and say so |
 | **Report the header-only CSV exports to the organizers** — order, transaction and position history all export zero rows | 2026-08-02 | next organizer contact; a broken data export in a competition judged on auditability is worth raising |
 | **Decide on the sub-hourly risk check** (read-only pass that may only close or stop, never open). Measured cost of not having it: ~4.7 USDT on one trade | 2026-08-02 | week 3 review — needs a design, not a hunch |
+| **Schedule `fills_report.py` weekly** — venue fills expire after ~7 days and week 1's are already unrecoverable | 2026-08-02 | before Sun 2026-08-09, or another week of Phase I evidence is lost |
+| **Restart `ltp-agent`** so the measured `taker_fee` (2e-4) takes effect — the running process still holds 5e-4 | 2026-08-02 | when the open AVAX/SOL position closes; batch it with the `risk_per_pair` restore |
 
 ---
 
@@ -506,9 +524,13 @@ Phase I ends **2026-08-21**. Two reviews left.
    (~4.7 USDT, ~0.45% of NAV, permanent in MDD).
 5. **Self-ranking endpoint into `status.py`** — carried twice now. Either do it
    or delete it from the agenda.
-6. **Re-run `fills_report.py` over the full history** and compare the pre-fix
-   era (week 1, 50% stop rate) against the post-fix era side by side. Week 2's
-   numbers cover Jul 26 onward only, because the venue caps the query window.
+6. **Put `fills_report.py` on a schedule — this is now urgent, not tidy.**
+   Venue fills expire after ~7 days, so any week not captured is gone for good;
+   week 1's already are. A weekly cron writing
+   `track_record/fills_YYYY-MM-DD.json` (alongside `record_state.py`) preserves
+   the Phase I post-mortem evidence before it evaporates. Also test whether
+   `position history` retains longer — if it does, week 1 may be partly
+   recoverable through it.
 
 ### Deferred from week 2
 - Sentinel macro-event awareness (Fed/CPI are market-wide; our prompt is

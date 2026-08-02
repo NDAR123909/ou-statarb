@@ -432,6 +432,47 @@ and those gates will not be loosened to manufacture trades. The remaining lever
 on PnL and ROI is position size, which is why `risk_per_pair` is being restored
 rather than the bands being tightened.
 
+## Addendum — logging the paths that were not logged (2026-08-02)
+
+No change to what the agent trades; a change to what it records. Four paths
+that move money or change risk were leaving no durable trace, all found the
+same day and all in one shape — the entry path is well instrumented and
+everything else was thin:
+
+- **`refit_drop`** (`ltp_agent.py`, the `flatten` branch). When a refit stops
+  selecting a pair the agent flattens it, and wrote no ledger event at all: two
+  orders reached the venue tagged `decision="close"` with no decision behind
+  them and no reasoning for the exit. Now emits a `refit_drop` decision, before
+  the close, so a failed close still records the intent.
+- **`size_reduced`** (`ltp_news.py::size_mult`). A `watch` news rating halves
+  the risk budget. It logged to the journal only — and on 2026-08-01 it halved
+  the position on the worst trade of the competition, turning roughly −12 into
+  −6, with no ledger trace that a control had acted. A risk control that acts
+  silently is indistinguishable from one that never fires. Now emits
+  `size_reduced`, and every `enter` row carries a `size_mult` field, since `g`
+  is already multiplied by the time it is logged.
+- **`close_position` outcomes** (`ltp_broker.py`). It emitted neither
+  `executed_price` nor `executed_qty` — unlike `place_market`, which emits
+  both — and its `order_id` was always null because the venue's close response
+  has no `orderId` field. Together these meant **the ledger could not say what
+  any exit had ever been done at**, and the fill could not be looked up
+  afterwards either. Now probes several spellings for each and, when none
+  match, records the response's own keys so the next gap is diagnosed by
+  reading the ledger rather than by another live probing session.
+
+Pinned by `tests/test_ltp_logging_gaps.py` as behavioural contracts rather
+than style: Track A's Reasoning Audit correlates logged decisions against
+executed orders, so these omissions were audit exposure, not untidiness.
+
+One related limit worth pre-registering, because it constrains the Phase I
+post-mortem: **`transaction executions` does not serve fills older than about
+seven days.** This is retention, not a query-width cap — a six-day window over
+Jul 20–26 was rejected while two later windows of identical width succeeded.
+Week 1's fills are unrecoverable through that endpoint, so the fills analysis
+in the week 2 review covers 2026-07-26 onward, and `fills_report.py` must be
+run weekly for the rest of the competition or each week's evidence expires
+before it is captured.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;

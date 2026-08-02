@@ -467,12 +467,43 @@ class RapidXBroker:
         # documented normal path), so a position still showing here is logged
         # as 'resting', not raised — but if it went flat we record that.
         after = self._live_position(symbol, prefer_side=live_side or None)
+        # An outcome, not just an acknowledgement. `place_market` emits the
+        # executed price and quantity; this emitted neither, and its order id
+        # was always null because the venue's close response carries no
+        # `orderId` field -- so the ledger could not say what ANY exit was done
+        # at, and the fill could not even be looked up afterwards. Found
+        # 2026-08-02. The field names are probed rather than assumed, and when
+        # nothing matches the response's own keys are recorded, so diagnosing
+        # the next gap is a read of the ledger instead of a guess.
+        oid = self._first(data, "orderId", "orderID", "id", "closeOrderId",
+                          "clientOrderId")
+        price = self._first(data, "executedAvgPrice", "avgPrice", "price",
+                            "filledPrice")
+        qty = self._first(data, "executedQty", "filledQuantity", "quantity",
+                          "qty")
+        fields = {}
+        if oid is None or price is None:
+            fields["response_keys"] = (sorted(data)
+                                       if isinstance(data, dict) else None)
         self._emit("close", symbol=symbol, position_side=live_side or "NONE",
                    max_notional=max_notional_s,
                    result="closed" if after is None else "resting",
                    residual_qty=None if after is None else self._position_qty(after),
-                   order_id=data.get("orderId"))
+                   order_id=oid, executed_price=price, executed_qty=qty,
+                   **fields)
         return data
+
+    @staticmethod
+    def _first(data, *names):
+        """First present, non-empty value among `names`. The venue spells the
+        same concept differently across endpoints and documents none of it."""
+        if not isinstance(data, dict):
+            return None
+        for n in names:
+            v = data.get(n)
+            if v not in (None, "", 0, "0"):
+                return v
+        return None
 
     def get_leverage(self, symbol: str) -> float | None:
         """Current leverage setting for a symbol, or None if unavailable.
