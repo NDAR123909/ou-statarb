@@ -14,6 +14,53 @@ Weekly reviews happen on Sundays. At each one: read `WEEKLY_REVIEW.md`, work
 the agenda it lists, then **append a new week's entry and write the next
 week's agenda** so the next session can resume cold.
 
+### Cold start — when context has been reset or compacted
+
+The operator's trigger phrase is:
+
+> **"Cold start — read the record and tell me where we are."**
+
+(short form: **"Cold start."**)
+
+It means: a context window was reset or compacted, or the operator suspects
+drift. It can be given at any time — it is cheap, and a mismatch it surfaces is
+worth far more than the tokens.
+
+The failure this prevents is specific. A reset session does not *feel* reset. It
+will accept a narrow task ("check the ledger", "why did that pair stop out")
+and answer it confidently from a half-remembered premise that changed weeks
+ago. The freshness test keeps the record accurate; nothing but this protocol
+makes anyone *read* it.
+
+**On the trigger, read in this order, then stop:**
+
+1. `CLAUDE.md` (this file) — invariants, style, the deployment mission.
+2. `deploy/WEEKLY_REVIEW.md` — **standing context** → the **newest entry** →
+   **Open commitments** → the **current agenda**. This is the operating log.
+3. `deploy/LTP_STRATEGY.md` — the pre-registration and every disclosed
+   behavioural change, newest addendum first.
+4. `track_record/ltp_state_history.jsonl` — what was *true*, not what was
+   decided. `python deploy/record_state.py --show 5`, or read the last lines
+   directly if the droplet is out of reach.
+5. `git log --oneline -15` — what shipped since the last written entry. A
+   commit with no matching review-log line is exactly the gap to report.
+6. Live truth, if reachable: `python deploy/status.py`. **Claude has no access
+   to the droplet** — ask the operator to paste it rather than assuming the
+   repo reflects the running agent.
+
+**Then summarise back to the operator before doing anything else** — no edits,
+no orders, no analysis. The summary must cover:
+
+- position: equity, peak, drawdown, kill-switch level, rank if known;
+- what is live right now: active pairs, bands, risk setting, halted or not;
+- open commitments and their triggers;
+- the next agenda item and when it is due;
+- **anything where the sources disagree** — file vs file, file vs git log, repo
+  vs live state. Say so plainly instead of picking whichever looks tidiest.
+
+Only after that summary is out does normal work resume, including the usual
+rule that code waits for the operator's explicit go.
+
 ### Session close-out — do this before ending any session that changed anything
 
 This project spans months and many sessions; working context is reset

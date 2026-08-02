@@ -11,6 +11,13 @@ disclosed strategy change), `deploy/README_ltp.md` (how the deployment works).
 Every behavioural change to the strategy must be disclosed in LTP_STRATEGY.md;
 this file is the operating log, not a substitute for that.
 
+**Cold start (context reset).** The operator's trigger phrase is *"Cold start —
+read the record and tell me where we are."* The full read order and the required
+summary-back are specified in `CLAUDE.md` § "Cold start"; this file is step 2 of
+it. Read the standing context, then the newest entry, then Open commitments,
+then the current agenda — and report any place the sources disagree rather than
+choosing the tidiest one.
+
 ---
 
 ## Standing context (verify before relying on it — the organizer amends rules)
@@ -266,6 +273,45 @@ core maths deserves to be watched, not assumed.**
 
 ---
 
+## Continuity work — 2026-07-30 (not a scheduled review)
+
+The subject of this entry is the record itself, so it belongs in the record.
+
+### Position at time of writing
+Equity **1020.15**, peak 1019.64, drawdown **0.08%**, kill switch 897.28,
+halted **no**. Live pair **AVAX/SOL**. Rank **#4 of 29** as last observed on
+2026-07-29 — *not re-checked since*, so treat the rank as the stale figure it
+is until the self-ranking call is run. This supersedes the 1019.76 in the
+mid-week entry above, which was correct when written.
+
+### What shipped
+| # | change | why |
+|---|---|---|
+| 1 | `tests/test_review_log.py` | documentation rots silently; tests fail loudly. Asserts the log's newest entry is ≤10 days old, that **Open commitments** exists, that `CLAUDE.md` still points here, and that `LTP_STRATEGY.md` still discloses `optimal_bands` / `exit_z` / `sandbox` / `min_entry_se`. It caught a real gap on its first run — the strategy doc described the estimation floor without naming `min_entry_se`, so a future session could not have grepped for it |
+| 2 | **Open commitments** table (above) | four "I'll look at that Sunday" promises were lost in one session on 2026-07-28/30 |
+| 3 | **Session close-out** protocol in `CLAUDE.md` | four numbered obligations before any session that changed something ends |
+| 4 | `deploy/record_state.py` + droplet cron at 23:50 UTC | the review log records what we *decided*; this records what was *true*. One JSON line per day to `track_record/ltp_state_history.jsonl`, idempotent per day. Generated state cannot drift; remembered state does |
+| 5 | **Cold-start protocol** in `CLAUDE.md`, trigger phrase *"Cold start — read the record and tell me where we are"* | the freshness test keeps the record accurate but nothing made anyone **read** it. A reset session does not feel reset; it answers a narrow question confidently from a stale premise. The protocol fixes a read order and requires a summary-back — including any disagreement between sources — before any other work |
+
+### Gap found by running the cold-start protocol on itself
+`track_record/ltp_state_history.jsonl` **is not in the repository.** The cron
+writes it on the droplet, and nothing ever `git add`s it, so step 4 of the read
+order returns nothing in a fresh clone — and the "tamper-evident, publicly
+verifiable" framing does not yet apply to it. `git push` from the droplet was
+proven working on 2026-07-30 (`--dry-run` reached the remote and reported
+*Everything up-to-date*), but it prompted for a username and password: the
+remote is HTTPS with **no stored credential**, and cron has no TTY to answer a
+prompt. Extending the cron to commit and push therefore needs a deploy key or a
+stored PAT on the droplet **first** — see Open commitments. Until that is done,
+the state history is a local file on one machine, and should be described that
+way and no better.
+
+The same pass found that commit `aa2ab6c` had shipped items 1–4 above without a
+line in this log. That is precisely the drift the protocol exists to catch, and
+it is why the read order includes `git log`.
+
+---
+
 ## Open commitments (write these down WHEN PROMISED, not later)
 
 Anything said in chat as "I'll look at that Sunday" belongs here immediately.
@@ -279,6 +325,8 @@ section existed; that is what it is for.
 | **Sample the AI rationales for genuine depth**, not just presence — the audit judges logical depth, and quiet-day rationales read as boilerplate | 2026-07-27 | Sunday review |
 | **Reboot the droplet** (kernel update pending, banner shows restart required) | 2026-07-28 | any time you can glance at `status.py` after |
 | **Rotate LTP + AI keys** (pasted in chat; mitigated by IP allowlist) | 2026-07-20 | when convenient before Phase II |
+| **Give the droplet a non-interactive git credential** (deploy key or stored PAT), then extend the 23:50 UTC cron to `git add track_record/ && git commit && git push` | 2026-07-30 | next time the operator is at the droplet terminal — until then `ltp_state_history.jsonl` exists only on that machine |
+| **Re-check rank** — the #4 of 29 figure dates from 2026-07-29 and has not been refreshed | 2026-07-30 | Sunday review, or whenever the self-ranking endpoint lands in `status.py` (agenda item 6) |
 
 ---
 

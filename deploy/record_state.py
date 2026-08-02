@@ -24,6 +24,21 @@ Suggested cron on the droplet (23:50 UTC, just before the contest's daily
 NAV cut):
     50 23 * * * cd /root/ou-statarb && set -a && . /root/ltp.env && set +a && \\
         .venv/bin/python deploy/record_state.py >> /var/log/ltp_record.log 2>&1
+
+The history is only durable once it leaves the droplet. To commit and push it,
+append to that cron line:
+
+    && git add track_record/ \\
+    && git commit -m "track: daily state $(date -u +%F)" || true \\
+    && git push origin claude/offline-competition-deploy-nuk5tz
+
+`|| true` on the commit is deliberate: a day with no change must not fail the
+job. **Prerequisite, and it is not optional** — the droplet's remote is HTTPS
+with no stored credential, so an interactive `git push` prompts for a username
+and password. Cron has no TTY to answer that, and the push will hang or fail
+silently while the log keeps reporting a healthy append. Install a deploy key
+or a stored PAT first and verify with a real (non-`--dry-run`) push from a
+non-interactive shell before trusting the cron.
 """
 
 from __future__ import annotations
