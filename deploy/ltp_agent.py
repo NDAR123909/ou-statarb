@@ -97,7 +97,14 @@ class AgentConfig:
     # gates are untouched — this only fixes an asset-class mismatch.
     min_abs_beta: float = 0.20
     max_abs_beta: float = 5.0
-    taker_fee: float = 5e-4           # 5 bps per leg per trade, until measured
+    # MEASURED 2026-08-02, was 5e-4 assumed. The venue charges exactly 1.75 bps
+    # per side -- five significant figures across 22 fills, fee == tradingFee,
+    # zero rebate, execType TAKER throughout (deploy/fills_report.py). 2e-4 is
+    # a margin over that against a schedule change, not against measurement
+    # error. Expected to be inert: band_diagnostic puts cost_z at 0.01-0.08 for
+    # every candidate, so costs are ~8% of the entry band and sweeping the fee
+    # to zero admits no new pairs. Disclosed in LTP_STRATEGY.md, 2026-08-02.
+    taker_fee: float = 2e-4
     stop_z: float = 3.5
     max_hold_mult: float = 3.0
     # SANDBOX RISK BUDGET (Phase I, from 2026-07-28). Halved from 0.004.

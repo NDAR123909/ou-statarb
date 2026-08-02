@@ -384,6 +384,54 @@ second live immediately, in production, on a real position. The lesson is not
 "fix fewer bugs" — it is that the first trade after a change to core maths
 deserves to be watched, not assumed.
 
+## Addendum — costs measured instead of assumed (2026-08-02)
+
+Since launch the cost model has run on an assumption: `taker_fee = 5e-4`, 5 bps
+per leg, chosen from Binance's public schedule and never checked. It feeds
+`optimal_bands` through `roundtrip = 2 * taker_fee * (1 + |beta|)`
+(`ltp_agent.py`), which decides both the entry band and whether a pair is
+tradeable at all. A cost model built on an unverified fee is a backtest wearing
+a live-trading costume, so week 2 measured it.
+
+`portfolio user-fee-rate` — the obvious route — fails with upstream 2002 "API
+Invalid Authorization", because the contest's simulated portfolio has no real
+exchange account behind it to hold a fee tier. The platform's CSV exports come
+back header-only. So the fee was measured from fills instead, via
+`deploy/fills_report.py` and `transaction executions`, which is the better
+number regardless: what we were charged, not what is advertised.
+
+**Measured: 1.75 bps per side.** Exact to five significant figures across 22
+fills (`0.07165148 / (63 × 6.499)`), `fee == tradingFee`, `rebate` zero,
+`execType` TAKER throughout. `taker_fee` is therefore changed **5e-4 → 2e-4**,
+a small margin over the measurement against a venue schedule change rather than
+against measurement error.
+
+**This is disclosed as a behavioural change but is expected to be inert**, and
+that expectation is itself the finding. `deploy/band_diagnostic.py` reports
+`cost_z` (round-trip cost in units of `sigma_eq`) between 0.01 and 0.08 for
+every candidate: costs are roughly 8% of the entry band, not the dominant term.
+Sweeping the fee from 5.0 bps to zero moves AVAX/SOL's entry band by at most one
+grid step (0.6 → 0.4) and admits **no** new pairs — the diagnostic's own words:
+*"HALVING EXECUTION COST would newly admit: NOTHING."*
+
+Two further assumptions closed at the same time, both previously listed as
+honest gaps in `README_ltp.md`:
+
+- **Funding carry**, never modelled: **−0.024 USDT across 34 settlements** over
+  13 days, 0.002% of NAV. Read from `portfolio statement`, where the amount
+  field is `deltaAmount` and reconciles against each row's own
+  before/after balance.
+- **Slippage**, never quantified: **0.57 bps mean, 0.0 median**, signed so that
+  positive is adverse. Market orders on liquid perps cost essentially nothing.
+
+The honest consequence is deflationary and worth stating plainly: **execution
+cost is not what limits this strategy.** Breadth is limited by the statistical
+gates — the 2026-08-02 refit rejected 14 of 15 candidates on split-half
+cointegration, mean crossings, Hurst and beta stability, none of them on cost —
+and those gates will not be loosened to manufacture trades. The remaining lever
+on PnL and ROI is position size, which is why `risk_per_pair` is being restored
+rather than the bands being tightened.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;
