@@ -324,10 +324,17 @@ pair, AVAX/SOL, short-spread and open at z=+3.31 against a 3.5 stop.
 > z=+3.63** — 0.13 past the band, so the hourly check behaved correctly here and
 > yesterday's −10.25 overshoot is the anomaly rather than the norm. **Both sides
 > of AVAX/SOL have now stopped within 31 hours** (long at −10.25 on Aug 1,
-> short at +3.63 on Aug 2). The lifetime record moves to 12 round trips,
-> 9 reverted / 3 stops, and the last two trades were both losses. Equity, peak
-> and MDD in the table above predate this stop and need the next `status.py`
-> read. **`risk_per_pair` was NOT restored** — see the commitment below.
+> short at +3.63 on Aug 2). Lifetime stops go 4 → 5.
+>
+> **Numbers after the stop (20:54 UTC, supersedes the table above):** equity
+> **1025.28**, peak 1041.19, drawdown **1.53%**, kill switch 916.25, headroom
+> 109.03. Flat, `blocked=-1`, z=+2.73. Entry NAV was 1035.18, so that round
+> trip cost **−9.90 all-in**; with Aug 1's −6.20 that is **−16.10 against a
+> peak-to-now drawdown of −15.91**. The two stops are the entire drawdown —
+> nothing else is leaking, and the MDD tick is permanent.
+>
+> **`risk_per_pair` was NOT restored** — see the commitment below. The agent was
+> restarted at 20:54 UTC so `taker_fee = 2e-4` is now live.
 
 **We beat first place on the two metrics we optimised for** and lose on the two
 that measure size:
@@ -534,15 +541,41 @@ Phase I ends **2026-08-21**. Two reviews left.
    Today the one-sided block covers only the side that broke, by design. n=2 is
    thin evidence for a new rule and a bad week is not a reason to invent one —
    but the sequence is now in the record rather than in someone's memory.
-3. **The three logging fixes**: `refit_drop` decision event, a `size_mult`
-   record when the news gate reduces risk, and `executed_price`/`executed_qty`
-   plus a usable order id on `close_position`. One principle, one diff.
+3. **Verify the three logging fixes actually fired** — they shipped 2026-08-02
+   but nothing has exercised them live yet. Confirm in the ledger that a
+   `refit_drop` event appears at the next refit that drops a held pair, that
+   `size_reduced` appears the next time the news gate rates a leg `watch`, and
+   that close operations now carry `executed_price`. If `close_position` still
+   logs no price, read the `response_keys` it now records and fix the field
+   names from that rather than probing live again.
 4. **Sub-hourly risk check** — design it or drop it, with a written argument
    either way. It is the only change with a measured price tag attached
    (~4.7 USDT, ~0.45% of NAV, permanent in MDD).
-5. **Self-ranking endpoint into `status.py`** — carried twice now. Either do it
+5. **Did the z-stop cut two winners?** Both August stops were followed by full
+   reversion. Aug 1 stopped long at z=−10.25; z was −1.03 seven hours later and
+   +3.31 by midday. Aug 2 stopped short at +3.63; z read 3.34 → 2.99 → 2.73 over
+   the next three bars. In both, the "relationship broke" hypothesis the stop
+   encodes was wrong, and holding would have recovered. Together they realised
+   **−16.10, the entire drawdown from peak.**
+
+   The sharper form of the question: **MDD is scored on hourly NAV including
+   unrealised P&L**, so at the trough the stop protected nothing — NAV had
+   already fallen. What it did was forfeit the recovery. On these two trades it
+   cost P&L *and* bought no MDD protection.
+
+   **Do not act on this without the counterfactual.** n=2; judging insurance by
+   the times it paid out badly is textbook outcome bias; and the −10.25
+   excursion was genuinely violent — that is the LTCM failure mode `stop_z`
+   exists for, and one path where holding worked says nothing about the next.
+   What would make this actionable: measuring how far the spread actually
+   travelled past each stop before turning, across every stop in the record,
+   against the loss the stop realised. If stops consistently fire near the
+   turning point, the band is mis-calibrated to the post-break `sigma_eq`; if
+   the −10.25 case is the only one where it mattered, the stop is doing exactly
+   its job at a fair price. **Default action remains no change.**
+6. **Self-ranking endpoint into `status.py`** — carried twice now. Either do it
    or delete it from the agenda.
-6. **Put `fills_report.py` on a schedule — this is now urgent, not tidy.**
+7. **Put `fills_report.py` on a schedule — this is now urgent, not tidy.**
    Venue fills expire after ~7 days, so any week not captured is gone for good;
    week 1's already are. A weekly cron writing
    `track_record/fills_YYYY-MM-DD.json` (alongside `record_state.py`) preserves
