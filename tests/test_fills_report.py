@@ -195,7 +195,7 @@ def test_exit_prices_are_recovered_from_executions_when_the_close_logged_none():
                  "createAt": ms("2026-08-02T09:00:25+00:00")}],
         }
 
-        def executions(self, order_id=None, symbol=None):
+        def executions(self, order_id=None, symbol=None, **kw):
             return list(self.rows[symbol])
 
     stat = attach_executions(trips, Broker())
@@ -247,3 +247,52 @@ def test_summarise_on_an_empty_ledger_does_not_divide_by_zero():
     assert s["round_trips"] == 0
     assert s["win_rate"] is None
     assert s["gross_pnl"] is None
+
+
+def test_history_window_is_derived_from_the_ledger_not_a_hardcoded_date():
+    """The venue defaults to 7 days if `begin` is omitted, so a month-long
+    competition would silently report only its last week -- and a truncated
+    post-mortem that looks complete is worse than no post-mortem."""
+    from deploy.fills_report import history_window
+
+    trips = round_trips(_short_spread_round_trip())
+    begin_ms, end_ms = history_window(trips)
+    entry = datetime.fromisoformat("2026-08-02T05:00:30+00:00").timestamp()
+    exit_ = datetime.fromisoformat("2026-08-02T09:00:30+00:00").timestamp()
+    assert begin_ms == int((entry - 3600.0) * 1000)
+    assert end_ms == int((exit_ + 3600.0) * 1000)
+
+    assert history_window([]) == (None, None)
+
+
+def test_the_window_and_an_explicit_limit_reach_the_broker():
+    from deploy.fills_report import attach_executions, FILL_LIMIT
+
+    seen = []
+
+    class Broker:
+        def executions(self, order_id=None, symbol=None, begin_ms=None,
+                       end_ms=None, limit=None):
+            seen.append((symbol, begin_ms, end_ms, limit))
+            return []
+
+    attach_executions(round_trips(_short_spread_round_trip()), Broker())
+    assert len(seen) == 2
+    for symbol, begin_ms, end_ms, limit in seen:
+        assert symbol in (A, B)
+        assert begin_ms is not None and end_ms is not None
+        assert begin_ms < end_ms
+        assert limit == FILL_LIMIT
+
+
+def test_hitting_the_fill_limit_is_counted_as_truncation(capsys):
+    from deploy.fills_report import attach_executions, FILL_LIMIT
+
+    class Broker:
+        def executions(self, symbol=None, **kw):
+            return [{"transactionId": str(i), "price": "1", "quantity": "1",
+                     "createAt": "0"} for i in range(FILL_LIMIT)]
+
+    stat = attach_executions(round_trips(_short_spread_round_trip()), Broker())
+    assert stat["symbols_truncated"] == 2
+    assert "truncated" in capsys.readouterr().err

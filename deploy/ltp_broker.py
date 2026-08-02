@@ -230,7 +230,9 @@ class RapidXBroker:
         return []
 
     def executions(self, order_id: str | None = None,
-                   symbol: str | None = None) -> list[dict]:
+                   symbol: str | None = None,
+                   begin_ms: int | None = None, end_ms: int | None = None,
+                   limit: int | None = None) -> list[dict]:
         """Fills, by order or by symbol, carrying the fee the venue charged.
 
         This is how the 5 bps taker assumption stops being an assumption. The
@@ -243,12 +245,24 @@ class RapidXBroker:
         `order_id: null` because the venue's close response carries no orderId
         field, so closing fills cannot be looked up by order at all; matching a
         symbol's fills by time is the only route to what an exit was done at.
+
+        `begin_ms` matters as much. The schema says plainly: "If omitted,
+        RapidX defaults to up to 7 days ago." A post-mortem that silently
+        covers only the last week, over a competition that runs a month, is
+        worse than none -- it looks complete.
         """
         inp = {**self._scope()}
         if order_id:
             inp["orderId"] = order_id
         if symbol:
             inp["symbol"] = symbol
+        # begin/end are millisecond epochs, typed as strings by the schema.
+        if begin_ms is not None:
+            inp["begin"] = str(int(begin_ms))
+        if end_ms is not None:
+            inp["end"] = str(int(end_ms))
+        if limit is not None:
+            inp["limit"] = limit
         return self._rows(self._must(["transaction", "executions"], inp))
 
     def order_history(self, symbol: str | None = None,

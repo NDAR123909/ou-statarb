@@ -399,15 +399,49 @@ FILL_WINDOW_BEFORE_S = 300.0
 FILL_WINDOW_AFTER_S = 60.0
 
 
-def fetch_symbol_fills(broker, symbols: list[str], stat: dict) -> dict:
+# How far either side of the recorded history to ask the venue for. An hour is
+# more than enough to cover clock skew and the lag between a fill and the
+# operation record that reports it.
+HISTORY_MARGIN_S = 3600.0
+# Explicit, because the venue's default is undocumented and a silent cap would
+# look exactly like "we simply traded less than we thought".
+FILL_LIMIT = 1000
+
+
+def history_window(trips: list[RoundTrip]) -> tuple[int | None, int | None]:
+    """The millisecond span the ledger actually covers, padded.
+
+    Derived from the ledger rather than hardcoded to a competition start date,
+    so the report keeps covering all of its own history next month without
+    anyone remembering to move a constant.
+    """
+    stamps = [t for trip in trips for leg in trip.legs.values()
+              for t in (leg.entry_ts, leg.exit_ts) if t is not None]
+    if not stamps:
+        return None, None
+    return (int((min(stamps).timestamp() - HISTORY_MARGIN_S) * 1000),
+            int((max(stamps).timestamp() + HISTORY_MARGIN_S) * 1000))
+
+
+def fetch_symbol_fills(broker, symbols: list[str], stat: dict,
+                       begin_ms: int | None = None,
+                       end_ms: int | None = None) -> dict:
     out: dict[str, list[dict]] = {}
     for sym in symbols:
         try:
-            rows = broker.executions(symbol=sym)
+            rows = broker.executions(symbol=sym, begin_ms=begin_ms,
+                                     end_ms=end_ms, limit=FILL_LIMIT)
         except Exception as exc:                       # noqa: BLE001
             print(f"  execution fetch failed for {sym}: {exc}", file=sys.stderr)
             stat["symbols_failed"] += 1
             rows = []
+        if len(rows) >= FILL_LIMIT:
+            # Hitting the cap means fills were dropped, and dropped fills look
+            # identical to trades that never happened. Say so.
+            print(f"  WARNING: {sym} returned {len(rows)} fills, at the "
+                  f"{FILL_LIMIT} limit -- history is truncated",
+                  file=sys.stderr)
+            stat["symbols_truncated"] += 1
         if rows and stat["sample_fill_keys"] is None:
             stat["sample_fill_keys"] = sorted(rows[0])
         out[sym] = sorted(rows, key=lambda f: _f(f.get("createAt")) or 0.0)
@@ -432,11 +466,13 @@ def attach_executions(trips: list[RoundTrip], broker) -> dict:
     """
     stat = {"legs_priced": 0, "entry_prices": 0, "exit_prices": 0,
             "fills_fetched": 0, "fills_matched": 0, "legs_unmatched": 0,
-            "symbols_failed": 0, "sample_fill_keys": None}
+            "symbols_failed": 0, "symbols_truncated": 0,
+            "sample_fill_keys": None}
 
     symbols = sorted({l.symbol for t in trips for l in t.legs.values()
                       if l.symbol})
-    pools = fetch_symbol_fills(broker, symbols, stat)
+    begin_ms, end_ms = history_window(trips)
+    pools = fetch_symbol_fills(broker, symbols, stat, begin_ms, end_ms)
 
     events: list[tuple[datetime, Leg, str]] = []
     for trip in trips:
@@ -586,7 +622,9 @@ def main() -> int:
                 "slippage_bps": trip_slippage(t),
                 "legs": {k: vars(l) for k, l in t.legs.items()},
             } for t in trips],
-        }, indent=2, default=float))
+            # default=str, not float: Leg carries datetimes now, and float()
+            # on one raises rather than degrading, taking the whole dump with it.
+        }, indent=2, default=str))
         print(f"\nwrote {args.json}")
     return 0
 
