@@ -318,7 +318,16 @@ it is why the read order includes `git log`.
 Rank **#2 of 29**, score 94.4 · Sharpe **9.30** · MDD **1.3%** · PnL **+27.32**
 · ROI **+2.7%** · 77 trades · turnover 28.83× · AI engagement 63k|9k|72k.
 Equity 1027.39, peak 1041.19, drawdown 1.33%, kill switch 916.25. One active
-pair, AVAX/SOL, **short-spread and open at z=+3.31 against a 3.5 stop.**
+pair, AVAX/SOL, short-spread and open at z=+3.31 against a 3.5 stop.
+
+> **Same-day amendment (2026-08-02 18:00 UTC).** That position **stopped at
+> z=+3.63** — 0.13 past the band, so the hourly check behaved correctly here and
+> yesterday's −10.25 overshoot is the anomaly rather than the norm. **Both sides
+> of AVAX/SOL have now stopped within 31 hours** (long at −10.25 on Aug 1,
+> short at +3.63 on Aug 2). The lifetime record moves to 12 round trips,
+> 9 reverted / 3 stops, and the last two trades were both losses. Equity, peak
+> and MDD in the table above predate this stop and need the next `status.py`
+> read. **`risk_per_pair` was NOT restored** — see the commitment below.
 
 **We beat first place on the two metrics we optimised for** and lose on the two
 that measure size:
@@ -496,7 +505,7 @@ section existed; that is what it is for.
 | **Rotate LTP + AI keys** (pasted in chat; mitigated by IP allowlist) | 2026-07-20 | when convenient before Phase II |
 | **Give the droplet a non-interactive git credential** (deploy key or stored PAT), then extend the 23:50 UTC cron to `git add track_record/ && git commit && git push` | 2026-07-30 | next time the operator is at the droplet terminal — until then `ltp_state_history.jsonl` exists only on that machine |
 | ~~Re-check rank~~ **DONE 2026-08-02**: #2 of 29, score 94.4 | 2026-07-30 | closed |
-| ~~Restore `risk_per_pair` 0.002 → 0.004~~ **APPROVED 2026-08-02, not yet executed** | 2026-07-30 | execute once the open AVAX/SOL position closes AND a second pair is active; if selection stays at one pair for another week, execute anyway and say so |
+| ~~Restore `risk_per_pair` 0.002 → 0.004~~ **APPROVED 2026-08-02, HELD the same evening** | 2026-07-30 | The position condition was met at 18:00 (stopped at z=+3.63) but the second-pair condition was not, and both sides of AVAX/SOL stopped inside 31 hours — new adverse evidence after the approval. **Re-decide at the Sun 2026-08-09 review** on: has selection produced a second pair, and has the pair stopped whipsawing. If we are still on one pair and it has settled, execute anyway and record that the concentration was accepted deliberately. Do NOT execute on a week where the only pair has just stopped twice |
 | **Report the header-only CSV exports to the organizers** — order, transaction and position history all export zero rows | 2026-08-02 | next organizer contact; a broken data export in a competition judged on auditability is worth raising |
 | **Decide on the sub-hourly risk check** (read-only pass that may only close or stop, never open). Measured cost of not having it: ~4.7 USDT on one trade | 2026-08-02 | week 3 review — needs a design, not a hunch |
 | **Schedule `fills_report.py` weekly** — venue fills expire after ~7 days and week 1's are already unrecoverable | 2026-08-02 | before Sun 2026-08-09, or another week of Phase I evidence is lost |
@@ -514,8 +523,17 @@ Phase I ends **2026-08-21**. Two reviews left.
    `ltp_news.py`. Trading behaviour must not change — the veto stays gated on
    the `regime` enum, never on prose. Then sample the output and judge whether
    it reads as reasoning or as boilerplate.
-2. **Execute the `risk_per_pair` restore** per the commitment above, and watch
+2. **Re-decide the `risk_per_pair` restore** per the commitment above — it was
+   approved on 2026-08-02 and held the same evening when both sides of our only
+   pair stopped within 31 hours. Two questions decide it: did selection produce
+   a second pair, and has AVAX/SOL stopped whipsawing. If it goes ahead, watch
    the first trades at the new size the way the band fix was watched.
+   **Also ask the prior question**: three of the last four AVAX/SOL trades were
+   stops. Is the pair's cointegration decaying, and should a pair that stops on
+   *both* sides in quick succession be benched until a refit re-validates it?
+   Today the one-sided block covers only the side that broke, by design. n=2 is
+   thin evidence for a new rule and a bad week is not a reason to invent one —
+   but the sequence is now in the record rather than in someone's memory.
 3. **The three logging fixes**: `refit_drop` decision event, a `size_mult`
    record when the news gate reduces risk, and `executed_price`/`executed_qty`
    plus a usable order id on `close_position`. One principle, one diff.
