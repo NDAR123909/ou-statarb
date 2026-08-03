@@ -542,6 +542,7 @@ and what came back.*
 - **PAXG/XAUT is retired on evidence**: `cyc_h 2525` — 105 days per round trip.
   Nominally tradeable, practically useless. The pre-registered gold anchor is
   dead for a measured reason rather than an opinion.
+  **[Over-claimed — corrected in the 2026-08-03 addendum below.]**
 
 ### Method note
 I misdiagnosed the fills report's empty output **twice** by reasoning from
@@ -551,6 +552,70 @@ look like a PnL lever. The report now reports its own join quality
 (`closes_with_no_operations`, `legs_unmatched`, `windows_failed`,
 `symbols_truncated`) so the next failure announces itself instead of arriving
 as a plausible-looking zero. **Look at the record before theorising about it.**
+
+---
+
+## Post-review addendum — 2026-08-03
+
+### The entry band moved, and the cause is neither of the obvious two
+The 23:00 UTC refit — the first under `taker_fee = 2e-4` — put AVAX/SOL at
+**entry ±0.4**, down from ±0.6. The strategy doc had said the fee change was
+"expected to be inert." It was not, and that is corrected there.
+
+The cause is **not** the fee and **not** a regime shift. `band_diagnostic.py`
+isolates it, because its 2.5bp column does not depend on `AgentConfig`:
+
+| pair, at a constant 2.5 bps | 2026-08-02 | 2026-08-03 |
+|---|---|---|
+| ETH/BTC, AVAX/SOL, TAO/RENDER, FIL/AR | 0.6 | **0.4** |
+
+Four pairs flipped overnight at an unchanged fee, so the fee cannot explain it.
+But the fit barely moved either: `cost_z` scaled almost exactly by the fee ratio
+(2.5×) across the whole panel — AVAX/SOL 0.08 → 0.03, ETH/BTC 0.14 → 0.05,
+ZEC/XMR 0.02 → 0.01 — which it would not have done if `sigma_eq` had shifted
+materially, and half-lives are near-identical (AVAX/SOL 17.8 → 17.7).
+
+Both facts hold at once, and only one reading reconciles them: **the objective
+is nearly flat between 0.4 and 0.6, so the argmax sits on a knife edge and a
+~6% nudge to `cost_z` from either direction flips the grid cell.**
+
+**Consequence: expect the band to oscillate 0.4 ↔ 0.6 refit to refit, and do
+not read it as signal.** Entry-to-stop geometry swings 2.9σ ↔ 3.1σ with it.
+Yesterday's 0.6 was never a settled value either. No action taken and none
+warranted — but see Deferred for how to make this visible rather than
+recurringly mysterious.
+
+### Correction: PAXG/XAUT is not "dead"
+Yesterday's entry retired the pre-registered gold anchor "on evidence" at
+`cyc_h 2525` (105 days per round trip). Today it reads **219 (9 days)**, band
+3.0 → 1.6. Still not tradeable inside a 19-day phase, so the operational
+conclusion stands — but a number that moves 11× in a day on a knife-edge
+optimiser does not support the word *dead*. Re-check it at each review rather
+than treating it as settled.
+
+### Operational verification
+- **Both crons fired.** `fills_2026-08-02.json` carries a 23:55 mtime (not the
+  14:13 of the manual run), and `ltp_record.log` shows the Aug 2 row appended.
+- **The retention clock is visibly working**: last night's report starts
+  2026-07-28 where the previous started 07-26. TAO/RENDER has already aged out.
+- **`net_pnl` in that report will keep shrinking as winners age out** — it read
+  20.79, then 13.72 overnight, with no money lost. Gross moved 23.25 → 15.97,
+  exactly +2.41 (TAO/RENDER leaving) −9.69 (the Aug 2 stop arriving). **It is a
+  rolling window, not performance.** The dated JSON files are the real record,
+  which is the whole reason the cron exists.
+- The Aug 2 stop reconciles at **−9.69 gross / −9.91 net** against the −9.90
+  estimated from the equity delta.
+
+### Method note, and it is about me rather than the agent
+Four corrections were issued inside 24 hours: the news gate's value, the fee as
+a PnL lever, "we beat first place on both metrics", and "expected to be inert".
+Each correction was right, and that is not the useful observation. **The
+pattern is confident forward-looking claims made on thin evidence and then
+walked back.** The fix is not more diligent correcting; it is writing "the band
+sits near a grid boundary and may move one step" the first time. A record that
+needs correcting four times a day is also a record that becomes hard to read —
+which is why this is a dated addendum rather than a fourth amendment layered
+onto the week 2 entry.
 
 ---
 
@@ -653,6 +718,14 @@ Phase I ends **2026-08-21**. Two reviews left.
    recoverable through it.
 
 ### Deferred from week 2
+- **Make `band_diagnostic.py` print the objective VALUE at each candidate band,
+  not just the argmax.** The band flipped 0.6 → 0.4 on 2026-08-03 and it took
+  two sessions to establish that the optimum is simply flat there. Printing the
+  profit rate at 0.4 / 0.6 / 0.8 would answer it in seconds and turn a
+  recurring mystery into a number. Deliberately NOT a numbered agenda item —
+  it is a convenience upgrade to a hand-run tool, and week 3's numbered list
+  already carries items on a scored dimension (AI reasoning depth) that matter
+  more.
 - Sentinel macro-event awareness (Fed/CPI are market-wide; our prompt is
   asset-specific and rates them `none`). Still undecided — the design question
   is whether market-wide risk should shrink size across all pairs, or whether
