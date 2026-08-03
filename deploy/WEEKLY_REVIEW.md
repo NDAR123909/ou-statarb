@@ -37,7 +37,16 @@ Hard exit: **equity < 800 USDT** → forced liquidation and elimination.
   **Monotonically non-decreasing** — once a drawdown is recorded it never
   recovers, so a bad day is permanent and protecting MDD is protecting a
   banked asset.
-- "AI Engagement" and "AI-Adjusted PnL" are **display only, not scored**.
+- "AI Engagement" and "AI-Adjusted PnL" are **display only, not scored**, and
+  the engagement figure is a **rolling window, not a cumulative total** — it
+  fell 72k → 61k across 2026-08-02 with no change in behaviour. A drop there is
+  not a fault.
+- **Sharpe at this sample size is noise, in both directions.** With ~14
+  completed days, one −0.8% day moved ours from 9.30 to 5.66 (2026-08-02) —
+  pure arithmetic, since a single outlier hits the mean and the deviation at
+  once. The reference backtest is 0.36 net Sharpe OOS. **Never read a live
+  Sharpe move as evidence about the strategy**, and never let one motivate a
+  parameter change.
 
 **Hard rules.**
 - **AI API**: must use the organizer gateway *exclusively*; any self-provided or
@@ -335,6 +344,54 @@ pair, AVAX/SOL, short-spread and open at z=+3.31 against a 3.5 stop.
 >
 > **`risk_per_pair` was NOT restored** — see the commitment below. The agent was
 > restarted at 20:54 UTC so `taker_fee = 2e-4` is now live.
+>
+> **The head-to-head table above is now WRONG and must not be quoted.** At
+> 21:00 UTC the leaderboard reads:
+>
+> | | T.Anh (#1) | NDAR (#2) |
+> |---|---|---|
+> | Score | 97.6 | **93.2** (was 94.4) |
+> | Sharpe (40%) | 7.85 | **5.66** (was 9.30) |
+> | MDD (15%) | 3.1% | **1.5%** |
+> | PnL (25%) | +63.04 | +25.28 |
+> | ROI (20%) | +6.3% | +2.5% |
+>
+> **We led on Sharpe this morning and now trail on it.** MDD is the only metric
+> we still lead. See the Sharpe-sensitivity note below before drawing any
+> conclusion from that.
+
+### Sharpe is the score's dominant term and it is dominated by noise
+One loss day of roughly −0.8% took our Sharpe from **9.30 to 5.66**, and Sharpe
+is 40% of the score. That is not decay and nothing is broken — it is arithmetic
+on a 14-day sample:
+
+- `Sharpe = mean(daily) / stdev(daily) × √365`, over ~14 **completed** days.
+- Before today: mean ≈ +0.19%/day against stdev ≈ 0.39%/day. That ratio, 0.49
+  per day, is what a headline Sharpe of 9.3 actually means.
+- A −0.8% day hits both terms at once: it drags the mean **and**, sitting ~2.5σ
+  out, inflates the deviation. New mean ≈ 0.12%, new stdev ≈ 0.45% → Sharpe
+  ≈ 5.1. Observed 5.66. The arithmetic accounts for all of it.
+
+**A Sharpe of 9.3 was never real.** No strategy sustains that; it was a short
+low-variance streak, and 5.66 is regression toward the truth rather than a
+failure. The reference backtest is **0.36 net Sharpe OOS** (`IMPROVEMENTS.md`),
+and this repo's own Phase 2 spec says to mark live Sharpe as noise until ~60+
+trading days. Today is that principle collecting. **Do not read a Sharpe move
+in either direction as evidence about the strategy at this sample size.**
+
+Context: the whole field's Sharpe fell today — T.Anh 8.62 → 7.85, Supes
+4.69 → 2.52 — so it was a hostile day generally. T.Anh's score still rose
+because they made +4.47 on it. (Also: the AI-engagement column is a rolling
+window, not cumulative — ours read 72k this morning and 61k tonight without us
+doing anything differently. Do not treat a fall there as a problem.)
+
+**The forward risk is idleness, not losses.** Zero-return days drag the mean
+down exactly like small losses do, so an idle book suppresses 40% of the score.
+We are flat, on one pair, short side blocked, with z at +2.73 against a long
+entry that needs z < −0.6. Days of nothing are plausible. There is no
+legitimate response — the answer is breadth, breadth is gated by statistics we
+will not loosen, and manufacturing trades is the one thing this project refuses
+to do. Wait, and say so plainly rather than dressing the wait up as strategy.
 
 **We beat first place on the two metrics we optimised for** and lose on the two
 that measure size:
@@ -535,6 +592,18 @@ Phase I ends **2026-08-21**. Two reviews left.
    pair stopped within 31 hours. Two questions decide it: did selection produce
    a second pair, and has AVAX/SOL stopped whipsawing. If it goes ahead, watch
    the first trades at the new size the way the band fix was watched.
+
+   **The case for it changed on the evening of 2026-08-02 and the change is not
+   in its favour.** Sizing is scale-invariant in Sharpe — doubling positions
+   doubles the mean daily return and the deviation together — so it buys the
+   45% of the score made of PnL and ROI while doing **nothing** for the 40%
+   made of Sharpe, which is precisely where we just lost our lead (9.30 → 5.66,
+   now behind T.Anh's 7.85). It also roughly doubles MDD, the 15% we still lead
+   on. So the honest framing is no longer "restore sizing to recover our
+   position" — it is "concede the Sharpe race and compete on PnL instead."
+   That may still be right, since Sharpe at n=14 is mostly noise and PnL is
+   not. But it is a different argument from the one that was approved, and it
+   deserves to be made explicitly rather than inherited.
    **Also ask the prior question**: three of the last four AVAX/SOL trades were
    stops. Is the pair's cointegration decaying, and should a pair that stops on
    *both* sides in quick succession be benched until a refit re-validates it?
