@@ -456,9 +456,17 @@ PnL lever is size.
 - **3. Anomaly veto: zero**, confirmed.
 - **4. AI spend is USD 0.021/day against a 10.00/day budget — 0.2%.** The
   quota-exhaustion machinery built in week 1 guards a constraint three orders
-  of magnitude from binding. Meanwhile output is **~22 tokens per call** across
-  404 calls, and the Reasoning Audit judges *logical depth*. This is the
-  clearest gap on the board and it costs nothing to close.
+  of magnitude from binding. ~~Meanwhile output is **~22 tokens per call**
+  across 404 calls, and the Reasoning Audit judges *logical depth*. This is the
+  clearest gap on the board and it costs nothing to close.~~
+  **WRONG — retracted 2026-08-04.** That divided a *rolling-window* output
+  count by a *lifetime* call count; they do not divide. Measured from the
+  ledger instead: `ai_spread_assessment` **n=300, median 54 words** (min 38,
+  max 102), `news_assessment` median 39. `max_tokens` is 512 and was never
+  binding. The rationales are substantive — a sample cites the exact z path,
+  the fitted half-life and the band, and distinguishes monotonic trend from
+  oscillation to land on `stressed` rather than `broken`. **There is nothing to
+  fix here.** The spend figure stands; the depth complaint does not.
 - **5. Entry/stop geometry: no change, now for a stated reason.** Zero
   max-hold timeouts in 16 lifetime round trips kills the "losers run too long"
   hypothesis. The geometry is asymmetric — winners capture ~0.6σ to an exit at
@@ -557,6 +565,15 @@ as a plausible-looking zero. **Look at the record before theorising about it.**
 
 ## Post-review addendum — 2026-08-03
 
+> **RETRACTED later the same day — see the 2026-08-04 addendum.** The
+> "constant fee" evidence below is wrong: `band_diagnostic.py`'s sweep columns
+> are multipliers of `cfg.taker_fee` with hardcoded labels, so after the fee
+> changed 5e-4 → 2e-4 the column reading "2.5bp" was really 1.0bp. The fee was
+> never held constant. **The plain explanation was correct: the fee change
+> tightened the band one grid step**, exactly as the 2026-08-02 sweep (0.6 at
+> 2.5bp, 0.4 at 1.25bp) predicted. Left in place unedited because the reasoning
+> error is more instructive than the conclusion.
+
 ### The entry band moved, and the cause is neither of the obvious two
 The 23:00 UTC refit — the first under `taker_fee = 2e-4` — put AVAX/SOL at
 **entry ±0.4**, down from ±0.6. The strategy doc had said the fee change was
@@ -646,6 +663,36 @@ enough for the objective to want a tighter band than the grid allows.
 interior optimum. At a boundary, "the objective is flat between 0.4 and 0.6" is
 not established. Corrected in LTP_STRATEGY.md too.
 
+> **Fully retracted, later on 2026-08-04.** The knife-edge story rested on
+> "four pairs flipped at a constant fee." The fee was **not** constant:
+> `band_diagnostic.py`'s sweep columns are multipliers of `cfg.taker_fee` with
+> **hardcoded labels**, so once `taker_fee` went 5e-4 → 2e-4 the column reading
+> "2.5bp" was actually 1.0bp. I compared 2.5bp against 1.0bp and called it a
+> control.
+>
+> The plain explanation was right all along. The 2026-08-02 sweep read AVAX/SOL
+> at **0.6 for 2.5bp and 0.4 for 1.25bp**; we set 2.0bp; it went to 0.4. **The
+> fee moved the band, one grid step, as predicted.** No knife edge, no regime
+> shift.
+>
+> Fixed at the source rather than only in prose: `fee_label()` derives every
+> column heading from the live config so a label cannot go stale, and
+> `tests/test_band_probe.py` pins it.
+>
+> **The grid-floor finding is unaffected** — `a_grid` still starts at 0.4 and
+> `min_entry_se` still sits below it, so "optimal vs clamped" is still open.
+> `band_diagnostic.py` section 3 now answers it directly: it prints the
+> objective across a probe grid down to 0.05 and labels each pair `interior`,
+> `at floor`, or `CLAMPED`.
+>
+> **The lesson is the one worth carrying**: I compared two runs of a tool whose
+> column labels are computed from a config value I had changed between the
+> runs. Six corrections in three days, and this one retracts a retraction. The
+> failure is not carelessness about the record — it is reaching for an
+> explanation before checking whether the instrument still means what it says.
+> **When two runs disagree, suspect the instrument before inventing a
+> mechanism.**
+
 What would settle it: print the objective *value* at each candidate band (the
 Deferred item), or widen `a_grid` in a **diagnostic-only** run and see where the
 argmax lands. **Do not widen the live grid before that evidence exists** —
@@ -670,6 +717,47 @@ or an exit. Not observed, and the Aug 1 −10.25 stop is clean (no refit between
 its entry at 08:00 and the stop at 19:00). Recorded as a watch item, not an
 incident. If it ever fires, the tell is a large z jump on a bar that also
 carries a `refit` event.
+
+---
+
+## Post-review addendum — 2026-08-04 (evening): the stop, measured
+
+`deploy/stop_analysis.py` now reconciles every z-stop against the ledger. Five
+stops, band ±3.50, 72h watch window:
+
+| pair | when | entry z | stop z | over | pnl | @band | cost | best after | hrs |
+|---|---|---|---|---|---|---|---|---|---|
+| ETC/KAS | 07-20 07:00 | −3.31 | −4.58 | **1.08** | −4.22 | −0.63 | **−3.59** | — | — |
+| TAO/RENDER | 07-21 01:00 | −3.02 | −3.70 | 0.20 | −3.89 | −2.72 | −1.16 | −0.74 | 18.0 |
+| TAO/RENDER | 07-26 20:00 | 3.08 | 3.65 | 0.15 | −2.42 | −1.77 | −0.65 | 2.98 | 1.8 |
+| AVAX/SOL | 08-01 19:00 | −1.39 | −10.25 | **6.75** | −6.19 | −1.48 | **−4.72** | 0.01 | 35.0 |
+| AVAX/SOL | 08-02 18:00 | 1.74 | 3.63 | 0.13 | −8.18 | −7.62 | −0.55 | 0.01 | 12.0 |
+
+**Median overshoot 0.2σ; three of five fired within 0.5σ of the band.** The
+stop mechanism is accurate and has a fat tail: two events account for −8.31 of
+the **−10.67 total cost of hourly sampling** (~1% of NAV, banked).
+
+### It also solves week 1's unexplained 50% stop rate
+The three July stops entered at z = **−3.31, −3.02, +3.08** against a 3.5 band —
+**half a sigma of room.** That was the pre-fix entry band of ~3.0, so an
+ordinary wiggle stopped them out. Week 1 flagged this as "unexplained, n far
+too small to tune on" and deferred it. It is now explained, and it is a
+*already-fixed* problem: at entry 0.4–0.6 the same stop sits ~3σ away.
+
+### It sizes the intra-bar threshold, which is what it was built for
+A 5.0σ trigger recovers ~3.7 of Aug 1's 4.72 but **misses ETC/KAS entirely**
+(that stop fired at 4.58). A **4.0–4.5σ** trigger catches both and recovers
+roughly 6 of the 8.31, while sitting far enough above the Aug 4 excursion
+(hourly peak 3.38, never stopped, reverted) not to convert it into a loss.
+That is a threshold from data rather than the 5.0 I guessed at this morning.
+
+**Caveats that belong with it**: n=5, and 4 of 5 reverted within 72h — on both
+AVAX/SOL stops the spread returned to z≈0.01, so holding would have recovered
+essentially all of both losses. Hindsight-optimal holding is not a strategy,
+and **ETC/KAS never came back inside the band** — that is the case the stop
+exists for. The tool's verdict line reads *"stops fire at the band and the
+spread does NOT always revert → the stop is doing its job; leave it alone."*
+**`stop_z` stays at 3.5.** The defect is the sampling interval, not the level.
 
 ---
 
@@ -700,12 +788,14 @@ section existed; that is what it is for.
 
 Phase I ends **2026-08-21**. Two reviews left.
 
-1. **AI reasoning depth** (highest value, near-zero risk). Output is ~22 tokens
-   per call on a budget we use 0.2% of, and the Reasoning Audit scores logical
-   depth. Raise the token ceiling and enrich the prompts in `ltp_analyst.py` /
-   `ltp_news.py`. Trading behaviour must not change — the veto stays gated on
-   the `regime` enum, never on prose. Then sample the output and judge whether
-   it reads as reasoning or as boilerplate.
+1. ~~**AI reasoning depth**~~ **CLOSED 2026-08-04, no action needed.** Measured
+   from the ledger: `ai_spread_assessment` n=300, **median 54 words**, and the
+   content is real reasoning — the 07:00 sample on 2026-08-04 cites the z path
+   (+3.38 → +2.46), the 17.6h half-life and the ±0.40 band, and reasons from
+   "not monotonically trending" to `stressed` rather than `broken`. `max_tokens`
+   was 512 and never binding. The "~22 tokens per call" that made this the top
+   priority was a rolling-window output count divided by a lifetime call count.
+   **The layer is working; leave it alone.**
 2. **Re-decide the `risk_per_pair` restore** per the commitment above — it was
    approved on 2026-08-02 and held the same evening when both sides of our only
    pair stopped within 31 hours. Two questions decide it: did selection produce

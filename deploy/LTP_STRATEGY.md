@@ -431,6 +431,38 @@ own words: *"HALVING EXECUTION COST would newly admit: NOTHING."*
 > which is what should have been written here, is: *the effect is small, but
 > the band sits near a grid boundary where small effects move it one step.*
 >
+> ## RETRACTED, 2026-08-04 (later): the knife-edge reasoning was an artifact
+>
+> **The evidence for it was miscounted, and the original simple explanation was
+> right: the fee change moved the band.**
+>
+> `band_diagnostic.py`'s fee-sweep columns are **multipliers of
+> `cfg.taker_fee`**, but their labels were hardcoded strings. After `taker_fee`
+> changed 5e-4 → 2e-4, the column reading "2.5bp" was actually **1.0bp**. The
+> "four pairs flipped at a constant fee" observation compared 2.5bp against
+> 1.0bp — the fee was never held constant, so it showed nothing.
+>
+> Read correctly, the 2026-08-02 sweep already predicted this: AVAX/SOL was 0.6
+> at 2.5bp and 0.4 at 1.25bp. We set 2.0bp. It went to 0.4. **The fee tightened
+> the band by one grid step, exactly as that sweep said it would**, and the
+> disclosure above should simply have said so rather than reaching for a
+> subtler mechanism.
+>
+> Fixed at the source: `fee_label()` now generates every column heading from
+> the live config, so a label cannot silently stop being true, and
+> `tests/test_band_probe.py` pins it.
+>
+> **What survives**: `a_grid = np.arange(0.4, 3.01, 0.2)` still means entry 0.4
+> is the smallest value the optimiser can return, and `min_entry_se` (≈0.24σ)
+> sits below it, so *whether 0.4 is optimal or clamped remains genuinely
+> undetermined*. `band_diagnostic.py` section 3 now prints the objective across
+> a probe grid reaching to 0.05 and labels each pair `interior` / `at floor` /
+> `CLAMPED`. The live grid is still not to be widened on that evidence alone:
+> a tighter entry means more trades on a thinner edge against an unchanged
+> stop, and `optimal_bands` takes no stop parameter.
+>
+> <details><summary>Superseded reasoning, kept for the audit trail</summary>
+>
 > **Qualified again, 2026-08-04.** "Knife edge" assumed an interior optimum.
 > `a_grid = np.arange(0.4, 3.01, 0.2)` and `b_grid = np.arange(0.0, 1.51, 0.25)`,
 > so **entry 0.4 and exit 0.0 are the grid's minima** — the optimiser cannot
@@ -444,11 +476,15 @@ own words: *"HALVING EXECUTION COST would newly admit: NOTHING."*
 > on a thinner edge against an unchanged stop, and `optimal_bands` takes no stop
 > parameter, so it cannot price that trade-off.
 >
-> `taker_fee` is **not** being reverted. 1.75 bps is what the venue charges and
-> 5.0 was a guess; restoring a knowingly wrong input because its output was
-> preferred would be fitting the input to the answer. If the geometry proves
-> harmful the fix is `stop_z` — the genuinely unmodelled term, since
-> `optimal_bands` takes no stop parameter — not a corrupted fee.
+> </details>
+>
+> `taker_fee` is **not** being reverted, and the retraction above strengthens
+> rather than weakens that. 1.75 bps is what the venue charges and 5.0 was a
+> guess; restoring a knowingly wrong input because its output was preferred
+> would be fitting the input to the answer. That the correct fee tightened the
+> band by a step is the cost model working, not misbehaving. If the resulting
+> geometry proves harmful the fix is `stop_z` — the genuinely unmodelled term,
+> since `optimal_bands` takes no stop parameter — not a corrupted fee.
 
 Two further assumptions closed at the same time, both previously listed as
 honest gaps in `README_ltp.md`:
