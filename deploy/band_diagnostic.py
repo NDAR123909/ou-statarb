@@ -119,6 +119,31 @@ def entry_rate_curve(ou, roundtrip_cost, entries, exit_z: float = 0.0):
     return out
 
 
+PROFILE_POINTS = (0.1, 0.2, 0.3, 0.4, 0.6, 0.8, 1.2, 1.6)
+
+
+def rate_profile(curve, points=PROFILE_POINTS, tol: float = 0.026):
+    """Each requested entry's rate as a share of the curve's best.
+
+    Matched by nearest-within-tolerance rather than by key. `np.arange` stores
+    1.2 as 1.2000000000000002, so an exact lookup raises on exactly the points
+    past 1.0 -- which is how this crashed the first time it ran live, after the
+    tests had passed. The tolerance is half the 0.05 probe step.
+    """
+    priced = [(a, r) for a, r in curve if r is not None]
+    if not priced:
+        return []
+    best = max(r for _, r in priced)
+    if best <= 0:
+        return []
+    out = []
+    for p in points:
+        near = min(priced, key=lambda ar: abs(ar[0] - p))
+        if abs(near[0] - p) <= tol:
+            out.append((p, near[1] / best))
+    return out
+
+
 def _short(a: str, b: str) -> str:
     return f"{a.split('_')[2]}/{b.split('_')[2]}"
 
@@ -242,10 +267,8 @@ def main() -> int:
             verdict = "at floor"
         else:
             verdict = "interior"
-        shown = [a for a in (0.1, 0.2, 0.3, 0.4, 0.6, 0.8, 1.2, 1.6)]
-        prof = "  ".join(
-            f"{a:.1f}:{dict(curve)[a] / best_r:.2f}"
-            for a in shown if any(abs(x - a) < 1e-9 for x, _ in curve))
+        prof = "  ".join(f"{a:.1f}:{share:.2f}"
+                         for a, share in rate_profile(curve, PROFILE_POINTS))
         print(f"{name:<12}{best_a:>8.2f}{verdict:>12}   {prof}")
     print("\n   CLAMPED means the unconstrained optimum is BELOW what the live "
           "grid can return.\n   A flat profile near the floor means the choice "

@@ -77,3 +77,40 @@ def test_lower_costs_move_the_unconstrained_optimum_toward_a_tighter_entry():
         return max(priced, key=lambda p: p[1])[0]
 
     assert argmax(0.0020) >= argmax(0.0006) >= argmax(0.0)
+
+
+def test_rate_profile_survives_floating_point_grid_keys():
+    """This crashed live after the tests passed: PROBE_A comes from np.arange,
+    so 1.2 is stored as 1.2000000000000002 and an exact dict lookup raises --
+    but only on the points past 1.0, which no small fixture reached."""
+    from deploy.band_diagnostic import rate_profile, PROFILE_POINTS
+
+    curve = entry_rate_curve(_ou(), roundtrip_cost=0.0006, entries=PROBE_A)
+    keys = [a for a, _ in curve]
+    # The precise condition that broke it: 1.2 is representable but arange
+    # never produces it exactly, so `in` fails while 1.6 happens to succeed.
+    assert 1.2 not in keys, "fixture no longer reproduces the inexact key"
+    assert 1.6 in keys, "and 1.6 is exact, which is why this hid in testing"
+
+    prof = rate_profile(curve)
+    assert prof, "profile must not come back empty for a tradeable pair"
+    shown = [p for p, _ in prof]
+    assert 1.2 in shown and 1.6 in shown, "the points past 1.0 are the ones "\
+        "that crashed; they must be present"
+    assert all(0.0 <= share <= 1.0 for _, share in prof)
+    assert max(share for _, share in prof) > 0.0
+    assert len(shown) <= len(PROFILE_POINTS)
+
+
+def test_rate_profile_is_empty_rather_than_wrong_when_nothing_prices():
+    from deploy.band_diagnostic import rate_profile
+    assert rate_profile([(0.4, None), (0.6, None)]) == []
+    assert rate_profile([]) == []
+
+
+def test_rate_profile_skips_points_the_probe_grid_does_not_cover():
+    from deploy.band_diagnostic import rate_profile
+    # A coarse curve has nothing within tolerance of 0.1, so it is omitted
+    # rather than silently matched to a distant point.
+    prof = rate_profile([(0.8, 1.0), (1.6, 0.5)], points=(0.1, 0.8, 1.6))
+    assert [p for p, _ in prof] == [0.8, 1.6]
