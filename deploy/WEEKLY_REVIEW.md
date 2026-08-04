@@ -37,7 +37,16 @@ Hard exit: **equity < 800 USDT** → forced liquidation and elimination.
   **Monotonically non-decreasing** — once a drawdown is recorded it never
   recovers, so a bad day is permanent and protecting MDD is protecting a
   banked asset.
-- "AI Engagement" and "AI-Adjusted PnL" are **display only, not scored**.
+- "AI Engagement" and "AI-Adjusted PnL" are **display only, not scored**, and
+  the engagement figure is a **rolling window, not a cumulative total** — it
+  fell 72k → 61k across 2026-08-02 with no change in behaviour. A drop there is
+  not a fault.
+- **Sharpe at this sample size is noise, in both directions.** With ~14
+  completed days, one −0.8% day moved ours from 9.30 to 5.66 (2026-08-02) —
+  pure arithmetic, since a single outlier hits the mean and the deviation at
+  once. The reference backtest is 0.36 net Sharpe OOS. **Never read a live
+  Sharpe move as evidence about the strategy**, and never let one motivate a
+  parameter change.
 
 **Hard rules.**
 - **AI API**: must use the organizer gateway *exclusively*; any self-provided or
@@ -324,10 +333,65 @@ pair, AVAX/SOL, short-spread and open at z=+3.31 against a 3.5 stop.
 > z=+3.63** — 0.13 past the band, so the hourly check behaved correctly here and
 > yesterday's −10.25 overshoot is the anomaly rather than the norm. **Both sides
 > of AVAX/SOL have now stopped within 31 hours** (long at −10.25 on Aug 1,
-> short at +3.63 on Aug 2). The lifetime record moves to 12 round trips,
-> 9 reverted / 3 stops, and the last two trades were both losses. Equity, peak
-> and MDD in the table above predate this stop and need the next `status.py`
-> read. **`risk_per_pair` was NOT restored** — see the commitment below.
+> short at +3.63 on Aug 2). Lifetime stops go 4 → 5.
+>
+> **Numbers after the stop (20:54 UTC, supersedes the table above):** equity
+> **1025.28**, peak 1041.19, drawdown **1.53%**, kill switch 916.25, headroom
+> 109.03. Flat, `blocked=-1`, z=+2.73. Entry NAV was 1035.18, so that round
+> trip cost **−9.90 all-in**; with Aug 1's −6.20 that is **−16.10 against a
+> peak-to-now drawdown of −15.91**. The two stops are the entire drawdown —
+> nothing else is leaking, and the MDD tick is permanent.
+>
+> **`risk_per_pair` was NOT restored** — see the commitment below. The agent was
+> restarted at 20:54 UTC so `taker_fee = 2e-4` is now live.
+>
+> **The head-to-head table above is now WRONG and must not be quoted.** At
+> 21:00 UTC the leaderboard reads:
+>
+> | | T.Anh (#1) | NDAR (#2) |
+> |---|---|---|
+> | Score | 97.6 | **93.2** (was 94.4) |
+> | Sharpe (40%) | 7.85 | **5.66** (was 9.30) |
+> | MDD (15%) | 3.1% | **1.5%** |
+> | PnL (25%) | +63.04 | +25.28 |
+> | ROI (20%) | +6.3% | +2.5% |
+>
+> **We led on Sharpe this morning and now trail on it.** MDD is the only metric
+> we still lead. See the Sharpe-sensitivity note below before drawing any
+> conclusion from that.
+
+### Sharpe is the score's dominant term and it is dominated by noise
+One loss day of roughly −0.8% took our Sharpe from **9.30 to 5.66**, and Sharpe
+is 40% of the score. That is not decay and nothing is broken — it is arithmetic
+on a 14-day sample:
+
+- `Sharpe = mean(daily) / stdev(daily) × √365`, over ~14 **completed** days.
+- Before today: mean ≈ +0.19%/day against stdev ≈ 0.39%/day. That ratio, 0.49
+  per day, is what a headline Sharpe of 9.3 actually means.
+- A −0.8% day hits both terms at once: it drags the mean **and**, sitting ~2.5σ
+  out, inflates the deviation. New mean ≈ 0.12%, new stdev ≈ 0.45% → Sharpe
+  ≈ 5.1. Observed 5.66. The arithmetic accounts for all of it.
+
+**A Sharpe of 9.3 was never real.** No strategy sustains that; it was a short
+low-variance streak, and 5.66 is regression toward the truth rather than a
+failure. The reference backtest is **0.36 net Sharpe OOS** (`IMPROVEMENTS.md`),
+and this repo's own Phase 2 spec says to mark live Sharpe as noise until ~60+
+trading days. Today is that principle collecting. **Do not read a Sharpe move
+in either direction as evidence about the strategy at this sample size.**
+
+Context: the whole field's Sharpe fell today — T.Anh 8.62 → 7.85, Supes
+4.69 → 2.52 — so it was a hostile day generally. T.Anh's score still rose
+because they made +4.47 on it. (Also: the AI-engagement column is a rolling
+window, not cumulative — ours read 72k this morning and 61k tonight without us
+doing anything differently. Do not treat a fall there as a problem.)
+
+**The forward risk is idleness, not losses.** Zero-return days drag the mean
+down exactly like small losses do, so an idle book suppresses 40% of the score.
+We are flat, on one pair, short side blocked, with z at +2.73 against a long
+entry that needs z < −0.6. Days of nothing are plausible. There is no
+legitimate response — the answer is breadth, breadth is gated by statistics we
+will not loosen, and manufacturing trades is the one thing this project refuses
+to do. Wait, and say so plainly rather than dressing the wait up as strategy.
 
 **We beat first place on the two metrics we optimised for** and lose on the two
 that measure size:
@@ -478,6 +542,7 @@ and what came back.*
 - **PAXG/XAUT is retired on evidence**: `cyc_h 2525` — 105 days per round trip.
   Nominally tradeable, practically useless. The pre-registered gold anchor is
   dead for a measured reason rather than an opinion.
+  **[Over-claimed — corrected in the 2026-08-03 addendum below.]**
 
 ### Method note
 I misdiagnosed the fills report's empty output **twice** by reasoning from
@@ -487,6 +552,124 @@ look like a PnL lever. The report now reports its own join quality
 (`closes_with_no_operations`, `legs_unmatched`, `windows_failed`,
 `symbols_truncated`) so the next failure announces itself instead of arriving
 as a plausible-looking zero. **Look at the record before theorising about it.**
+
+---
+
+## Post-review addendum — 2026-08-03
+
+### The entry band moved, and the cause is neither of the obvious two
+The 23:00 UTC refit — the first under `taker_fee = 2e-4` — put AVAX/SOL at
+**entry ±0.4**, down from ±0.6. The strategy doc had said the fee change was
+"expected to be inert." It was not, and that is corrected there.
+
+The cause is **not** the fee and **not** a regime shift. `band_diagnostic.py`
+isolates it, because its 2.5bp column does not depend on `AgentConfig`:
+
+| pair, at a constant 2.5 bps | 2026-08-02 | 2026-08-03 |
+|---|---|---|
+| ETH/BTC, AVAX/SOL, TAO/RENDER, FIL/AR | 0.6 | **0.4** |
+
+Four pairs flipped overnight at an unchanged fee, so the fee cannot explain it.
+But the fit barely moved either: `cost_z` scaled almost exactly by the fee ratio
+(2.5×) across the whole panel — AVAX/SOL 0.08 → 0.03, ETH/BTC 0.14 → 0.05,
+ZEC/XMR 0.02 → 0.01 — which it would not have done if `sigma_eq` had shifted
+materially, and half-lives are near-identical (AVAX/SOL 17.8 → 17.7).
+
+Both facts hold at once, and only one reading reconciles them: **the objective
+is nearly flat between 0.4 and 0.6, so the argmax sits on a knife edge and a
+~6% nudge to `cost_z` from either direction flips the grid cell.**
+
+**Consequence: expect the band to oscillate 0.4 ↔ 0.6 refit to refit, and do
+not read it as signal.** Entry-to-stop geometry swings 2.9σ ↔ 3.1σ with it.
+Yesterday's 0.6 was never a settled value either. No action taken and none
+warranted — but see Deferred for how to make this visible rather than
+recurringly mysterious.
+
+### Correction: PAXG/XAUT is not "dead"
+Yesterday's entry retired the pre-registered gold anchor "on evidence" at
+`cyc_h 2525` (105 days per round trip). Today it reads **219 (9 days)**, band
+3.0 → 1.6. Still not tradeable inside a 19-day phase, so the operational
+conclusion stands — but a number that moves 11× in a day on a knife-edge
+optimiser does not support the word *dead*. Re-check it at each review rather
+than treating it as settled.
+
+### Operational verification
+- **Both crons fired.** `fills_2026-08-02.json` carries a 23:55 mtime (not the
+  14:13 of the manual run), and `ltp_record.log` shows the Aug 2 row appended.
+- **The retention clock is visibly working**: last night's report starts
+  2026-07-28 where the previous started 07-26. TAO/RENDER has already aged out.
+- **`net_pnl` in that report will keep shrinking as winners age out** — it read
+  20.79, then 13.72 overnight, with no money lost. Gross moved 23.25 → 15.97,
+  exactly +2.41 (TAO/RENDER leaving) −9.69 (the Aug 2 stop arriving). **It is a
+  rolling window, not performance.** The dated JSON files are the real record,
+  which is the whole reason the cron exists.
+- The Aug 2 stop reconciles at **−9.69 gross / −9.91 net** against the −9.90
+  estimated from the equity delta.
+
+### Method note, and it is about me rather than the agent
+Four corrections were issued inside 24 hours: the news gate's value, the fee as
+a PnL lever, "we beat first place on both metrics", and "expected to be inert".
+Each correction was right, and that is not the useful observation. **The
+pattern is confident forward-looking claims made on thin evidence and then
+walked back.** The fix is not more diligent correcting; it is writing "the band
+sits near a grid boundary and may move one step" the first time. A record that
+needs correcting four times a day is also a record that becomes hard to read —
+which is why this is a dated addendum rather than a fourth amendment layered
+onto the week 2 entry.
+
+---
+
+## Post-review addendum — 2026-08-04
+
+Context: short-spread AVAX/SOL open since 2026-08-03 ~14:00, z drifting adverse
+(0.54 → 0.56 → 0.94 → 1.12), uPnL −5.66, equity 1019.61, **drawdown 2.07%**.
+The position is unremarkable — 1.12 against a 3.5 stop, 11 bars against a
+~53-bar max hold. Two findings came out of looking at it.
+
+### Both live bands sit on the optimiser's grid floor
+```python
+a_grid = np.arange(0.4, 3.01, 0.2)    # entry: minimum 0.4
+b_grid = np.arange(0.0, 1.51, 0.25)   # exit:  minimum 0.0
+```
+AVAX/SOL is at **entry 0.4 / exit 0.0 — both grid minima**, and every pair in
+the 2026-08-03 diagnostic showed exit 0.00 at every fee level (60 of 60). The
+estimation floor is not what is binding: `min_entry_se × ou_mean_standard_error`
+is ≈0.24σ on this fit, *below* the grid minimum.
+
+So `optimal_bands` did not choose 0.4; 0.4 is the smallest value it can return.
+**We cannot currently distinguish "optimal" from "clamped."** This is the same
+signature as the original band bug — a search pinned at a corner — except the
+unit mismatch is fixed and the cause now would be that corrected costs are low
+enough for the objective to want a tighter band than the grid allows.
+
+**This partly retracts the 2026-08-03 knife-edge explanation**, which assumed an
+interior optimum. At a boundary, "the objective is flat between 0.4 and 0.6" is
+not established. Corrected in LTP_STRATEGY.md too.
+
+What would settle it: print the objective *value* at each candidate band (the
+Deferred item), or widen `a_grid` in a **diagnostic-only** run and see where the
+argmax lands. **Do not widen the live grid before that evidence exists** —
+a tighter entry means more trades on a thinner edge with the stop unchanged,
+and `optimal_bands` takes no stop parameter, so it cannot price that.
+
+### A refit mid-position redefines the spread the position is managed against
+`ltp_agent.py:295` preserves only `side`, `hold` and `blocked` across a refit.
+Everything else — `beta`, `mu`, `sigma`, `entry_z`, `exit_z`, `half_life`,
+`dvol` — is replaced by the new fit, **while the book keeps the hedge ratio it
+was opened at.**
+
+Observed 2026-08-03 23:00, with a position open: `beta` 0.488 → 0.504, book
+still at 198.12/410.44 = 0.483. A ~4% hedge divergence, immaterial here, and
+**not** the cause of the drawdown (AVAX rose ~1.4% while SOL was flat — a
+genuine widening).
+
+The latent risk is `mu`, not `beta`. `mu` is re-estimated over the last
+3×half-life of spread, so a refit that shifts it materially would move the z of
+an open position **with no market movement at all** — potentially into a stop
+or an exit. Not observed, and the Aug 1 −10.25 stop is clean (no refit between
+its entry at 08:00 and the stop at 19:00). Recorded as a watch item, not an
+incident. If it ever fires, the tell is a large z jump on a bar that also
+carries a `refit` event.
 
 ---
 
@@ -528,21 +711,68 @@ Phase I ends **2026-08-21**. Two reviews left.
    pair stopped within 31 hours. Two questions decide it: did selection produce
    a second pair, and has AVAX/SOL stopped whipsawing. If it goes ahead, watch
    the first trades at the new size the way the band fix was watched.
+
+   **The case for it changed on the evening of 2026-08-02 and the change is not
+   in its favour.** Sizing is scale-invariant in Sharpe — doubling positions
+   doubles the mean daily return and the deviation together — so it buys the
+   45% of the score made of PnL and ROI while doing **nothing** for the 40%
+   made of Sharpe, which is precisely where we just lost our lead (9.30 → 5.66,
+   now behind T.Anh's 7.85). It also roughly doubles MDD, the 15% we still lead
+   on. So the honest framing is no longer "restore sizing to recover our
+   position" — it is "concede the Sharpe race and compete on PnL instead."
+   That may still be right, since Sharpe at n=14 is mostly noise and PnL is
+   not. But it is a different argument from the one that was approved, and it
+   deserves to be made explicitly rather than inherited.
+
+   **The tail, added 2026-08-04 with a live number.** P&L is linear in z
+   (`g × sigma × Δz`). The open position was losing ≈−9 to −11 USDT per unit z;
+   run to the 3.5 stop that is roughly **−22 to −28 more, putting drawdown near
+   4–5%** — worse than every team in the top three, permanently, on the one
+   metric we still lead. At `risk_per_pair = 0.004` the same stop is −45 to −55
+   and drawdown near **6–7%**. Historical stop rate is 5 of ~19 opens, ~26%, so
+   this is a 1-in-4 branch and not a base case. It is the first version of this
+   argument carrying a measured number rather than a framing.
    **Also ask the prior question**: three of the last four AVAX/SOL trades were
    stops. Is the pair's cointegration decaying, and should a pair that stops on
    *both* sides in quick succession be benched until a refit re-validates it?
    Today the one-sided block covers only the side that broke, by design. n=2 is
    thin evidence for a new rule and a bad week is not a reason to invent one —
    but the sequence is now in the record rather than in someone's memory.
-3. **The three logging fixes**: `refit_drop` decision event, a `size_mult`
-   record when the news gate reduces risk, and `executed_price`/`executed_qty`
-   plus a usable order id on `close_position`. One principle, one diff.
+3. **Verify the three logging fixes actually fired** — they shipped 2026-08-02
+   but nothing has exercised them live yet. Confirm in the ledger that a
+   `refit_drop` event appears at the next refit that drops a held pair, that
+   `size_reduced` appears the next time the news gate rates a leg `watch`, and
+   that close operations now carry `executed_price`. If `close_position` still
+   logs no price, read the `response_keys` it now records and fix the field
+   names from that rather than probing live again.
 4. **Sub-hourly risk check** — design it or drop it, with a written argument
    either way. It is the only change with a measured price tag attached
    (~4.7 USDT, ~0.45% of NAV, permanent in MDD).
-5. **Self-ranking endpoint into `status.py`** — carried twice now. Either do it
+5. **Did the z-stop cut two winners?** Both August stops were followed by full
+   reversion. Aug 1 stopped long at z=−10.25; z was −1.03 seven hours later and
+   +3.31 by midday. Aug 2 stopped short at +3.63; z read 3.34 → 2.99 → 2.73 over
+   the next three bars. In both, the "relationship broke" hypothesis the stop
+   encodes was wrong, and holding would have recovered. Together they realised
+   **−16.10, the entire drawdown from peak.**
+
+   The sharper form of the question: **MDD is scored on hourly NAV including
+   unrealised P&L**, so at the trough the stop protected nothing — NAV had
+   already fallen. What it did was forfeit the recovery. On these two trades it
+   cost P&L *and* bought no MDD protection.
+
+   **Do not act on this without the counterfactual.** n=2; judging insurance by
+   the times it paid out badly is textbook outcome bias; and the −10.25
+   excursion was genuinely violent — that is the LTCM failure mode `stop_z`
+   exists for, and one path where holding worked says nothing about the next.
+   What would make this actionable: measuring how far the spread actually
+   travelled past each stop before turning, across every stop in the record,
+   against the loss the stop realised. If stops consistently fire near the
+   turning point, the band is mis-calibrated to the post-break `sigma_eq`; if
+   the −10.25 case is the only one where it mattered, the stop is doing exactly
+   its job at a fair price. **Default action remains no change.**
+6. **Self-ranking endpoint into `status.py`** — carried twice now. Either do it
    or delete it from the agenda.
-6. **Put `fills_report.py` on a schedule — this is now urgent, not tidy.**
+7. **Put `fills_report.py` on a schedule — this is now urgent, not tidy.**
    Venue fills expire after ~7 days, so any week not captured is gone for good;
    week 1's already are. A weekly cron writing
    `track_record/fills_YYYY-MM-DD.json` (alongside `record_state.py`) preserves
@@ -551,6 +781,14 @@ Phase I ends **2026-08-21**. Two reviews left.
    recoverable through it.
 
 ### Deferred from week 2
+- **Make `band_diagnostic.py` print the objective VALUE at each candidate band,
+  not just the argmax.** The band flipped 0.6 → 0.4 on 2026-08-03 and it took
+  two sessions to establish that the optimum is simply flat there. Printing the
+  profit rate at 0.4 / 0.6 / 0.8 would answer it in seconds and turn a
+  recurring mystery into a number. Deliberately NOT a numbered agenda item —
+  it is a convenience upgrade to a hand-run tool, and week 3's numbered list
+  already carries items on a scored dimension (AI reasoning depth) that matter
+  more.
 - Sentinel macro-event awareness (Fed/CPI are market-wide; our prompt is
   asset-specific and rates them `none`). Still undecided — the design question
   is whether market-wide risk should shrink size across all pairs, or whether

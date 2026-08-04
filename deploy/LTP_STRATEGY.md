@@ -406,13 +406,49 @@ fills (`0.07165148 / (63 × 6.499)`), `fee == tradingFee`, `rebate` zero,
 a small margin over the measurement against a venue schedule change rather than
 against measurement error.
 
-**This is disclosed as a behavioural change but is expected to be inert**, and
-that expectation is itself the finding. `deploy/band_diagnostic.py` reports
-`cost_z` (round-trip cost in units of `sigma_eq`) between 0.01 and 0.08 for
-every candidate: costs are roughly 8% of the entry band, not the dominant term.
-Sweeping the fee from 5.0 bps to zero moves AVAX/SOL's entry band by at most one
-grid step (0.6 → 0.4) and admits **no** new pairs — the diagnostic's own words:
-*"HALVING EXECUTION COST would newly admit: NOTHING."*
+**This is disclosed as a behavioural change.** `deploy/band_diagnostic.py`
+reports `cost_z` (round-trip cost in units of `sigma_eq`) between 0.01 and 0.08
+for every candidate: costs are roughly 8% of the entry band, not the dominant
+term. Sweeping the fee from 5.0 bps to zero moves AVAX/SOL's entry band by at
+most one grid step (0.6 → 0.4) and admits **no** new pairs — the diagnostic's
+own words: *"HALVING EXECUTION COST would newly admit: NOTHING."*
+
+> **Correction, 2026-08-03.** This section originally said the change was
+> "expected to be inert." The first refit under the new fee put AVAX/SOL at
+> entry ±0.4, down from ±0.6, so that was wrong and is retracted.
+>
+> The cause is neither the fee nor a regime shift, and the diagnostic isolates
+> it: at a **constant** 2.5 bps — a column that does not read `AgentConfig` —
+> four pairs (ETH/BTC, AVAX/SOL, TAO/RENDER, FIL/AR) flipped 0.6 → 0.4
+> overnight, so the fee cannot explain it; yet `cost_z` scaled almost exactly
+> by the fee ratio across the whole panel and half-lives barely moved, so the
+> fit did not shift materially either. Both hold only if **the objective is
+> nearly flat between 0.4 and 0.6 and the argmax sits on a knife edge**, where
+> a ~6% nudge to `cost_z` from any direction flips the grid cell.
+>
+> The band should therefore be expected to oscillate 0.4 ↔ 0.6 between refits,
+> carrying entry-to-stop distance 2.9σ ↔ 3.1σ with it. The accurate claim,
+> which is what should have been written here, is: *the effect is small, but
+> the band sits near a grid boundary where small effects move it one step.*
+>
+> **Qualified again, 2026-08-04.** "Knife edge" assumed an interior optimum.
+> `a_grid = np.arange(0.4, 3.01, 0.2)` and `b_grid = np.arange(0.0, 1.51, 0.25)`,
+> so **entry 0.4 and exit 0.0 are the grid's minima** — the optimiser cannot
+> return anything smaller, and the `min_entry_se` floor (≈0.24σ on this fit)
+> sits below them and is not what binds. Whether 0.4 is optimal or merely
+> clamped is **undetermined**, because the diagnostic prints the argmax and not
+> the objective. Both readings are consistent with the observed flipping; only
+> one of them is a knife edge. Settle it by printing the objective per candidate
+> band, or by widening `a_grid` in a diagnostic-only run. **The live grid is not
+> to be widened before that evidence exists**: a tighter entry means more trades
+> on a thinner edge against an unchanged stop, and `optimal_bands` takes no stop
+> parameter, so it cannot price that trade-off.
+>
+> `taker_fee` is **not** being reverted. 1.75 bps is what the venue charges and
+> 5.0 was a guess; restoring a knowingly wrong input because its output was
+> preferred would be fitting the input to the answer. If the geometry proves
+> harmful the fix is `stop_z` — the genuinely unmodelled term, since
+> `optimal_bands` takes no stop parameter — not a corrupted fee.
 
 Two further assumptions closed at the same time, both previously listed as
 honest gaps in `README_ltp.md`:
