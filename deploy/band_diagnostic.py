@@ -74,10 +74,49 @@ CUR_B = np.arange(0.0, 1.51, 0.25)
 WIDE_A = np.arange(0.4, 6.01, 0.2)
 WIDE_B = np.arange(0.0, 4.01, 0.2)
 
-FEE_STEPS = [("taker 5.0bp (assumed today)", 1.00),
-             ("2.5bp  (maker ~half)", 0.50),
-             ("1.25bp (maker ~quarter)", 0.25),
-             ("0.0bp  (free, lower bound)", 0.00)]
+# Multipliers of the LIVE cfg.taker_fee, so the absolute fee each column
+# represents moves when the config does. Labels are therefore generated at
+# print time from the config -- they used to be hardcoded strings, and after
+# taker_fee changed 5e-4 -> 2e-4 on 2026-08-02 the column reading "2.5bp" was
+# actually 1.0bp. Two runs either side of that change were compared as though
+# the fee were held constant, which produced a confident and entirely wrong
+# conclusion about why a band moved. A label that can silently stop being true
+# is worse than no label.
+FEE_STEPS = [("live", 1.00), ("half", 0.50),
+             ("quarter", 0.25), ("free", 0.00)]
+
+
+def fee_label(taker_fee: float, mult: float, name: str) -> str:
+    return f"{taker_fee * mult * 1e4:.2f}bp {name}"
+
+
+# Probe grid for the clamping question. The live a_grid starts at 0.4, so the
+# optimiser cannot report anything smaller and "0.4" is ambiguous between
+# optimal and pinned. This reaches well below it -- diagnostic only, never fed
+# to the agent.
+PROBE_A = np.arange(0.05, 1.81, 0.05)
+
+
+def entry_rate_curve(ou, roundtrip_cost, entries, exit_z: float = 0.0):
+    """Expected profit per bar at each candidate entry, exit held fixed.
+
+    The optimiser reports only its argmax, which cannot distinguish a sharp
+    peak from a plateau -- and cannot show a peak that lies outside its grid at
+    all. This returns the whole curve so both are visible.
+    """
+    theta = ou.theta
+    sigma_std = np.sqrt(2.0 * theta)
+    cost_z = roundtrip_cost / ou.sigma_eq
+    out = []
+    for a in entries:
+        profit = (a - exit_z) - cost_z
+        if profit <= 0 or a <= exit_z + 0.1:
+            out.append((float(a), None))
+            continue
+        cycle = (ou_expected_passage_time(-a, -exit_z, theta, sigma_std)
+                 + ou_expected_passage_time(-exit_z, -a, theta, sigma_std))
+        out.append((float(a), float(profit / cycle) if cycle > 0 else None))
+    return out
 
 
 def _short(a: str, b: str) -> str:
@@ -147,15 +186,18 @@ def main() -> int:
     print("\n" + "=" * 78)
     print("2. WOULD CHEAPER EXECUTION UNLOCK PAIRS?  (CORRECTED optimiser)")
     print("=" * 78)
-    header = f"{'pair':<12}" + "".join(f"{lbl.split()[0]:>16}"
-                                       for lbl, _ in FEE_STEPS)
-    print(header)
+    print(f"{'pair':<12}" + "".join(
+        f"{fee_label(cfg.taker_fee, mult, ''):>16}" for _, mult in FEE_STEPS))
+    print(f"{'':12}" + "".join(f"{lbl:>16}" for lbl, _ in FEE_STEPS))
     print(f"{'':12}" + "".join(f"{'entry,exit':>16}" for _ in FEE_STEPS))
-    unlocked: dict[str, list[str]] = {lbl: [] for lbl, _ in FEE_STEPS}
+    unlocked: dict[str, list[str]] = {
+        fee_label(cfg.taker_fee, mult, lbl): []
+        for lbl, mult in FEE_STEPS}
     for name, m in fits.items():
         cells = []
         base_tradeable = None
         for lbl, mult in FEE_STEPS:
+            lbl = fee_label(cfg.taker_fee, mult, lbl)
             rt = 2.0 * cfg.taker_fee * mult * (1.0 + abs(m.beta))
             ob = corrected_bands(m.ou, rt, CUR_A, CUR_B)
             if ob:
@@ -168,12 +210,53 @@ def main() -> int:
         print(f"{name:<12}" + "".join(cells))
 
     print("\ntradeable pair COUNT by fee level:")
-    for lbl, _ in FEE_STEPS:
+    labels = [fee_label(cfg.taker_fee, mult, lbl) for lbl, mult in FEE_STEPS]
+    for lbl in labels:
         print(f"   {lbl:<28} {len(unlocked[lbl]):>2}  "
               f"{sorted(unlocked[lbl])}")
 
-    base = set(unlocked[FEE_STEPS[0][0]])
-    half = set(unlocked[FEE_STEPS[1][0]])
+    # ------------------------------------------------------------------ 3 --
+    print("\n" + "=" * 78)
+    print("3. IS THE LIVE BAND OPTIMAL, OR CLAMPED AT THE GRID FLOOR?")
+    print("=" * 78)
+    floor = float(CUR_A[0])
+    print(f"   live a_grid floor = {floor:.2f}; probing down to "
+          f"{PROBE_A[0]:.2f}. The optimiser reports only its argmax, so a band "
+          f"AT the floor\n   is ambiguous between 'optimal' and 'pinned'. "
+          f"Rates below are normalised to each pair's own best.")
+    print(f"\n{'pair':<12}{'argmax':>8}{'verdict':>12}   rate profile "
+          f"(entry: share of best)")
+    for name, m in fits.items():
+        rt = 2.0 * cfg.taker_fee * (1.0 + abs(m.beta))
+        curve = [(a, r) for a, r in entry_rate_curve(m.ou, rt, PROBE_A)
+                 if r is not None]
+        if not curve:
+            print(f"{name:<12}{'--':>8}{'untradeable':>12}")
+            continue
+        best_a, best_r = max(curve, key=lambda p: p[1])
+        # Where the unconstrained peak sits relative to the grid it is allowed
+        # to report is the whole question.
+        if best_a < floor - 1e-9:
+            verdict = "CLAMPED"
+        elif best_a <= floor + 1e-9:
+            verdict = "at floor"
+        else:
+            verdict = "interior"
+        shown = [a for a in (0.1, 0.2, 0.3, 0.4, 0.6, 0.8, 1.2, 1.6)]
+        prof = "  ".join(
+            f"{a:.1f}:{dict(curve)[a] / best_r:.2f}"
+            for a in shown if any(abs(x - a) < 1e-9 for x, _ in curve))
+        print(f"{name:<12}{best_a:>8.2f}{verdict:>12}   {prof}")
+    print("\n   CLAMPED means the unconstrained optimum is BELOW what the live "
+          "grid can return.\n   A flat profile near the floor means the choice "
+          "barely matters; a steep one\n   means the live band is leaving "
+          "measurable rate on the table. Neither is a\n   reason to widen the "
+          "live grid on its own: a tighter entry means more trades\n   on a "
+          "thinner edge against an UNCHANGED stop, and optimal_bands takes no "
+          "stop\n   parameter, so it cannot price that trade-off.")
+
+    base = set(unlocked[labels[0]])
+    half = set(unlocked[labels[1]])
     gained = sorted(half - base)
     print("\n" + "=" * 78)
     print(f"HALVING EXECUTION COST would newly admit: {gained or 'NOTHING'}")

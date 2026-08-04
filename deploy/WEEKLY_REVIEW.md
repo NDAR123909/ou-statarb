@@ -557,6 +557,15 @@ as a plausible-looking zero. **Look at the record before theorising about it.**
 
 ## Post-review addendum — 2026-08-03
 
+> **RETRACTED later the same day — see the 2026-08-04 addendum.** The
+> "constant fee" evidence below is wrong: `band_diagnostic.py`'s sweep columns
+> are multipliers of `cfg.taker_fee` with hardcoded labels, so after the fee
+> changed 5e-4 → 2e-4 the column reading "2.5bp" was really 1.0bp. The fee was
+> never held constant. **The plain explanation was correct: the fee change
+> tightened the band one grid step**, exactly as the 2026-08-02 sweep (0.6 at
+> 2.5bp, 0.4 at 1.25bp) predicted. Left in place unedited because the reasoning
+> error is more instructive than the conclusion.
+
 ### The entry band moved, and the cause is neither of the obvious two
 The 23:00 UTC refit — the first under `taker_fee = 2e-4` — put AVAX/SOL at
 **entry ±0.4**, down from ±0.6. The strategy doc had said the fee change was
@@ -645,6 +654,36 @@ enough for the objective to want a tighter band than the grid allows.
 **This partly retracts the 2026-08-03 knife-edge explanation**, which assumed an
 interior optimum. At a boundary, "the objective is flat between 0.4 and 0.6" is
 not established. Corrected in LTP_STRATEGY.md too.
+
+> **Fully retracted, later on 2026-08-04.** The knife-edge story rested on
+> "four pairs flipped at a constant fee." The fee was **not** constant:
+> `band_diagnostic.py`'s sweep columns are multipliers of `cfg.taker_fee` with
+> **hardcoded labels**, so once `taker_fee` went 5e-4 → 2e-4 the column reading
+> "2.5bp" was actually 1.0bp. I compared 2.5bp against 1.0bp and called it a
+> control.
+>
+> The plain explanation was right all along. The 2026-08-02 sweep read AVAX/SOL
+> at **0.6 for 2.5bp and 0.4 for 1.25bp**; we set 2.0bp; it went to 0.4. **The
+> fee moved the band, one grid step, as predicted.** No knife edge, no regime
+> shift.
+>
+> Fixed at the source rather than only in prose: `fee_label()` derives every
+> column heading from the live config so a label cannot go stale, and
+> `tests/test_band_probe.py` pins it.
+>
+> **The grid-floor finding is unaffected** — `a_grid` still starts at 0.4 and
+> `min_entry_se` still sits below it, so "optimal vs clamped" is still open.
+> `band_diagnostic.py` section 3 now answers it directly: it prints the
+> objective across a probe grid down to 0.05 and labels each pair `interior`,
+> `at floor`, or `CLAMPED`.
+>
+> **The lesson is the one worth carrying**: I compared two runs of a tool whose
+> column labels are computed from a config value I had changed between the
+> runs. Six corrections in three days, and this one retracts a retraction. The
+> failure is not carelessness about the record — it is reaching for an
+> explanation before checking whether the instrument still means what it says.
+> **When two runs disagree, suspect the instrument before inventing a
+> mechanism.**
 
 What would settle it: print the objective *value* at each candidate band (the
 Deferred item), or widen `a_grid` in a **diagnostic-only** run and see where the
