@@ -619,6 +619,60 @@ onto the week 2 entry.
 
 ---
 
+## Post-review addendum — 2026-08-04
+
+Context: short-spread AVAX/SOL open since 2026-08-03 ~14:00, z drifting adverse
+(0.54 → 0.56 → 0.94 → 1.12), uPnL −5.66, equity 1019.61, **drawdown 2.07%**.
+The position is unremarkable — 1.12 against a 3.5 stop, 11 bars against a
+~53-bar max hold. Two findings came out of looking at it.
+
+### Both live bands sit on the optimiser's grid floor
+```python
+a_grid = np.arange(0.4, 3.01, 0.2)    # entry: minimum 0.4
+b_grid = np.arange(0.0, 1.51, 0.25)   # exit:  minimum 0.0
+```
+AVAX/SOL is at **entry 0.4 / exit 0.0 — both grid minima**, and every pair in
+the 2026-08-03 diagnostic showed exit 0.00 at every fee level (60 of 60). The
+estimation floor is not what is binding: `min_entry_se × ou_mean_standard_error`
+is ≈0.24σ on this fit, *below* the grid minimum.
+
+So `optimal_bands` did not choose 0.4; 0.4 is the smallest value it can return.
+**We cannot currently distinguish "optimal" from "clamped."** This is the same
+signature as the original band bug — a search pinned at a corner — except the
+unit mismatch is fixed and the cause now would be that corrected costs are low
+enough for the objective to want a tighter band than the grid allows.
+
+**This partly retracts the 2026-08-03 knife-edge explanation**, which assumed an
+interior optimum. At a boundary, "the objective is flat between 0.4 and 0.6" is
+not established. Corrected in LTP_STRATEGY.md too.
+
+What would settle it: print the objective *value* at each candidate band (the
+Deferred item), or widen `a_grid` in a **diagnostic-only** run and see where the
+argmax lands. **Do not widen the live grid before that evidence exists** —
+a tighter entry means more trades on a thinner edge with the stop unchanged,
+and `optimal_bands` takes no stop parameter, so it cannot price that.
+
+### A refit mid-position redefines the spread the position is managed against
+`ltp_agent.py:295` preserves only `side`, `hold` and `blocked` across a refit.
+Everything else — `beta`, `mu`, `sigma`, `entry_z`, `exit_z`, `half_life`,
+`dvol` — is replaced by the new fit, **while the book keeps the hedge ratio it
+was opened at.**
+
+Observed 2026-08-03 23:00, with a position open: `beta` 0.488 → 0.504, book
+still at 198.12/410.44 = 0.483. A ~4% hedge divergence, immaterial here, and
+**not** the cause of the drawdown (AVAX rose ~1.4% while SOL was flat — a
+genuine widening).
+
+The latent risk is `mu`, not `beta`. `mu` is re-estimated over the last
+3×half-life of spread, so a refit that shifts it materially would move the z of
+an open position **with no market movement at all** — potentially into a stop
+or an exit. Not observed, and the Aug 1 −10.25 stop is clean (no refit between
+its entry at 08:00 and the stop at 19:00). Recorded as a watch item, not an
+incident. If it ever fires, the tell is a large z jump on a bar that also
+carries a `refit` event.
+
+---
+
 ## Open commitments (write these down WHEN PROMISED, not later)
 
 Anything said in chat as "I'll look at that Sunday" belongs here immediately.
@@ -669,6 +723,15 @@ Phase I ends **2026-08-21**. Two reviews left.
    That may still be right, since Sharpe at n=14 is mostly noise and PnL is
    not. But it is a different argument from the one that was approved, and it
    deserves to be made explicitly rather than inherited.
+
+   **The tail, added 2026-08-04 with a live number.** P&L is linear in z
+   (`g × sigma × Δz`). The open position was losing ≈−9 to −11 USDT per unit z;
+   run to the 3.5 stop that is roughly **−22 to −28 more, putting drawdown near
+   4–5%** — worse than every team in the top three, permanently, on the one
+   metric we still lead. At `risk_per_pair = 0.004` the same stop is −45 to −55
+   and drawdown near **6–7%**. Historical stop rate is 5 of ~19 opens, ~26%, so
+   this is a 1-in-4 branch and not a base case. It is the first version of this
+   argument carrying a measured number rather than a framing.
    **Also ask the prior question**: three of the last four AVAX/SOL trades were
    stops. Is the pair's cointegration decaying, and should a pair that stops on
    *both* sides in quick succession be benched until a refit re-validates it?
