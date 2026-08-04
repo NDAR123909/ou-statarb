@@ -759,6 +759,68 @@ exists for. The tool's verdict line reads *"stops fire at the band and the
 spread does NOT always revert → the stop is doing its job; leave it alone."*
 **`stop_z` stays at 3.5.** The defect is the sampling interval, not the level.
 
+### The grid-floor question is closed: clamping costs ~1%
+`band_diagnostic.py` section 3 probes to 0.05 and prints the objective, not
+just the argmax. Six of fifteen pairs are `CLAMPED` — ZEC/XMR, BCH/LTC,
+1000SHIB/DOGE and UNI/AAVE at 0.30, LINK/QNT 0.35, ADA/DOT 0.25 — but the rate
+they forfeit to the 0.4 floor is **about one percent**:
+
+```
+ZEC/XMR   argmax 0.30    0.3:1.00  0.4:1.00
+ADA/DOT   argmax 0.25    0.2:1.00  0.4:0.99
+```
+
+**The live grid stays as it is.** And **AVAX/SOL is `interior` at 0.45**, so our
+live band was never clamped at all.
+
+### The real result is the flatness, and it hands the band to the stop
+```
+AVAX/SOL   0.2:0.93  0.3:0.98  0.4:1.00  0.6:0.99  0.8:0.96  1.2:0.83  1.6:0.66
+```
+**Anything from 0.3 to 0.8 is within 4% of optimal.** (This vindicates the
+*description* in the 2026-08-03 addendum — the objective really is nearly flat
+there — while the evidence given for it was still invalid and the fee change
+remains the correct explanation for the flip. Right description, broken
+argument.)
+
+So the entry band is nearly a free parameter as far as `optimal_bands` can see,
+which means it should be set by the term `optimal_bands` structurally *cannot*
+see — it takes no `stop_z` and prices profit-per-cycle assuming positions run to
+reversion:
+
+| entry | captures | risks to stop | ratio | rate cost |
+|---|---|---|---|---|
+| **0.4 (live)** | 0.4σ | 3.1σ | 7.75 : 1 | — |
+| 0.6 | 0.6σ | 2.9σ | 4.83 : 1 | 1% |
+| 0.8 | 0.8σ | 2.7σ | 3.38 : 1 | 4% |
+
+**No change made, and the obvious move is not obviously right.** Rate is
+profit ÷ cycle, so holding rate roughly constant while widening the band makes
+trades ~2× larger and ~2× rarer — AVAX/SOL's cycle goes 28h → ~60h. For Sharpe
+that cuts the wrong way: the same return per unit time delivered in chunkier
+lumps means more zero-return days and larger jumps, i.e. a higher daily
+deviation against an unchanged mean, on the metric worth 40%. Set against that,
+a wider band produces fewer stop-outs, and stop-outs are the large negative
+outliers. **Those two effects cannot be ranked by argument** — see the week 3
+agenda for the measurement that settles it.
+
+### Organizer corroboration on sizing (Quant Tip, 2026-08-04)
+> *"Maximum leverage in Track A is 2x. With amplification limited, rankings
+> separate on signal quality, position sizing, and drawdown control. It also
+> fits how scoring works: Sharpe rewards steady returns, so adding volatility
+> tends to weigh on your score rather than lift it."*
+
+Independent confirmation of the `risk_per_pair` hold, reached from the scoring
+side rather than ours. It is corroboration, not new information — we got there
+from Sharpe's scale-invariance plus the MDD tail — but it further weakens the
+case for restoring 0.004 and should be quoted at whoever revisits it.
+
+The same day's Market Watch ("stabilisation rather than a turnaround… could
+keep swinging both ways… make sure your risk controls hold up if volatility
+picks up") is context, not signal. We do not trade direction, so it changes
+nothing operationally. The risk-control half is what the −10.67 sampling
+finding above is about.
+
 ---
 
 ## Open commitments (write these down WHEN PROMISED, not later)
@@ -822,6 +884,13 @@ Phase I ends **2026-08-21**. Two reviews left.
    and drawdown near **6–7%**. Historical stop rate is 5 of ~19 opens, ~26%, so
    this is a 1-in-4 branch and not a base case. It is the first version of this
    argument carrying a measured number rather than a framing.
+
+   **Organizer corroboration, 2026-08-04 Quant Tip**: *"With amplification
+   limited, rankings separate on signal quality, position sizing, and drawdown
+   control… Sharpe rewards steady returns, so adding volatility tends to weigh
+   on your score rather than lift it."* Reached from the scoring side, that is
+   what we concluded from Sharpe's scale-invariance plus the MDD tail. Quote it
+   at whoever revisits this.
    **Also ask the prior question**: three of the last four AVAX/SOL trades were
    stops. Is the pair's cointegration decaying, and should a pair that stops on
    *both* sides in quick succession be benched until a refit re-validates it?
@@ -835,10 +904,39 @@ Phase I ends **2026-08-21**. Two reviews left.
    that close operations now carry `executed_price`. If `close_position` still
    logs no price, read the `response_keys` it now records and fix the field
    names from that rather than probing live again.
-4. **Sub-hourly risk check** — design it or drop it, with a written argument
-   either way. It is the only change with a measured price tag attached
-   (~4.7 USDT, ~0.45% of NAV, permanent in MDD).
-5. **Did the z-stop cut two winners?** Both August stops were followed by full
+4. **Sub-hourly risk check** — now measured rather than argued. `stop_analysis`
+   puts the cost of hourly sampling at **−10.67** across five stops, with
+   −8.31 of it in two events. Design is **two-tier**: the 3.5 band keeps being
+   evaluated on the hourly close, where it fires within 0.5σ three times in
+   five and where the noise filter is doing useful work; a read-only intra-bar
+   pass stops only past **4.0–4.5σ**. That threshold is from the data — 5.0
+   (my guess) misses ETC/KAS at 4.58, and 4.0 still clears the 2026-08-04
+   excursion that peaked at 3.38 and reverted. It may only close or stop, never
+   open. **This is the riskiest change on the list to ship** — a new loop that
+   can close positions, into a process whose job is to stay up.
+
+5. **Simulate the entry band against the stop — the term the optimiser omits.**
+   Section 3 shows the objective is flat within 4% from entry 0.3 to 0.8, so the
+   band is nearly free to `optimal_bands`, which takes no `stop_z` and assumes
+   positions run to reversion. Two effects then compete and cannot be ranked by
+   argument: a wider band gives a better entry-to-stop ratio and fewer stop-outs
+   (fewer large negative outliers), while also making returns chunkier and
+   rarer, which raises daily deviation and hurts Sharpe. **Measure it**: run the
+   fitted OU parameters through `statarb/`'s backtester at entry 0.3 / 0.4 / 0.6
+   / 0.8 with `stop_z=3.5`, and report realised Sharpe, MDD and stop rate — not
+   the optimiser's rate. Whatever it says, the change is a `min_entry_z` floor
+   on top of the optimiser, disclosed as a behavioural change. **Default action
+   remains no change.**
+6. ~~**Did the z-stop cut two winners?**~~ **ANSWERED 2026-08-04 by
+   `stop_analysis.py` — see the evening addendum.** Across all five stops the
+   median overshoot is 0.2σ and three of five fire within 0.5σ of the band, so
+   the level is being honoured; 4 of 5 reverted but **ETC/KAS never came back**,
+   which is the case the stop exists for. **`stop_z` stays at 3.5 and the
+   defect is the sampling interval** (item 4). The framing below was written
+   from two observations and is superseded by five — kept because the reasoning
+   error, generalising from the two most recent trades, is the instructive part.
+
+   Original framing: Both August stops were followed by full
    reversion. Aug 1 stopped long at z=−10.25; z was −1.03 seven hours later and
    +3.31 by midday. Aug 2 stopped short at +3.63; z read 3.34 → 2.99 → 2.73 over
    the next three bars. In both, the "relationship broke" hypothesis the stop
@@ -860,15 +958,14 @@ Phase I ends **2026-08-21**. Two reviews left.
    turning point, the band is mis-calibrated to the post-break `sigma_eq`; if
    the −10.25 case is the only one where it mattered, the stop is doing exactly
    its job at a fair price. **Default action remains no change.**
-6. **Self-ranking endpoint into `status.py`** — carried twice now. Either do it
+7. **Self-ranking endpoint into `status.py`** — carried twice now. Either do it
    or delete it from the agenda.
-7. **Put `fills_report.py` on a schedule — this is now urgent, not tidy.**
-   Venue fills expire after ~7 days, so any week not captured is gone for good;
-   week 1's already are. A weekly cron writing
-   `track_record/fills_YYYY-MM-DD.json` (alongside `record_state.py`) preserves
-   the Phase I post-mortem evidence before it evaporates. Also test whether
-   `position history` retains longer — if it does, week 1 may be partly
-   recoverable through it.
+8. ~~**Put `fills_report.py` on a schedule**~~ **DONE 2026-08-02** — daily at
+   23:55 UTC rather than weekly, since weekly would sit exactly on the ~7-day
+   retention edge and one failed run would lose a week permanently. Verified
+   firing 2026-08-03 (`fills_2026-08-02.json`, 23:55 mtime). Still open, and
+   smaller: test whether `position history` retains longer than executions — if
+   it does, week 1's trades may be partly recoverable.
 
 ### Deferred from week 2
 - **Make `band_diagnostic.py` print the objective VALUE at each candidate band,
