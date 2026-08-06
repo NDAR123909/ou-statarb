@@ -823,6 +823,62 @@ finding above is about.
 
 ---
 
+## Post-review addendum — 2026-08-06
+
+### Droplet rebooted cleanly (first time ever tested)
+`is-enabled` was checked first — it returned `enabled`, which is the only way a
+reboot could have gone wrong. 19 seconds down, on a flat book with zero active
+pairs. Everything survived: `NRestarts=0`, **peak 1041.19 preserved** (the hwm
+file), bar counter continued 218 → 219 rather than resetting, both cron lines
+intact, `self-check PASS`, `news stream: live`. The "System restart required"
+banner cleared. Kernel packages (`linux-image-virtual`) were **kept back** —
+`apt-get upgrade` does not pull new kernels; that needs `dist-upgrade` and
+another reboot, at the next flat window. Not urgent.
+
+### The 2026-08-05 exit was the mean moving, not the spread returning
+A short spread entered at z=+0.717, exited at z=−0.109 tagged `reverted`, and
+lost 4.11. Both are true only if the reference point moved, and it did:
+
+```
+z       fell   -0.827   ← "reverted"
+spread  ROSE   +0.0101  ← the thing that actually pays us
+```
+
+`−g × Δspread = −407.3 × 0.010094 = −4.11` against an observed −4.06. Two
+refits fired during the 38-hour hold, and `mu` is the trailing mean of the last
+3 half-lives, so **the equilibrium moved ~1.3σ while the spread rose 0.5σ** —
+the target chased the price and overtook it. Full disclosure in
+LTP_STRATEGY.md. Shipped: `entry_mu`/`entry_sigma` snapshotted at entry and
+carried across refits, `z_in_entry_coords` / `mu_shift_sigma` /
+`equilibrium_reestimated` on every exit and stop, and a reasoning line that
+says the mean moved instead of claiming a completed cycle. **No behavioural
+change**; freezing `mu` is a week 3 question on n=1.
+
+Worth noting *against* over-reading this: every other reverted exit in the
+fills record was profitable (+7.26, +2.93, +3.74, +1.85, +3.23, +5.90, +3.37,
++1.59, +1.99). The mechanism is confirmed; its frequency is not.
+
+### Zero pairs pass the gate
+```
+refit: 0/14 candidates pass
+rejects {split-half: 4, mean crossings: 4, hurst: 3, hedge ratio unstable: 2,
+         half-life: 1}
+```
+The AI review called it correctly: *"A zero-pair refit is a strong regime
+signal. The rejection pattern is broad and shallow rather than concentrated in
+one gate."* Fourteen pairs failing across five different tests is a market-wide
+loss of cointegration, not one broken relationship.
+
+**We are idle until at least the next refit (~21h), and longer if it also comes
+back empty.** Idle days drag the Sharpe mean exactly like small losses, so this
+is the breadth problem at its most acute — and **there is nothing legitimate to
+do about it.** Loosening a gate to manufacture trades is the one thing this
+project refuses to do, and doing it now, after three losing trades with the
+score falling, would be the textbook version of that mistake. We wait, and the
+record says we waited rather than dressing it up.
+
+---
+
 ## Open commitments (write these down WHEN PROMISED, not later)
 
 Anything said in chat as "I'll look at that Sunday" belongs here immediately.
@@ -927,6 +983,16 @@ Phase I ends **2026-08-21**. Two reviews left.
    the optimiser's rate. Whatever it says, the change is a `min_entry_z` floor
    on top of the optimiser, disclosed as a behavioural change. **Default action
    remains no change.**
+
+   **Second question, same machinery** (added 2026-08-06): should `mu` be
+   frozen at entry for the life of a position? The trailing re-estimate closed
+   a losing trade as `reverted` on 2026-08-05 by moving the target ~1.3σ. But
+   freezing has its own failure mode — holding to a stale mean is exactly what
+   the trailing window exists to prevent — and n=1, with every other reverted
+   exit on record profitable. Run both settings through the same backtest and
+   report realised Sharpe, MDD, and the rate of loss-making `reverted` exits.
+   The new `equilibrium_reestimated` field makes that rate countable from the
+   ledger going forward. **Default action remains no change.**
 6. ~~**Did the z-stop cut two winners?**~~ **ANSWERED 2026-08-04 by
    `stop_analysis.py` — see the evening addendum.** Across all five stops the
    median overshoot is 0.2σ and three of five fire within 0.5σ of the band, so

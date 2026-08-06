@@ -545,6 +545,50 @@ in the week 2 review covers 2026-07-26 onward, and `fills_report.py` must be
 run weekly for the rest of the competition or each week's evidence expires
 before it is captured.
 
+## Addendum — a "reverted" exit that was the mean moving (2026-08-06)
+
+No change to what the agent trades. A change to what it can be caught claiming.
+
+On 2026-08-05 a short AVAX/SOL spread entered at z=+0.717 exited at z=−0.109
+tagged `reverted`, with the reasoning line *"the mean-reversion cycle
+completed."* It had not. Measured on the entry's own hedge ratio, **the spread
+ROSE 0.0101 while z fell 0.827** — they moved in opposite directions — and the
+position closed at −4.11 (`−g × Δspread = −407.3 × 0.010094`, against an
+observed equity change of −4.06).
+
+The mechanism is `mu`, not a bug. It is re-estimated at every refit as the mean
+of the last 3 half-lives of spread, and two refits fired during the 38-hour
+hold. Solving back with `sigma ≈ 0.02`, **the equilibrium moved up ~1.3σ while
+the spread rose only 0.5σ**: the reversion target chased the price and overtook
+it. This is the documented intent of a trailing mean — `BacktestConfig.z_window`
+describes it as handling "hedge-ratio error & slow regime change" — but the
+cost was never written down. **In a trending spread the trailing mean converts a
+losing position into a "reverted" exit**, and it is side-agnostic: short into a
+rising trend or long into a falling one both close at a loss reporting success.
+That is precisely the regime the same day's refit identified, with 14 of 14
+candidates failing across five different gates.
+
+Disclosed here because the reasoning text was asserting something the numbers
+contradicted, which for a Reasoning Audit is the same defect as the three
+logging holes closed on 2026-08-02.
+
+**What ships now** (additive, no behavioural change): `entry_mu` and
+`entry_sigma` are snapshotted when a position opens and carried across refits;
+`entry_frame()` reports `z_in_entry_coords`, `mu_shift_sigma` and
+`equilibrium_reestimated` on every `exit` and `stop`; and when the equilibrium
+has moved at least `MU_SHIFT_MATERIAL` (0.10σ), `reversion_note()` appends a
+sentence saying the exit is measured against a different mean than the entry,
+rather than claiming a completed cycle. Absence of the fields reads as
+*unknown*, never as *the mean held steady*. Pinned by
+`tests/test_ltp_entry_frame.py`.
+
+**What does NOT ship**: freezing `mu` at entry for the life of a position. That
+is a real behavioural change with its own failure mode — holding to a stale
+mean is exactly what the trailing window exists to prevent — and n=1. Every
+other reverted exit on record was profitable. It goes to the week 3 agenda
+alongside the entry-band simulation, to be decided on realised Sharpe and MDD
+rather than on one trade.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;
