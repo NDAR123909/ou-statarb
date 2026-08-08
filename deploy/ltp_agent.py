@@ -797,12 +797,37 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
             # No entries beyond the stop: past stop_z the working hypothesis
             # is 'relationship broke', and buying it there just schedules an
             # immediate stop-out with two round trips of fees.
+            blocked = pair.get("blocked", 0)
+            short_zone = pair["entry_z"] < z < cfg.stop_z
+            long_zone = -cfg.stop_z < z < -pair["entry_z"]
             want = 0
-            if pair["entry_z"] < z < cfg.stop_z and pair.get("blocked", 0) != -1:
+            if short_zone and blocked != -1:
                 want = -1
-            elif -cfg.stop_z < z < -pair["entry_z"] and pair.get("blocked", 0) != +1:
+            elif long_zone and blocked != +1:
                 want = +1
             if want == 0:
+                # The one-sided re-entry block used to decline entries in total
+                # silence -- `blocked` lived in runtime state and nowhere else,
+                # so a signal refused by a risk control was indistinguishable
+                # from a bar where nothing happened. That is the same gap as
+                # refit_drop and size_mult, and it is the last one known.
+                # Logged only when the block is what actually stopped the
+                # trade, never on a quiet bar.
+                if (short_zone and blocked == -1) or (long_zone and blocked == +1):
+                    heal_at = -pair["entry_z"] if blocked == +1 else pair["entry_z"]
+                    ledger("skip", pair=short_name, reason="side_blocked",
+                           z=float(z), blocked=blocked,
+                           side_wanted=-1 if short_zone else +1,
+                           entry_z=pair["entry_z"], nav=nav,
+                           reasoning=(
+                               f"Signal at z={z:+.2f} is inside the entry band "
+                               f"±{pair['entry_z']:.2f}, but this side stopped "
+                               f"out earlier and stays blocked until z heals "
+                               f"back past {heal_at:+.2f}. Re-entering the side "
+                               f"that just broke would be averaging into a "
+                               f"spread the model has already judged broken "
+                               f"once; the opposite side remains available."),
+                           **screening_provenance(sentinel, assessment, a, b))
                 continue
             g = cfg.risk_per_pair * nav / max(pair["dvol"], 1e-9)
             g = min(g, cfg.per_leg_cap_mult * nav)
