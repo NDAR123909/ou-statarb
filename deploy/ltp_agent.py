@@ -51,6 +51,13 @@ from deploy.ltp_analyst import StrategyAnalyst                       # noqa: E40
 from deploy.ltp_stream import NewsStream                             # noqa: E402
 
 
+# How far the re-estimated equilibrium has to move, in units of the entry's
+# sigma, before an exit is described as partly the target moving rather than
+# the spread returning. A tenth of a sigma is small enough to catch the effect
+# early and large enough not to annotate ordinary refit noise.
+MU_SHIFT_MATERIAL = 0.10
+
+
 def base_asset(symbol: str) -> str:
     """BINANCE_PERP_XAUT_USDT -> XAUT"""
     return symbol.split("_")[2]
@@ -296,7 +303,13 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict,
         k: {**fits[k],
             "hold": old.get(k, {}).get("hold", 0),
             "blocked": old.get(k, {}).get("blocked", 0),
-            "side": old.get(k, {}).get("side", 0)}
+            "side": old.get(k, {}).get("side", 0),
+            "notional": old.get(k, {}).get("notional"),
+            # The entry coordinates must survive the refit that replaces `mu`
+            # and `sigma`, or an open position loses all record of the
+            # equilibrium it was actually opened against.
+            "entry_mu": old.get(k, {}).get("entry_mu"),
+            "entry_sigma": old.get(k, {}).get("entry_sigma")}
         for k in keep_keys
     }
     # anything dropped by the refit gets flattened by the trade step
@@ -339,6 +352,52 @@ def leg_close(broker: RapidXBroker, pair: dict, nav: float,
         broker.close_position(sym, pos_side, max_notional=2 * nav)
     broker.op_context = {}
     pair["side"], pair["hold"] = 0, 0
+
+
+def entry_frame(pair: dict, spread: float) -> dict:
+    """Where the spread sits against the equilibrium the position was OPENED
+    on, versus the re-estimated one it is being judged by now.
+
+    `mu` and `sigma` are recomputed at every refit over a trailing
+    3*half_life window. On a trending spread the target walks toward the price
+    and can overtake it, so a position exits "reverted" having never returned
+    to where it was entered. That happened on 2026-08-05: z fell 0.83 while the
+    spread ROSE 0.0101, closing -4.11 under a reasoning line that claimed the
+    mean-reversion cycle had completed. It had not; the mean had moved.
+
+    Returns {} when there is nothing to compare -- a position opened before
+    this was recorded, or a degenerate sigma -- so callers can treat absence as
+    "unknown" rather than as agreement.
+    """
+    mu0, sig0 = pair.get("entry_mu"), pair.get("entry_sigma")
+    if mu0 is None or not sig0 or sig0 <= 0:
+        return {}
+    z_entry_frame = (spread - mu0) / sig0
+    live_mu = pair.get("mu")
+    mu_shift = None if live_mu is None else (live_mu - mu0) / sig0
+    return {
+        "z_in_entry_coords": float(z_entry_frame),
+        "mu_shift_sigma": None if mu_shift is None else float(mu_shift),
+        # The load-bearing flag: did the spread actually come back to the level
+        # we entered against, or did the reference point come to us?
+        "equilibrium_reestimated": bool(
+            mu_shift is not None and abs(mu_shift) >= MU_SHIFT_MATERIAL),
+    }
+
+
+def reversion_note(frame: dict, exit_z: float) -> str:
+    """One sentence for the reasoning log, honest about which happened."""
+    if not frame:
+        return ""
+    if not frame.get("equilibrium_reestimated"):
+        return ""
+    return (f" NOTE: the equilibrium was re-estimated by "
+            f"{frame['mu_shift_sigma']:+.2f} sigma during this hold, so the "
+            f"exit is measured against a different mean than the entry — in "
+            f"the entry's own coordinates the spread is at "
+            f"z={frame['z_in_entry_coords']:+.2f}, not inside ±{exit_z:.2f}. "
+            f"The reversion is partly the target moving, not only the spread "
+            f"returning.")
 
 
 def flatten_everything(broker: RapidXBroker, state: dict, nav: float,
@@ -863,6 +922,16 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                 broker.op_context = {}
             pair["side"], pair["hold"] = want, 0
             pair["notional"] = g
+            # Snapshot the equilibrium this position was opened against. `mu`
+            # is re-estimated every refit over a trailing 3*half_life window,
+            # so in a trending spread the target walks toward the price and can
+            # overtake it: the position then exits "reverted" while the spread
+            # never came back to where we entered. Observed 2026-08-05 -- z fell
+            # 0.83 while the spread ROSE 0.0101, a -4.11 loss on an exit whose
+            # reasoning claimed the cycle had completed. Keeping the entry
+            # coordinates lets the exit say which of the two actually happened.
+            pair["entry_mu"] = pair["mu"]
+            pair["entry_sigma"] = pair["sigma"]
             gross += add
         else:
             pair["hold"] = pair.get("hold", 0) + 1
@@ -879,11 +948,12 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
             # reachable only via the stop or the max-hold clock.
             exit_z = pair["exit_z"]
             reverted = (side > 0 and z >= -exit_z) or (side < 0 and z <= exit_z)
+            frame = entry_frame(pair, spread)
             if stopped:
                 log(f"  {short_name}: Z-STOP z={z:+.2f}, closing + blocking side")
                 ledger("stop", pair=short_name, side=side, z=z,
                        hold_bars=pair["hold"], price_a=prices[a],
-                       price_b=prices[b], nav=nav, dry=dry,
+                       price_b=prices[b], nav=nav, dry=dry, **frame,
                        reasoning=(f"Spread blew past the structural-break stop "
                                   f"(z={z:+.2f} vs stop {cfg.stop_z}). The working "
                                   f"hypothesis flips from 'temporarily stretched' "
@@ -898,6 +968,7 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                 reason_text = (
                     f"Spread reverted inside the exit band (z={z:+.2f} < "
                     f"{pair['exit_z']:.2f}); the mean-reversion cycle completed."
+                    + reversion_note(frame, exit_z)
                     if reverted else
                     f"Held {pair['hold']} bars, {cfg.max_hold_mult:.0f}x the "
                     f"fitted half-life of {pair['half_life']:.0f}h, without "
@@ -905,7 +976,7 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                     f"stop paying carry to find out how wrong.")
                 ledger("exit", pair=short_name, side=side, z=z, reason=why,
                        hold_bars=pair["hold"], price_a=prices[a],
-                       price_b=prices[b], nav=nav, dry=dry,
+                       price_b=prices[b], nav=nav, dry=dry, **frame,
                        reasoning=reason_text)
                 leg_close(broker, pair, nav, dry, decision=why)
 
