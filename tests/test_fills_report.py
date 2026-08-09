@@ -139,7 +139,8 @@ def test_a_failing_symbol_fetch_is_reported_not_swallowed():
             raise RuntimeError("upstream said no")
 
     trips = round_trips(_short_spread_round_trip())
-    stat = attach_executions(trips, Broker())
+    stat = attach_executions(trips, Broker(),
+                             now=datetime.fromisoformat('2026-08-02T12:00:00+00:00'))
     assert stat["symbols_failed"] == 2
     assert stat["legs_priced"] == 0
     # The ledger-derived entry prices survive; only the venue half is missing.
@@ -198,7 +199,8 @@ def test_exit_prices_are_recovered_from_executions_when_the_close_logged_none():
         def executions(self, order_id=None, symbol=None, **kw):
             return list(self.rows[symbol])
 
-    stat = attach_executions(trips, Broker())
+    stat = attach_executions(trips, Broker(),
+                             now=datetime.fromisoformat('2026-08-02T12:00:00+00:00'))
     assert stat["exit_prices"] == 2
     assert stat["entry_prices"] == 0      # entries already had a logged price
     assert stat["legs_unmatched"] == 0
@@ -277,7 +279,8 @@ def test_the_window_and_an_explicit_limit_reach_the_broker():
             seen.append((symbol, begin_ms, end_ms, limit))
             return []
 
-    attach_executions(round_trips(_short_spread_round_trip()), Broker())
+    attach_executions(round_trips(_short_spread_round_trip()), Broker(),
+                      now=datetime.fromisoformat('2026-08-02T12:00:00+00:00'))
     assert len(seen) == 2
     for symbol, begin_ms, end_ms, limit in seen:
         assert symbol in (A, B)
@@ -294,7 +297,8 @@ def test_hitting_the_fill_limit_is_counted_as_truncation(capsys):
             return [{"transactionId": str(i), "price": "1", "quantity": "1",
                      "createAt": "0"} for i in range(FILL_LIMIT)]
 
-    stat = attach_executions(round_trips(_short_spread_round_trip()), Broker())
+    stat = attach_executions(round_trips(_short_spread_round_trip()), Broker(),
+                             now=datetime.fromisoformat('2026-08-02T12:00:00+00:00'))
     assert stat["symbols_truncated"] == 2
     assert "truncated" in capsys.readouterr().err
 
@@ -387,3 +391,69 @@ def test_the_window_stops_asking_for_fills_the_venue_has_expired():
     assert begin_ms is not None and begin_ms < end_ms
     assert begin_ms == int((edge.timestamp() - VENUE_RETENTION_S) * 1000)
     assert begin_ms > int((entry - 3600.0) * 1000), "the floor must bind here"
+
+
+def _trip(reason, gross, fee=None):
+    """A closed round trip with a chosen exit reason and P&L."""
+    ts0, ts1 = "2026-08-02T05:00:20+00:00", "2026-08-02T09:00:10+00:00"
+    ev = {"exit": {"event": "exit", "reason": reason}}.get(
+        reason, {"event": reason})
+    rows = [
+        {"ts": ts0, "event": "enter", "pair": PAIR, "side": -1, "z": 1.0,
+         "price_a": 6.5, "price_b": 73.0},
+        _op(ts0.replace("05:00:20", "05:00:30"), "enter", A, "SELL", 100.0,
+            10.0, "e1"),
+        {"ts": ts1, "pair": PAIR, "side": -1, "z": 0.0,
+         "price_a": 6.4, "price_b": 73.0,
+         **({"event": "exit", "reason": "reverted"} if reason == "reverted"
+            else {"event": reason})},
+        _op(ts1.replace("09:00:10", "09:00:20"), reason, A, "BUY", 100.0,
+            10.0 - gross / 100.0, "x1"),
+    ]
+    return rows
+
+
+def test_pnl_is_split_by_exit_reason_with_each_bucket_s_share_of_losses():
+    """Money lost on stops is a plumbing problem; money lost on completed
+    reversions is an edge problem. A single aggregate cannot tell them apart,
+    and they call for opposite fixes."""
+    rows = []
+    for reason, gross in (("reverted", 6.0), ("reverted", -2.0),
+                          ("stop", -8.0), ("refit_drop", -2.0)):
+        for r in _trip(reason, gross):
+            r = dict(r)
+            # keep pairs distinct in time so trips do not collide
+            r["ts"] = r["ts"].replace("2026-08-02", f"2026-08-0{len(rows)//4+2}")
+            rows.append(r)
+
+    by = summarise(round_trips(rows))["pnl_by_exit_reason"]
+    assert set(by) == {"reverted", "stop", "refit_drop"}
+    assert by["reverted"]["n"] == 2
+    assert by["reverted"]["wins"] == 1
+    assert round(by["reverted"]["gross"], 2) == 4.0
+    assert round(by["stop"]["worst"], 2) == -8.0
+
+    # Losses total 12; the stop carries two thirds of them.
+    assert round(by["stop"]["losses"], 2) == 8.0
+    assert by["stop"]["share_of_all_losses"] == round(8.0 / 12.0, 3)
+    assert by["reverted"]["share_of_all_losses"] == round(2.0 / 12.0, 3)
+    assert round(sum(b["share_of_all_losses"] for b in by.values()), 2) == 1.0
+
+
+def test_a_bucket_with_no_losses_reports_zero_share_not_none():
+    rows = []
+    for i, (reason, gross) in enumerate((("reverted", 5.0), ("stop", -5.0))):
+        for r in _trip(reason, gross):
+            r = dict(r)
+            r["ts"] = r["ts"].replace("2026-08-02", f"2026-08-0{i+2}")
+            rows.append(r)
+    by = summarise(round_trips(rows))["pnl_by_exit_reason"]
+    assert by["reverted"]["losses"] == 0.0
+    assert by["reverted"]["share_of_all_losses"] == 0.0
+    assert by["stop"]["share_of_all_losses"] == 1.0
+
+
+def test_no_losses_at_all_does_not_divide_by_zero():
+    rows = _trip("reverted", 5.0)
+    by = summarise(round_trips(rows))["pnl_by_exit_reason"]
+    assert by["reverted"]["share_of_all_losses"] is None

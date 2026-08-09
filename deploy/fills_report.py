@@ -313,6 +313,38 @@ def summarise(trips: list[RoundTrip]) -> dict:
     for t in done:
         reasons[t.reason] = reasons.get(t.reason, 0) + 1
 
+    # P&L split by HOW each trade ended, and each bucket's share of the losses.
+    # Money lost on stops and refit-drops is a plumbing problem -- band
+    # geometry, monitoring interval, refit cadence. Money lost on completed
+    # reversions is an edge problem. The two call for opposite responses, and a
+    # single aggregate P&L cannot tell them apart, so several geometry
+    # arguments have been made without this number in front of them.
+    by_reason: dict[str, dict] = {}
+    loss_total = sum(-t.gross_pnl for t in done if t.gross_pnl < 0)
+    for reason in reasons:
+        # NOT `trips` -- that is this function's parameter, and shadowing it
+        # made never_opened/still_open count only the last bucket. Second
+        # shadowing bug in the same edit; both were caught by existing tests,
+        # which is the argument for having had them.
+        bucket = [t for t in done if t.reason == reason]
+        gross = [t.gross_pnl for t in bucket]
+        fees_seen = [t.fees for t in bucket if t.fees is not None]
+        # NOT `losses` -- that name already holds this function's list of
+        # losing trades, and shadowing it silently fed a float to fmean().
+        bucket_loss = sum(-g for g in gross if g < 0)
+        by_reason[reason] = {
+            "n": len(bucket),
+            "gross": round(sum(gross), 4),
+            "mean": round(statistics.fmean(gross), 4),
+            "worst": round(min(gross), 4),
+            "wins": sum(1 for g in gross if g > 0),
+            "losses": round(bucket_loss, 4),
+            # The question this exists to answer.
+            "share_of_all_losses": (round(bucket_loss / loss_total, 3)
+                                    if loss_total > 0 else None),
+            "fees": round(sum(fees_seen), 4) if fees_seen else None,
+        }
+
     # Self-diagnosis. A close decision that picked up no operations means the
     # join failed, and every downstream number is then silently missing that
     # trade rather than visibly wrong. Report it instead of absorbing it.
@@ -332,6 +364,7 @@ def summarise(trips: list[RoundTrip]) -> dict:
         "median_hold_h": round(statistics.median(holds), 2) if holds else None,
         "max_hold_h": round(max(holds), 2) if holds else None,
         "exit_reasons": reasons,
+        "pnl_by_exit_reason": by_reason,
         "close_decisions": len(closes),
         "closes_with_no_operations": orphan_closes,
         "venue_gross_pnl": (round(sum(v), 4) if (v := [t.venue_pnl for t in done
@@ -506,7 +539,8 @@ def fetch_symbol_fills(broker, symbols: list[str], stat: dict,
     return out
 
 
-def attach_executions(trips: list[RoundTrip], broker) -> dict:
+def attach_executions(trips: list[RoundTrip], broker,
+                      now: datetime | None = None) -> dict:
     """Match every leg to the venue's own fills, by symbol and time.
 
     Not by order id, which is the obvious way and does not work: `close_position`
@@ -528,7 +562,7 @@ def attach_executions(trips: list[RoundTrip], broker) -> dict:
 
     symbols = sorted({l.symbol for t in trips for l in t.legs.values()
                       if l.symbol})
-    begin_ms, end_ms = history_window(trips)
+    begin_ms, end_ms = history_window(trips, now=now)
     pools = fetch_symbol_fills(broker, symbols, stat, begin_ms, end_ms)
 
     events: list[tuple[datetime, Leg, str]] = []
@@ -649,7 +683,26 @@ def main() -> int:
     print("fills report")
     print("=" * 62)
     for k, v in s.items():
+        if k == "pnl_by_exit_reason":
+            continue                      # printed as a table below
         print(f"  {k:26s} {v}")
+
+    if s["pnl_by_exit_reason"]:
+        print("\n  P&L by exit reason  (share = fraction of ALL losses)")
+        print(f"    {'reason':12s}{'n':>4}{'w/l':>7}{'gross':>9}{'mean':>8}"
+              f"{'worst':>8}{'losses':>9}{'share':>8}")
+        for reason, b in sorted(s["pnl_by_exit_reason"].items(),
+                                key=lambda kv: kv[1]["losses"], reverse=True):
+            share = "-" if b["share_of_all_losses"] is None \
+                else f"{b['share_of_all_losses']:.0%}"
+            win_loss = "{}/{}".format(b["wins"], b["n"] - b["wins"])
+            print(f"    {reason:12s}{b['n']:>4}{win_loss:>7}"
+                  f"{b['gross']:>9.2f}{b['mean']:>8.2f}{b['worst']:>8.2f}"
+                  f"{b['losses']:>9.2f}{share:>8}")
+        print("    plumbing (stop / refit_drop / max_hold) vs edge (reverted):"
+              "\n    a large share on the first is band geometry, monitoring "
+              "interval or refit\n    cadence; a large share on reverted is the "
+              "edge itself. Opposite fixes.")
     if funding:
         print("\n  funding / statement")
         for k, v in funding.items():
