@@ -882,11 +882,16 @@ record says we waited rather than dressing it up.
 ## Week 3 — 2026-08-03 → 2026-08-09 (reviewed Sun 2026-08-09)
 
 ### Position at review
-**Figures below are the 2026-08-08 23:29 UTC reading — re-run `status.py` and
-correct them if they have moved.** Equity **1021.22**, peak 1041.19, drawdown
-1.92%, **MDD 3.7% banked**, kill switch 916.25. Holding **FIL/AR**
-(short-spread, entered 2026-08-08 21:01). 1 of 15 pairs passing. Rank last
-observed **#6** on 2026-08-04 and not refreshed since — treat as stale.
+Final reading **2026-08-09 23:24 UTC**. Equity **1024.78**, peak 1041.19,
+drawdown **1.58%**, **MDD 3.7% banked**, kill switch 916.25 with 108.53 of
+headroom. **Flat.** 1 of 15 pairs passing (FIL/AR). Rank last observed **#6** on
+2026-08-04 and not refreshed since — treat as stale, and note agenda item 4.
+
+**The week ended on a win.** FIL/AR entered 08-08 21:01, exited 08-09 23:00 on a
+reverted z=−0.06 after ~26h: **+3.56**, the first winner since Aug 1 and the
+first outside AVAX/SOL in this stretch. Its entry band also read **±0.6**, back
+up from ±0.4 — the oscillation the flat-objective finding predicts, and a
+reminder not to read a band value as a decision.
 
 **The week in one sentence:** three days with no tradeable pair, the gate
 reopened unprompted, and the loss attribution finally exists.
@@ -897,11 +902,14 @@ covers ~7 days; see retention below):
 
 | reason | n | w/l | gross | share of losses |
 |---|---|---|---|---|
-| **stop** | 2 | 0/2 | −15.89 | **80%** |
-| reverted | 10 | 9/1 | **+27.79** | 20% |
+| **stop** | 2 | 0/2 | −15.89 | **71%** |
+| reverted | 10 | 9/1 | **+27.79** | 18% |
+| refit_drop | 1 | 0/1 | −2.49 | 11% |
 
-**Total +11.90 across 12 round trips.** The reversion book is 9 wins in 10.
-**The edge is real; this is entirely a loss-control problem.**
+**Total +9.41 across 13 round trips.** The reversion book is 9 wins in 10.
+**The edge is real; this is entirely a loss-control problem.** (FIL/AR's +3.56
+is not yet in this table — it closed at 23:00, before the 23:55 cron snapshot.
+Expect 14 trips and roughly +13 next week.)
 
 But "stops carry the losses" is close to tautological — a stop *is* how a
 losing trade ends. The number that survives scrutiny is narrower, from
@@ -912,8 +920,9 @@ stop losses, all 5 stops (decision prices):   -24.90
 of which overshoot (fired LATE, not at all):  -10.67   → 43% of stop damage
 ```
 
-Against all identified losses (−24.90 stops, −4.07 the mu-drift exit, −2.49 the
-refit-drop = −31.46): **~34% of every dollar lost came from the hourly sampling
+Against all identified losses (−24.90 stops on decision prices, −4.07 the
+mu-drift exit, −2.49 the refit-drop ≈ −31.46 — the bases are mixed, so treat
+this as approximate): **roughly a third of every dollar lost came from the hourly sampling
 interval, not from any decision the strategy made.** That is the one lever with
 a measured payoff, and it is the whole case for the intra-bar monitor.
 
@@ -1062,8 +1071,8 @@ section existed; that is what it is for.
 **Phase I ends 2026-08-21 — 12 days. One more review after this one.**
 
 1. **Sub-hourly risk monitor — ship it or drop it, in writing.** The only change
-   with a measured payoff: **~34% of every dollar lost** came from stops firing
-   late. Design is settled — two-tier, the 3.5 band stays on the hourly close
+   with a measured payoff: **roughly a third of every dollar lost** came from stops
+   firing late. Design is settled — two-tier, the 3.5 band stays on the hourly close
    where it fires within 0.5σ three times in five, and a read-only intra-bar
    pass stops only past **4.0–4.5σ** (5.0 misses ETC/KAS at 4.58; 4.0 still
    clears the Aug 4 excursion that peaked at 3.38 and reverted). May only close
