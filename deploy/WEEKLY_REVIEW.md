@@ -1048,7 +1048,7 @@ section existed; that is what it is for.
 | Decide whether to **restore `risk_per_pair` 0.002 → 0.004** | 2026-07-30 | Sunday review, only if the fills analysis shows drawdown behaving |
 | Decide whether the sentinel should gain **macro-event awareness** (Fed/CPI/GDP are market-wide; our prompt is asset-specific and would rate them `none`) | 2026-07-28 | Sunday review; design question is whether market-wide risk should shrink size across all pairs, or whether the hedge already handles it |
 | **Sample the AI rationales for genuine depth**, not just presence — the audit judges logical depth, and quiet-day rationales read as boilerplate | 2026-07-27 | Sunday review |
-| ~~Reboot the droplet~~ **DONE 2026-08-06** — 19s down, hwm/bar counter/crontab all survived, first ever test. Kernel packages were kept back; `dist-upgrade` + a second reboot still pending at the next flat window | 2026-07-28 | closed |
+| ~~Reboot the droplet~~ **DONE 2026-08-06** — 19s down, hwm/bar counter/crontab all survived, first ever test. Kernel packages were kept back; `dist-upgrade` + the second reboot completed 2026-08-09 | 2026-07-28 | closed |
 | **Rotate LTP + AI keys** (pasted in chat; mitigated by IP allowlist) | 2026-07-20 | when convenient before Phase II |
 | **Give the droplet a non-interactive git credential** (deploy key or stored PAT), then extend the 23:50 UTC cron to `git add track_record/ && git commit && git push` | 2026-07-30 | next time the operator is at the droplet terminal — until then `ltp_state_history.jsonl` exists only on that machine |
 | ~~Re-check rank~~ **DONE 2026-08-02**: #2 of 29, score 94.4 | 2026-07-30 | closed |
@@ -1060,8 +1060,8 @@ section existed; that is what it is for.
 
 ---
 
-| **Restart `ltp-agent`** so `side_blocked` logging takes effect — shipped 2026-08-08, dormant until then | 2026-08-08 | next natural restart; no urgency, it only fires when a block declines a signal |
-| **`dist-upgrade` + reboot** — kernel packages were kept back on 2026-08-06 and the restart banner is up again | 2026-08-06 | next window with no open position |
+| ~~Restart for `side_blocked` logging~~ **DONE 2026-08-09 23:28** — live now, dormant until a block actually declines a signal | 2026-08-08 | closed |
+| ~~`dist-upgrade` + reboot~~ **DONE 2026-08-09 23:28** — kernel 6.8.0-136 → 137, zero updates pending, banner cleared. Second clean reboot: NRestarts=0, peak 1041.19 and the bar counter both survived | 2026-08-06 | closed |
 | **Re-merge the fills snapshots weekly** for the loss attribution — the live report only reaches back ~7 days | 2026-08-09 | each review, before writing the numbers down |
 
 ---
