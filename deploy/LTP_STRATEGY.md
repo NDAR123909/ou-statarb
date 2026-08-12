@@ -610,6 +610,106 @@ other reverted exit on record was profitable. It goes to the week 3 agenda
 alongside the entry-band simulation, to be decided on realised Sharpe and MDD
 rather than on one trade.
 
+## Addendum — a deep review run against a deadline (2026-08-12)
+
+No change to what the agent trades. This is disclosed here because a large body
+of AI analysis was produced on a schedule that was **forced rather than chosen**,
+and a later reader should not be left to infer a planned research programme.
+
+### Why it ran when it ran
+
+On 2026-08-12 the organizer wrote that Track A requires AI spend above **1 USD**
+and that teams below it are **automatically disqualified** at 13:00 GMT+8 on
+2026-08-13 (05:00 UTC). Our spend for the period was **USD 0.0036**, with about
+thirteen hours left.
+
+That we were caught by this is itself worth pre-registering. The agent is frugal
+by design, and the week 2 review measured spend at USD 0.021/day against a
+10.00/day budget and concluded the quota machinery "guards a constraint three
+orders of magnitude from binding." That sentence was true about the ceiling and
+blind to the floor. **The AI budget is a band, not a cap**, and we had modelled
+only one end of it.
+
+`deploy/ai_deep_review.py` was written that day and run three times — a 2-call
+cost probe, then 133 calls at `--max-tokens 4000`, then 133 at 8000 — ending at
+**USD 1.20119**, 20% clear of the requirement. 399 reviews in total.
+
+### What it is, and the line it does not cross
+
+It is read-only with respect to trading: no orders, no automation session, no
+writes to agent state. `tests/test_ai_deep_review.py` asserts that by source
+inspection rather than by trust, because a script written under deadline
+pressure on a live competition account is exactly the kind that acquires a
+side effect later. Every response is written to `ltp_ledger.jsonl` as an
+`ai_deep_review` event with its full text, so the Reasoning Audit sees the
+analysis rather than a spend figure.
+
+The work itself was already on the week 4 agenda and is not padding: the live
+agent only ever assesses pairs it holds, so the fourteen candidates rejected at
+each refit had never received individual analysis, and the model had never been
+asked to argue *against* our own conclusions. The system prompt instructs it to
+attack rather than approve, and the seven escalating follow-ups make each call
+carry the whole conversation, so cost scales with depth instead of repetition.
+Re-asking one question twenty times would have raised the meter equally well
+and taught us nothing — that distinction is the whole defence of this run.
+
+**Nothing in the agent's behaviour changed as a result.** The reviewer's
+recommendations converged on inaction — *"do nothing, and here is why it is not
+laziness"*, *"do not change the live rule"*, *"keep trading FIL/AR at the
+configured bands"* — which agrees with our standing default, though see the next
+section before crediting the agreement.
+
+### The prompt contained a wrong number, and it biased the answers
+
+The constraint follow-up said *"Roughly 100 USDT of drawdown headroom sits above
+the elimination floor."* It does not. Elimination is at **800 USDT** and equity
+was **1024.78**, so headroom above the floor is **224.78**. The ~100 figure is
+the distance to **our own kill switch at 916.25**, which is a self-imposed halt
+we chose, not the rule that ends the competition.
+
+Every round-5 "highest-expected-value action" answer — one per topic, 19 of them
+per pass — reasoned explicitly from that constraint, and a reviewer told it has
+half the risk budget it really has will counsel more caution than it otherwise
+would. **That layer of output is contaminated in a known direction** and should
+be read as such. Two reviewers independently attacked the figure from the inside
+without being able to check it (*"is the headroom figure real?"*), which is the
+most useful thing the run produced and is a finding about our prompt rather than
+about the market.
+
+Fixed at the source rather than only in prose, the same way `fee_label()` fixed
+the stale sweep headings: `ELIMINATION_FLOOR`, `KILL_SWITCH` and
+`EQUITY_AT_REVIEW` are named constants, `constraint_prompt()` does the
+arithmetic and states plainly which floor is ours, and `days_left()` derives the
+remaining phase length from `PHASE_I_END` instead of the hardcoded "nine days"
+that would have been wrong the following morning. Pinned by two new tests.
+
+### What is worth chasing from it, and what is not
+
+Standing caveat: this is one model arguing with itself 399 times, on no data we
+did not hand it. It is a source of hypotheses and objections, never of
+conclusions, and volume is not evidence. Three items survive that bar:
+
+- **The split-half rejections may be shock artefact rather than de-cointegration**
+  — raised unprompted across nearly every pair, and `AVAX/SOL` went further, that
+  the split-half statistics *defend* the pair. If right, the gate is rejecting on
+  the market-wide 2026-07-31 dislocation sitting inside the 960-bar lookback, which
+  bears directly on the three-day drought. Testable.
+- **Realised half-life per closed trade** as the measurement that should gate the
+  intra-bar monitor decision, in place of the reasoning the week 3 entry used.
+  `stop_geometry` grants the instinct is defensible while denying the evidence
+  supports the mechanism claimed for it.
+- **Whether the 3.5σ stop is triggering correctly at all** — a mechanical check
+  we have never run in that form.
+
+The size-reduction recommendations (`ETH/BTC` to one-third, `LINK/QNT` by half)
+are discounted hardest, being the most direct consequence of the understated
+headroom.
+
+A synthesis pass over the 399 reviews — where they converge, where they
+contradict each other, which claims survive contact with the others — is
+committed for the 2026-08-16 review. Until that exists, **no claim from this run
+has been acted on**, and this addendum should not be read as adopting any of them.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;

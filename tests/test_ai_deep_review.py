@@ -12,10 +12,14 @@ properties that keep it from becoming that.
 
 import os
 import sys
+from datetime import date
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from deploy.ai_deep_review import SYSTEM, strategy_prompts   # noqa: E402
+from deploy.ai_deep_review import (ELIMINATION_FLOOR, EQUITY_AT_REVIEW,  # noqa: E402
+                                   FOLLOWUPS, KILL_SWITCH, PHASE_I_END,
+                                   SYSTEM, constraint_prompt, days_left,
+                                   strategy_prompts)
 
 
 def test_the_reviewer_is_told_to_attack_not_approve():
@@ -73,6 +77,37 @@ def test_reviews_are_written_to_the_ledger_with_their_full_text():
     call = src[i:i + 220]
     for field in ("topic=", "model=", "review=text"):
         assert field in call, field
+
+
+def test_the_constraint_prompt_does_not_confuse_the_two_floors():
+    """The first pass told the reviewer it had "roughly 100 USDT of drawdown
+    headroom above the elimination floor". That 100 is the distance to our own
+    kill switch; the floor is more than twice as far. Every highest-EV answer
+    in that pass was reasoning from half the real risk budget, and two
+    reviewers smelled it without being able to see it. Pinned, not trusted.
+    """
+    p = constraint_prompt(date(2026, 8, 12))
+    assert "{:.2f}".format(EQUITY_AT_REVIEW - ELIMINATION_FLOOR) in p
+    assert "{:.2f}".format(EQUITY_AT_REVIEW - KILL_SWITCH) in p
+    # The kill switch has to be labelled as our choice, or the reviewer reads
+    # the nearer number as the one that ends the competition -- which is
+    # exactly the error being fixed.
+    assert "self-imposed" in p
+    # And the two must stay distinguishable: our halt fires first, by design.
+    assert ELIMINATION_FLOOR < KILL_SWITCH < EQUITY_AT_REVIEW
+    # The wrong figure must not survive anywhere in the asked prompts.
+    assert not any("100 USDT of drawdown headroom" in f for f in FOLLOWUPS)
+
+
+def test_days_remaining_is_derived_rather_than_typed():
+    """"Nine days remain" was written into the prompt on 2026-08-12 and would
+    have been silently wrong on the 13th. Three tests rotted on the calendar in
+    week 3 and failed loudly; a prompt rots in silence, so derive it."""
+    assert days_left(date(2026, 8, 12)) == 9
+    assert days_left(date(2026, 8, 20)) == 1
+    assert days_left(PHASE_I_END) == 0
+    assert days_left(date(2026, 9, 1)) == 0          # never negative
+    assert "9 days remain" in constraint_prompt(date(2026, 8, 12))
 
 
 def test_it_places_no_orders_and_touches_no_agent_state():

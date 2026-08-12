@@ -54,6 +54,13 @@ Hard exit: **equity < 800 USDT** → forced liquidation and elimination.
   rollover. They verify by correlating AI decision logs with executed orders,
   and warn that trading with zero/non-strategy AI usage may be read as "not an
   AI-driven process". Enforced in code by `LTP_COMPETITION_MODE=1`.
+- **AI spend is a BAND, not a cap: minimum USD 1, maximum USD 10/day.** The
+  floor is enforced by disqualification and it nearly ended our competition on
+  2026-08-12 (see that addendum). Week 2 measured spend at 0.021/day and called
+  the quota machinery "three orders of magnitude from binding" — true of the
+  ceiling, blind to the floor. **Check `spend` against BOTH ends at every
+  review**: `GET https://ai.ltp-contest.com/key/info`. A frugal agent is not
+  automatically a compliant one.
 - **Leverage**: max 2× opening leverage. All 28 whitelist symbols were set to
   2× on 2026-07-20 via `deploy/set_leverage.py` (re-run it if symbols reset).
 - **Never place manual orders through the LTP web UI** — an unlogged order
@@ -1037,6 +1044,118 @@ If it goes red, **append to this log — never touch the date.**
 
 ---
 
+## Post-review addendum — 2026-08-12: near-disqualification on AI spend
+
+**We came within about thirteen hours of being thrown out of the competition,
+for a reason nothing in this record had flagged as a risk.**
+
+### What happened
+
+The organizer emailed: Track A requires AI spend above **1 USD**, and teams
+below it are **automatically disqualified** at 13:00 GMT+8 on 2026-08-13
+(05:00 UTC). Our spend for the period was **USD 0.0036**.
+
+The cause is a blind spot this log helped create. The week 2 entry measured
+spend at USD 0.021/day against a 10.00/day budget and concluded the quota
+machinery "guards a constraint three orders of magnitude from binding." True of
+the ceiling. There is also a **floor**, and we were two orders of magnitude
+*under* that one. The standing-context block above now states the band at both
+ends, because the week 2 sentence would otherwise have gone on reassuring
+future sessions about the wrong side of the constraint.
+
+Nothing about the agent was wrong. It is frugal by design and the frugality was
+never the problem — the problem is that a rule existed which we had modelled
+only halfway, and no amount of care about the half we understood would have
+caught it.
+
+### How it was cleared
+
+`deploy/ai_deep_review.py`, written and shipped the same day, run three times:
+
+| pass | calls | spend after | per call |
+|---|---|---|---|
+| probe | 2 | $0.00359 → $0.00521 | $0.00131 |
+| `--rounds 7 --max-tokens 4000` | 133 | **$0.39646** | $0.00257 |
+| `--rounds 7 --max-tokens 8000` | 133 | **$0.79932** | $0.00300 |
+| `--rounds 7 --max-tokens 8000` | 133 | **$1.20119** | $0.00299 |
+
+**399 reviews, final spend $1.20119** — 20% clear of the requirement, banked
+inside the current budget period (`budget_reset_at` 2026-08-13 16:00 UTC falls
+*after* the 05:00 UTC deadline, so the reset cannot claw it back).
+
+The design decision that makes this defensible rather than padding: the seven
+follow-ups **escalate**, and each call carries the whole conversation, so cost
+scales with depth rather than repetition. Re-asking one question 399 times
+would have moved the meter identically and taught us nothing. The analysis
+itself was already on the week 4 agenda — the fourteen candidates rejected at
+each refit had never had individual review, and the model had never been asked
+to argue against us. Read-only with respect to trading, pinned by source
+inspection in `tests/test_ai_deep_review.py`. Full disclosure in
+LTP_STRATEGY.md, including that the timing was forced.
+
+### I put a wrong number in the prompt and it biased 19 answers per pass
+
+The constraint follow-up read *"Roughly 100 USDT of drawdown headroom sits above
+the elimination floor."* Elimination is at **800**; equity was **1024.78**;
+headroom above the floor is **224.78**. The ~100 is the distance to **our own
+kill switch at 916.25** — a self-imposed halt, not the competition's exit.
+
+Every round-5 "highest-expected-value action" reasoned from it explicitly, and
+a reviewer told it has half its real risk budget will counsel more caution than
+it should. **That layer is contaminated in a known direction.** Two reviewers
+attacked the figure from the inside without being able to check it — *"is the
+headroom figure real?"* — which is the single most useful output of the run and
+is a finding about my prompt, not about the market.
+
+Fixed at the source, not just in prose: `ELIMINATION_FLOOR`, `KILL_SWITCH` and
+`EQUITY_AT_REVIEW` are named constants; `constraint_prompt()` does the
+arithmetic and says which floor is ours; `days_left()` derives the phase length
+from `PHASE_I_END` rather than the hardcoded "nine days" that would have been
+wrong the next morning. Two new tests, 177 total.
+
+**The pattern is the one from 2026-08-04**: I reached for a framing before
+checking whether the instrument said what I thought. There the sweep labels had
+gone stale; here the headroom figure conflated two floors. Both times the fix
+was to derive the number instead of typing it.
+
+### What the reviewer found — hypotheses, not conclusions
+
+One model arguing with itself 399 times, on no data we did not hand it. Volume
+is not evidence. Three items clear that bar and go to the synthesis pass:
+
+- **The split-half rejections may be shock artefact rather than
+  de-cointegration** — raised unprompted across nearly every pair, and
+  `AVAX/SOL` r1 argues the split-half statistics actively *defend* the pair. If
+  right, the gate is rejecting on the market-wide 2026-07-31 dislocation now
+  sitting inside the 960-bar lookback — which is precisely the hypothesis the
+  week 3 entry raised and considered falsified by KAS/ETC passing on Aug 7.
+  Worth a second look because it arrives from an independent direction.
+- **Realised half-life per closed trade** as the measurement that should gate
+  the intra-bar monitor, rather than the reasoning week 3 used. `stop_geometry`
+  r1 grants the instinct is defensible and denies the evidence supports the
+  mechanism claimed — which is a sharper objection than agreement would have been.
+- **Whether the 3.5σ stop triggers correctly at all** (`ADA/DOT` r6) — mechanical,
+  never checked in that form.
+
+Discounted hardest: the size-reduction advice (`ETH/BTC` to one-third,
+`LINK/QNT` by half), being the most direct consequence of the bad headroom.
+
+**Nothing here has been acted on**, and week 4 item 1 is not pre-empted by it.
+
+### Record hygiene done in the same pass
+
+Running the cold-start protocol surfaced four defects in this file, fixed now:
+`be4fab2` and `66ac146` had shipped `ai_deep_review.py` with no log line (the
+exact drift the read order exists to catch); three commitment rows had been
+stranded *below* the table's closing rule, one of them open; and two rows
+already decided at the week 3 review were still listed as pending. Also worth
+knowing for anyone reading the repo as live truth: **`deploy/ltp_hwm.json` in
+git says `peak_equity: 1000.0`** (live is 1041.19) and **`track_record/equity.csv`
+is the Alpaca paper record**, flat at 100000 — neither is the competition
+account.
+
+---
+
 ## Open commitments (write these down WHEN PROMISED, not later)
 
 Anything said in chat as "I'll look at that Sunday" belongs here immediately.
@@ -1045,30 +1164,37 @@ section existed; that is what it is for.
 
 | promised | on | trigger / when |
 |---|---|---|
-| Decide whether to **restore `risk_per_pair` 0.002 → 0.004** | 2026-07-30 | Sunday review, only if the fills analysis shows drawdown behaving |
+| ~~Decide whether to **restore `risk_per_pair` 0.002 → 0.004**~~ **DECIDED 2026-08-09: HOLD at 0.002** | 2026-07-30 | closed — see the row below for the reasoning, and the week 3 "Decisions taken" |
 | Decide whether the sentinel should gain **macro-event awareness** (Fed/CPI/GDP are market-wide; our prompt is asset-specific and would rate them `none`) | 2026-07-28 | Sunday review; design question is whether market-wide risk should shrink size across all pairs, or whether the hedge already handles it |
-| **Sample the AI rationales for genuine depth**, not just presence — the audit judges logical depth, and quiet-day rationales read as boilerplate | 2026-07-27 | Sunday review |
+| ~~**Sample the AI rationales for genuine depth**~~ **CLOSED 2026-08-04, nothing to fix** — `ai_spread_assessment` n=300, median 54 words, `max_tokens` never binding; the sampled rationales cite the z path, half-life and band. The "~22 tokens per call" that raised this divided a rolling-window count by a lifetime count | 2026-07-27 | closed |
 | ~~Reboot the droplet~~ **DONE 2026-08-06** — 19s down, hwm/bar counter/crontab all survived, first ever test. Kernel packages were kept back; `dist-upgrade` + the second reboot completed 2026-08-09 | 2026-07-28 | closed |
 | **Rotate LTP + AI keys** (pasted in chat; mitigated by IP allowlist) | 2026-07-20 | when convenient before Phase II |
 | **Give the droplet a non-interactive git credential** (deploy key or stored PAT), then extend the 23:50 UTC cron to `git add track_record/ && git commit && git push` | 2026-07-30 | next time the operator is at the droplet terminal — until then `ltp_state_history.jsonl` exists only on that machine |
 | ~~Re-check rank~~ **DONE 2026-08-02**: #2 of 29, score 94.4 | 2026-07-30 | closed |
-| ~~Restore `risk_per_pair` 0.002 → 0.004~~ **APPROVED 2026-08-02, HELD the same evening** | 2026-07-30 | The position condition was met at 18:00 (stopped at z=+3.63) but the second-pair condition was not, and both sides of AVAX/SOL stopped inside 31 hours — new adverse evidence after the approval. **Re-decide at the Sun 2026-08-09 review** on: has selection produced a second pair, and has the pair stopped whipsawing. If we are still on one pair and it has settled, execute anyway and record that the concentration was accepted deliberately. Do NOT execute on a week where the only pair has just stopped twice |
+| ~~Restore `risk_per_pair` 0.002 → 0.004~~ **APPROVED 2026-08-02, HELD the same evening, and DECIDED AGAINST at the 2026-08-09 review** | 2026-07-30 | **closed.** Sizing is scale-invariant in Sharpe, so a restore buys the 45% of the score made of PnL and ROI while doing nothing for the 40% made of Sharpe, and roughly doubles the MDD we still lead on. The organizer's 2026-08-04 Quant Tip reaches the same place from the scoring side. Re-opening this needs a new argument, not the old one |
 | **Report the header-only CSV exports to the organizers** — order, transaction and position history all export zero rows | 2026-08-02 | next organizer contact; a broken data export in a competition judged on auditability is worth raising |
-| **Decide on the sub-hourly risk check** (read-only pass that may only close or stop, never open). Measured cost of not having it: ~4.7 USDT on one trade | 2026-08-02 | week 3 review — needs a design, not a hunch |
+| **Decide on the sub-hourly risk check** (read-only pass that may only close or stop, never open). Measured cost of not having it: −10.67 across five stops, ~a third of all losses | 2026-08-02 | **carried to the Sun 2026-08-16 review as agenda item 1 — ship it or drop it in writing.** Design is settled (two-tier, 4.0–4.5σ intra-bar); what is left is the judgement call, with Phase I ending 08-21 |
 | ~~Schedule `fills_report.py`~~ **DONE 2026-08-02**, daily at 23:55. Without it this week's loss attribution would not exist — retention had already eaten the live window | 2026-08-02 | closed |
 | ~~Restart for `taker_fee`~~ **DONE 2026-08-02 20:54** | 2026-08-02 | closed |
-
----
-
 | ~~Restart for `side_blocked` logging~~ **DONE 2026-08-09 23:28** — live now, dormant until a block actually declines a signal | 2026-08-08 | closed |
 | ~~`dist-upgrade` + reboot~~ **DONE 2026-08-09 23:28** — kernel 6.8.0-136 → 137, zero updates pending, banner cleared. Second clean reboot: NRestarts=0, peak 1041.19 and the bar counter both survived | 2026-08-06 | closed |
 | **Re-merge the fills snapshots weekly** for the loss attribution — the live report only reaches back ~7 days | 2026-08-09 | each review, before writing the numbers down |
+| **Synthesise the 399 deep reviews** — where they converge, where they contradict each other, which claims survive contact with the others. Discount the round-5 layer, which reasoned from the understated headroom | 2026-08-12 | Sun 2026-08-16 review. Until it exists, no claim from that run has been acted on |
+| **Check AI `spend` against BOTH ends of the band** (min USD 1, max 10/day) at every review — the floor is what nearly disqualified us on 2026-08-12 | 2026-08-12 | every review, and before Phase II opens |
+
+> **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
+> *below* the closing horizontal rule since 2026-08-09 — outside the table, where
+> the next review would likely not have read them, and one of them was open.
+> Merged back in. If rows appear below a `---` again, that is the bug, not a
+> section break.
 
 ---
 
 ## Week 4 agenda — review due Sun 2026-08-16
 
-**Phase I ends 2026-08-21 — 12 days. One more review after this one.**
+**Phase I ends 2026-08-21.** The review on 08-16 is the last one inside the
+phase. (This line read "12 days" when written on 08-09; countdowns rot, so the
+date is what is stated. It was 9 days out on 2026-08-12.)
 
 1. **Sub-hourly risk monitor — ship it or drop it, in writing.** The only change
    with a measured payoff: **roughly a third of every dollar lost** came from stops
@@ -1090,7 +1216,14 @@ section existed; that is what it is for.
    `response_keys` it now records rather than probing live again.
 4. **Self-ranking endpoint into `status.py`** — carried three times. **Do it or
    delete it from the agenda**; carrying it a fourth time is just noise.
-5. **Phase I close-out preparation.** Whatever the post-mortem needs must exist
+5. **Synthesise the 399 deep reviews** (added 2026-08-12). Where they converge,
+   where they contradict each other, and which claims survive contact with the
+   others — discounting the round-5 layer, which reasoned from an understated
+   headroom figure. Three candidates are already named in that addendum: the
+   split-half-as-shock-artefact reading, realised half-life per closed trade as
+   the gate on item 1, and whether the 3.5σ stop triggers correctly at all.
+   **The output is a list of testable claims, not a list of changes.**
+6. **Phase I close-out preparation.** Whatever the post-mortem needs must exist
    before Aug 21: the fills snapshots keep rolling, but decide now what else
    expires. Draft the honest write-up — backtest 0.36 net Sharpe OOS versus what
    actually happened, including that the headline live Sharpe was never real.

@@ -46,7 +46,7 @@ import json
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -116,6 +116,53 @@ def ask(client, messages: list[dict], max_tokens: int = 4000) -> str | None:
         return None
 
 
+# ---------------------------------------------------------- the risk facts --
+# Three different numbers, two of which the first review pass conflated. The
+# constraint follow-up used to read "roughly 100 USDT of drawdown headroom sits
+# above the elimination floor". That 100 is the distance to OUR OWN kill
+# switch; the distance to the competition's elimination floor is more than
+# twice it. Every "highest-expected-value action" answer in that pass therefore
+# reasoned from half the real risk budget -- and two reviewers independently
+# smelled it without being able to see it ("is the headroom figure real?").
+#
+# Kept as named constants with the arithmetic done in the prompt rather than
+# typed into prose, for the same reason `band_diagnostic.fee_label()` exists:
+# a number written out by hand goes stale in silence, and a stale number inside
+# a prompt is indistinguishable, to whoever reads the output, from a lie.
+PHASE_I_END = date(2026, 8, 21)
+ELIMINATION_FLOOR = 800.0     # competition rule: equity below this is out
+KILL_SWITCH = 916.25          # ours, self-imposed; halts and flattens first
+EQUITY_AT_REVIEW = 1024.78    # 2026-08-09 23:24 UTC, last verified reading
+
+
+def days_left(today: date | None = None) -> int:
+    """Days remaining in Phase I, derived rather than typed.
+
+    "Nine days remain" was written into the prompt on 2026-08-12 and would have
+    been quietly wrong on the 13th -- the same calendar rot that made three
+    tests fail in week 3, except a test fails loudly and a prompt does not.
+    """
+    return max(0, (PHASE_I_END - (today or date.today())).days)
+
+
+def constraint_prompt(today: date | None = None) -> str:
+    """The risk budget, stated so the two floors cannot be confused again."""
+    return (
+        "{d} days remain in the phase. Equity is {eq:.2f} USDT against a "
+        "competition elimination floor of {floor:.0f} -- {to_floor:.2f} USDT "
+        "of headroom. Our own kill switch sits higher, at {ks:.2f}, only "
+        "{to_ks:.2f} away, but that is a self-imposed halt we chose and not "
+        "the rule that ends the competition; do not conflate the two. Max "
+        "drawdown is already banked at 3.7%, and Phase I advancement is "
+        "assured regardless of rank. Under those constraints specifically, "
+        "what is the single highest-expected-value action, and what does "
+        "doing nothing actually cost?"
+    ).format(d=days_left(today), eq=EQUITY_AT_REVIEW,
+             floor=ELIMINATION_FLOOR,
+             to_floor=EQUITY_AT_REVIEW - ELIMINATION_FLOOR,
+             ks=KILL_SWITCH, to_ks=EQUITY_AT_REVIEW - KILL_SWITCH)
+
+
 # Escalating follow-ups, asked in order. Each turn carries the whole
 # conversation, so the reviewer cannot retreat to generalities and the cost
 # rises with the depth rather than with repetition -- re-asking the same
@@ -137,11 +184,7 @@ FOLLOWUPS = [
     "distribution of exit reasons -- and state what observation would falsify "
     "you. A log query has to be able to check each one.",
 
-    "Nine days remain in the phase. Roughly 100 USDT of drawdown headroom sits "
-    "above the elimination floor, max drawdown is already banked at 3.7%, and "
-    "Phase I advancement is assured regardless of rank. Under those "
-    "constraints specifically, what is the single highest-expected-value "
-    "action, and what does doing nothing actually cost?",
+    constraint_prompt(),
 
     "What have the operators not asked you about this that they should have? "
     "Identify the assumption in the framing itself that you think is most "
