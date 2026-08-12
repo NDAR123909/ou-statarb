@@ -35,7 +35,7 @@ to agent state. It touches the ledger and nothing else.
 
     set -a; source /root/ltp.env; set +a
     python deploy/ai_deep_review.py --probe            # 2 calls, measure cost
-    python deploy/ai_deep_review.py --target 1.20      # run until spend clears
+    python deploy/ai_deep_review.py --target 1.20 --rounds 7
     python deploy/ai_deep_review.py --target 1.20 --max-calls 200
 """
 
@@ -105,15 +105,57 @@ def spend_now() -> float | None:
     return None
 
 
-def ask(client, prompt: str, max_tokens: int = 2000) -> str | None:
+def ask(client, messages: list[dict], max_tokens: int = 4000) -> str | None:
     try:
         msg = client.messages.create(
             model=model_name(), max_tokens=max_tokens, system=SYSTEM,
-            messages=[{"role": "user", "content": prompt}])
+            messages=messages)
         return "".join(getattr(b, "text", "") for b in msg.content).strip()
     except Exception as exc:                             # noqa: BLE001
         print(f"  call failed: {str(exc)[:200]}", file=sys.stderr)
         return None
+
+
+# Escalating follow-ups, asked in order. Each turn carries the whole
+# conversation, so the reviewer cannot retreat to generalities and the cost
+# rises with the depth rather than with repetition -- re-asking the same
+# question twenty times would be padding, and would also tell us nothing new.
+FOLLOWUPS = [
+    "Name the single measurement that would most change your answer. Specify "
+    "exactly how to compute it from an hourly log-price panel and a trade "
+    "ledger containing entry/exit z, prices, sizes and exit reasons -- "
+    "precisely enough that someone could implement it without asking you a "
+    "follow-up question.",
+
+    "Now argue the OPPOSITE of what you just concluded, as strongly as the "
+    "numbers permit. Then say which of the two positions the given evidence "
+    "actually supports better, and by how much. If the evidence genuinely "
+    "cannot separate them, say that instead of picking.",
+
+    "If you are right, what should the next 20 round trips look like? Give "
+    "concrete, checkable predictions -- hit rate, median hold, stop rate, "
+    "distribution of exit reasons -- and state what observation would falsify "
+    "you. A log query has to be able to check each one.",
+
+    "Nine days remain in the phase. Roughly 100 USDT of drawdown headroom sits "
+    "above the elimination floor, max drawdown is already banked at 3.7%, and "
+    "Phase I advancement is assured regardless of rank. Under those "
+    "constraints specifically, what is the single highest-expected-value "
+    "action, and what does doing nothing actually cost?",
+
+    "What have the operators not asked you about this that they should have? "
+    "Identify the assumption in the framing itself that you think is most "
+    "likely to be wrong, and say how it would show up in the data if it were.",
+
+    "You have now made several claims across this conversation. Rank them by "
+    "how confident you are, and for each of the bottom three say what is thin "
+    "about the evidence. Be specific about sample sizes and about which "
+    "numbers you were given versus which you inferred.",
+
+    "Summarise the whole exchange as an instruction set: what to change, what "
+    "to leave alone, what to measure first, and in what order. Keep every item "
+    "tied to a number that appeared in this conversation.",
+]
 
 
 # ----------------------------------------------------------- the prompts --
@@ -278,7 +320,10 @@ def main() -> int:
     ap.add_argument("--max-calls", type=int, default=120)
     ap.add_argument("--probe", action="store_true",
                     help="two calls only, to measure cost per call")
-    ap.add_argument("--max-tokens", type=int, default=2000)
+    ap.add_argument("--max-tokens", type=int, default=4000)
+    ap.add_argument("--rounds", type=int, default=1,
+                    help="follow-up turns per topic; each carries the whole "
+                         "conversation, so depth costs more than repetition")
     args = ap.parse_args()
 
     client = organizer_client()
@@ -308,15 +353,29 @@ def main() -> int:
             if cur is not None and cur >= args.target:
                 print(f"target ${args.target:.2f} reached at ${cur:.5f}")
                 break
-        text = ask(client, prompt, max_tokens=args.max_tokens)
-        calls += 1
-        if not text:
-            continue
-        ledger("ai_deep_review", topic=topic, model=model_name(),
-               prompt_chars=len(prompt), review=text)
-        head = " ".join(text.split())[:150]
-        print(f"  [{calls:>3}] {topic:<14} {len(text):>5} chars  {head}...")
-        time.sleep(0.4)          # gentle on the gateway
+        msgs: list[dict] = [{"role": "user", "content": prompt}]
+        for rnd in range(1, args.rounds + 1):
+            if calls >= args.max_calls:
+                break
+            text = ask(client, msgs, max_tokens=args.max_tokens)
+            calls += 1
+            if not text:
+                break
+            msgs.append({"role": "assistant", "content": text})
+            ledger("ai_deep_review", topic=topic, round=rnd,
+                   model=model_name(),
+                   prompt_chars=sum(len(m["content"]) for m in msgs),
+                   review=text)
+            head = " ".join(text.split())[:110]
+            print(f"  [{calls:>3}] {topic:<14} r{rnd} {len(text):>5}c  {head}...")
+            time.sleep(0.4)      # gentle on the gateway
+            if rnd < args.rounds:
+                msgs.append({"role": "user",
+                             "content": FOLLOWUPS[(rnd - 1) % len(FOLLOWUPS)]})
+            if args.target is not None:
+                cur = spend_now()
+                if cur is not None and cur >= args.target:
+                    break
 
     end = spend_now()
     print(f"\ncalls: {calls}")
