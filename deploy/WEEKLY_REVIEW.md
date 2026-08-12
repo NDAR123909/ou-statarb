@@ -879,6 +879,164 @@ record says we waited rather than dressing it up.
 
 ---
 
+## Week 3 — 2026-08-03 → 2026-08-09 (reviewed Sun 2026-08-09)
+
+### Position at review
+Final reading **2026-08-09 23:24 UTC**. Equity **1024.78**, peak 1041.19,
+drawdown **1.58%**, **MDD 3.7% banked**, kill switch 916.25 with 108.53 of
+headroom. **Flat.** 1 of 15 pairs passing (FIL/AR). Rank last observed **#6** on
+2026-08-04 and not refreshed since — treat as stale, and note agenda item 4.
+
+**The week ended on a win.** FIL/AR entered 08-08 21:01, exited 08-09 23:00 on a
+reverted z=−0.06 after ~26h: **+3.56**, the first winner since Aug 1 and the
+first outside AVAX/SOL in this stretch. Its entry band also read **±0.6**, back
+up from ±0.4 — the oscillation the flat-objective finding predicts, and a
+reminder not to read a band value as a decision.
+
+**The week in one sentence:** three days with no tradeable pair, the gate
+reopened unprompted, and the loss attribution finally exists.
+
+### The loss attribution — the main event, and it changes the framing
+Merged across the archived daily `fills_*.json` snapshots (the live report only
+covers ~7 days; see retention below):
+
+| reason | n | w/l | gross | share of losses |
+|---|---|---|---|---|
+| **stop** | 2 | 0/2 | −15.89 | **71%** |
+| reverted | 10 | 9/1 | **+27.79** | 18% |
+| refit_drop | 1 | 0/1 | −2.49 | 11% |
+
+**Total +9.41 across 13 round trips.** The reversion book is 9 wins in 10.
+**The edge is real; this is entirely a loss-control problem.** (FIL/AR's +3.56
+is not yet in this table — it closed at 23:00, before the 23:55 cron snapshot.
+Expect 14 trips and roughly +13 next week.)
+
+But "stops carry the losses" is close to tautological — a stop *is* how a
+losing trade ends. The number that survives scrutiny is narrower, from
+`stop_analysis`:
+
+```
+stop losses, all 5 stops (decision prices):   -24.90
+of which overshoot (fired LATE, not at all):  -10.67   → 43% of stop damage
+```
+
+Against all identified losses (−24.90 stops on decision prices, −4.07 the
+mu-drift exit, −2.49 the refit-drop ≈ −31.46 — the bases are mixed, so treat
+this as approximate): **roughly a third of every dollar lost came from the hourly sampling
+interval, not from any decision the strategy made.** That is the one lever with
+a measured payoff, and it is the whole case for the intra-bar monitor.
+
+Missing from the merge and worth knowing: the Jul 26 TAO/RENDER stop (aged out
+before the first cron snapshot overwrote the manual run) and week 1 entirely.
+
+### The three-day drought, and a hypothesis that partly failed
+```
+Aug 5  0/14 pass   Aug 6  0/15 pass   Aug 7  1/15 pass  → KAS|ETC
+```
+Rejects were broad and shallow across six gates on both zero days — the AI
+review called it correctly twice: *"not concentrated in any single failure
+mode."* Equity was flat ~60 hours.
+
+I hypothesised that the 960-bar (~40 day) lookback now contains the Jul 31–Aug 1
+market-wide sell-off, breaking split-half stability across the board, with the
+implication that it might not clear before Aug 21. **KAS/ETC passing on Aug 7
+falsifies the alarming form of that** — a poisoned window would clear nothing.
+The weak form survives (pairs whose legs moved together still pass) but that is
+just the gate working. **The "we may not trade again this phase" fear is dead.**
+
+**Idle is much cheaper than losing.** A zero-return day sits ~0.12% below our
+daily mean; the Aug 2 loss day was ~0.8% below it, and variance punishes
+distance quadratically. Three idle days cost roughly 10% of Sharpe against the
+**44%** one loss day cost (9.30 → 5.66). Standing flat in a regime with no
+dependable spread is the cheap outcome, and **no gate was loosened to
+manufacture a trade** — recorded as a decision, not an oversight.
+
+### `refit_drop` fired live for the first time
+KAS/ETC was dropped by the 2026-08-08 21:01 refit at z=+1.97 and flattened,
+with a proper decision record and reasoning. Before the 2026-08-02 fix that
+close would have been two orphan `operation` rows tagged `decision="close"`
+with nothing behind them. Cost −2.49 on a 24h hold.
+
+Note the orientation: **`KAS|ETC`, the opposite of the `ETC/KAS` that stopped on
+Jul 20.** The vol rule flipped it, so it is a different regression and a
+different spread — not the same relationship returning.
+
+### Week 2 agenda outcomes
+| # | item | outcome |
+|---|---|---|
+| 1 | AI reasoning depth | **CLOSED, nothing built** — premise was a rolling-window count divided by a lifetime count. Median 54 words, n=300, `max_tokens` never binding |
+| 2 | `risk_per_pair` re-decide | **HOLD at 0.002**, reaffirmed. Organizer's Quant Tip corroborates from the scoring side |
+| 3 | Verify the logging fixes fire | **`refit_drop` confirmed live.** `size_reduced` and close-price not yet exercised — carried |
+| 4 | Sub-hourly risk check | designed, threshold **measured at 4.0–4.5σ**, NOT shipped — carried |
+| 5 | Entry-band / freeze-`mu` simulation | not done — carried, and it is now the gate on two open questions |
+| 6 | Did the z-stop cut winners | **ANSWERED** — median overshoot 0.2σ, level is fine, interval is the defect |
+| 7 | Self-ranking into `status.py` | not done — **carried a third time** |
+| 8 | `fills_report` on a schedule | **DONE** — daily 23:55 since Aug 2, and it is the only reason the attribution above exists |
+
+### The operator's throughput/geometry list — assessed 2026-08-08
+Nine items proposed. **Two shipped, seven declined with evidence.** Recorded so
+they are not re-proposed from scratch:
+
+| proposal | verdict |
+|---|---|
+| Loss attribution before changing anything | **SHIPPED** — and it was the right first move |
+| Log blocked entries | **SHIPPED** as `skip`/`side_blocked`; last known logging gap |
+| Lengthen refit interval / exempt open positions | **No.** Median hold **2.0h** against a 24h interval; refit-drops are ~10% of closes. Exempting means holding pairs that just failed split-half — the failure mode the gate exists for |
+| `exit_z` 0.0 → 0.15 | **No.** 13 of 13 exits were `reverted`, **zero** hit `max_hold`, so nothing hovers. And 0.25 was on the optimiser's grid and lost to 0.0 for all 15 pairs at all 4 fee levels |
+| Pull `stop_z` in to 1.0–1.2 | **No.** Leaves 0.6σ between entry and stop. Week 1 ran **0.19–0.48σ** of room and produced a 50% stop rate — this rebuilds the failure the corrected bands fixed |
+| Deduplicate block logic (`ltp_agent` vs `run_strategy`) | **Real, wrong timing.** Refactoring the live trading loop for zero behavioural benefit at 12 days out. Post-competition |
+| Hedge drift on long holds | **No.** Measured 4% on a 2.0h median hold |
+| Confirm the ±0.6 → ±0.4 band change | **Mine, and disclosed** — a consequence of `taker_fee` 5e-4 → 2e-4, reported 2026-08-03, cause corrected 2026-08-04, in LTP_STRATEGY.md |
+| Restart-required banner | next flat window, with `dist-upgrade` |
+
+### Smaller findings
+- **Funding flipped positive: +0.385 across 66 settlements** (was −0.024 across
+  34). We are net *receiving*. Still trivial at 0.04% of NAV, but the sign
+  changed and the earlier figure is superseded.
+- **Ignore `measured_fee_bps_per_side: 1.48`** from the short window — 12 legs
+  against 70 unmatched means fees and notional cover different trades. **The
+  1.75 bps from 22 complete fills stands.**
+- The mu-drift exit prices out at **−4.07** against the −4.06 derived from the
+  equity delta. That reconciliation closes.
+- **Retention ate the executions window.** The live report now covers 3 round
+  trips; everything older is only in the dated snapshots. The Aug 2 cron
+  decision is what makes this week's headline number possible at all.
+
+### Process incident — CI, and a rebase that reset the droplet
+Three tests compared hardcoded 2026-08-02 fixtures against the wall clock. Once
+those aged past the 6.5-day retention clamp they began failing — **tests that
+expire on a calendar, failing loudly for the wrong reason.** Fixed by injecting
+the clock (`attach_executions(..., now=)`).
+
+PR #25 merged *before* the fix landed, so main went red on `26fc4b6`. The branch
+was rebased onto main and force-pushed, which required
+`git reset --hard origin/<branch>` on the droplet rather than a pull — the
+force-push hazard flagged when #25 was opened. All untracked live state
+(`ltp_state.json`, `ltp_ledger.jsonl`, `ltp_hwm.json`, the fills snapshots)
+survived. PR #26 merged the fix.
+
+Two corrections from this: **rebase onto main before pushing follow-up work
+after a merge**, and — correcting a claim I made — **commits pushed by Actions
+using `GITHUB_TOKEN` do not trigger other workflows**, so the daily
+`track_record` pushes never re-ran CI. Main held one stale red result rather
+than accumulating new ones.
+
+One deliberate calendar-dependent test remains: `test_review_log_is_not_stale`.
+If it goes red, **append to this log — never touch the date.**
+
+### Decisions taken
+- **`stop_z` stays at 3.5.** Median overshoot 0.2σ; three of five stops fired
+  within 0.5σ of the band. The level is fine.
+- **Entry band unchanged**, pending the simulation. The optimiser's objective is
+  flat within 4% from 0.3 to 0.8, so the band is nearly free to it — but wider
+  bands make returns chunkier and rarer, which hurts Sharpe. Cannot be ranked
+  by argument.
+- **`risk_per_pair` stays at 0.002.**
+- **No gate loosened** through a three-day drought with the score falling. This
+  was the week that tested that rule and it held.
+
+---
+
 ## Open commitments (write these down WHEN PROMISED, not later)
 
 Anything said in chat as "I'll look at that Sunday" belongs here immediately.
@@ -890,19 +1048,67 @@ section existed; that is what it is for.
 | Decide whether to **restore `risk_per_pair` 0.002 → 0.004** | 2026-07-30 | Sunday review, only if the fills analysis shows drawdown behaving |
 | Decide whether the sentinel should gain **macro-event awareness** (Fed/CPI/GDP are market-wide; our prompt is asset-specific and would rate them `none`) | 2026-07-28 | Sunday review; design question is whether market-wide risk should shrink size across all pairs, or whether the hedge already handles it |
 | **Sample the AI rationales for genuine depth**, not just presence — the audit judges logical depth, and quiet-day rationales read as boilerplate | 2026-07-27 | Sunday review |
-| **Reboot the droplet** (kernel update pending, banner shows restart required) | 2026-07-28 | any time you can glance at `status.py` after |
+| ~~Reboot the droplet~~ **DONE 2026-08-06** — 19s down, hwm/bar counter/crontab all survived, first ever test. Kernel packages were kept back; `dist-upgrade` + the second reboot completed 2026-08-09 | 2026-07-28 | closed |
 | **Rotate LTP + AI keys** (pasted in chat; mitigated by IP allowlist) | 2026-07-20 | when convenient before Phase II |
 | **Give the droplet a non-interactive git credential** (deploy key or stored PAT), then extend the 23:50 UTC cron to `git add track_record/ && git commit && git push` | 2026-07-30 | next time the operator is at the droplet terminal — until then `ltp_state_history.jsonl` exists only on that machine |
 | ~~Re-check rank~~ **DONE 2026-08-02**: #2 of 29, score 94.4 | 2026-07-30 | closed |
 | ~~Restore `risk_per_pair` 0.002 → 0.004~~ **APPROVED 2026-08-02, HELD the same evening** | 2026-07-30 | The position condition was met at 18:00 (stopped at z=+3.63) but the second-pair condition was not, and both sides of AVAX/SOL stopped inside 31 hours — new adverse evidence after the approval. **Re-decide at the Sun 2026-08-09 review** on: has selection produced a second pair, and has the pair stopped whipsawing. If we are still on one pair and it has settled, execute anyway and record that the concentration was accepted deliberately. Do NOT execute on a week where the only pair has just stopped twice |
 | **Report the header-only CSV exports to the organizers** — order, transaction and position history all export zero rows | 2026-08-02 | next organizer contact; a broken data export in a competition judged on auditability is worth raising |
 | **Decide on the sub-hourly risk check** (read-only pass that may only close or stop, never open). Measured cost of not having it: ~4.7 USDT on one trade | 2026-08-02 | week 3 review — needs a design, not a hunch |
-| **Schedule `fills_report.py` weekly** — venue fills expire after ~7 days and week 1's are already unrecoverable | 2026-08-02 | before Sun 2026-08-09, or another week of Phase I evidence is lost |
-| **Restart `ltp-agent`** so the measured `taker_fee` (2e-4) takes effect — the running process still holds 5e-4 | 2026-08-02 | when the open AVAX/SOL position closes; batch it with the `risk_per_pair` restore |
+| ~~Schedule `fills_report.py`~~ **DONE 2026-08-02**, daily at 23:55. Without it this week's loss attribution would not exist — retention had already eaten the live window | 2026-08-02 | closed |
+| ~~Restart for `taker_fee`~~ **DONE 2026-08-02 20:54** | 2026-08-02 | closed |
 
 ---
 
-## Week 3 agenda — review due Sun 2026-08-09
+| ~~Restart for `side_blocked` logging~~ **DONE 2026-08-09 23:28** — live now, dormant until a block actually declines a signal | 2026-08-08 | closed |
+| ~~`dist-upgrade` + reboot~~ **DONE 2026-08-09 23:28** — kernel 6.8.0-136 → 137, zero updates pending, banner cleared. Second clean reboot: NRestarts=0, peak 1041.19 and the bar counter both survived | 2026-08-06 | closed |
+| **Re-merge the fills snapshots weekly** for the loss attribution — the live report only reaches back ~7 days | 2026-08-09 | each review, before writing the numbers down |
+
+---
+
+## Week 4 agenda — review due Sun 2026-08-16
+
+**Phase I ends 2026-08-21 — 12 days. One more review after this one.**
+
+1. **Sub-hourly risk monitor — ship it or drop it, in writing.** The only change
+   with a measured payoff: **roughly a third of every dollar lost** came from stops
+   firing late. Design is settled — two-tier, the 3.5 band stays on the hourly close
+   where it fires within 0.5σ three times in five, and a read-only intra-bar
+   pass stops only past **4.0–4.5σ** (5.0 misses ETC/KAS at 4.58; 4.0 still
+   clears the Aug 4 excursion that peaked at 3.38 and reverted). May only close
+   or stop, never open. **It is also the riskiest thing left to ship** — a new
+   loop that can close positions, into a process whose job is to stay up, with
+   12 days on the clock. That tension is the decision; make it explicitly.
+2. **Run the band/`mu` simulation.** Two questions, one piece of machinery:
+   entry band 0.3/0.4/0.6/0.8 against `stop_z=3.5`, and trailing `mu` versus
+   `mu` frozen at entry. Report **realised Sharpe, MDD and stop rate** — not the
+   optimiser's rate, which is the term that cannot see either. Gates two open
+   decisions that have each been argued four or more ways without numbers.
+3. **Verify the remaining logging fires.** `refit_drop` is confirmed live.
+   `size_reduced` needs a `watch` news rating; close price/qty needs any close
+   after the next restart. If `close_position` still logs no price, read the
+   `response_keys` it now records rather than probing live again.
+4. **Self-ranking endpoint into `status.py`** — carried three times. **Do it or
+   delete it from the agenda**; carrying it a fourth time is just noise.
+5. **Phase I close-out preparation.** Whatever the post-mortem needs must exist
+   before Aug 21: the fills snapshots keep rolling, but decide now what else
+   expires. Draft the honest write-up — backtest 0.36 net Sharpe OOS versus what
+   actually happened, including that the headline live Sharpe was never real.
+
+### Deferred (revisit only if they matter)
+- `band_diagnostic`: print the objective value per candidate band. Convenience
+  upgrade to a hand-run tool; the clamping question it was raised for is already
+  answered (~1% cost).
+- Deduplicate the block state machine across `ltp_agent.py` / `run_strategy.py`.
+  Post-competition.
+- Sentinel macro-event awareness (Fed/CPI are market-wide; our prompt is
+  asset-specific and rates them `none`).
+- Report the header-only CSV exports to the organizers.
+- Key rotation before Phase II.
+
+---
+
+## Week 3 agenda — review due Sun 2026-08-09 (COMPLETED — see the week 3 entry)
 
 Phase I ends **2026-08-21**. Two reviews left.
 

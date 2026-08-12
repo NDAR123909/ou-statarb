@@ -532,9 +532,30 @@ everything else was thin:
   match, records the response's own keys so the next gap is diagnosed by
   reading the ledger rather than by another live probing session.
 
+- **`side_blocked`** (`ltp_agent.py`, the entry branch — added 2026-08-08, the
+  fourth and last of this series). After a stop, the one-sided re-entry guard
+  keeps that side shut until z heals back inside the entry band (invariant 4).
+  `blocked` lived purely in runtime state, so a signal **refused by a risk
+  control** was indistinguishable from a bar on which no signal existed. Now
+  emits `skip` with `reason="side_blocked"`, the side it wanted, the healing
+  threshold and the reasoning — and only when the block is genuinely what
+  stopped the trade, never on a quiet bar, or the event buries itself in the
+  noise it is meant to stand out from. Pinned by
+  `tests/test_ltp_blocked_skip.py`, which also asserts the reported healing
+  threshold matches the code that actually clears the block: a log that states
+  when a control will release, and is wrong about it, is worse than one that
+  says nothing.
+
 Pinned by `tests/test_ltp_logging_gaps.py` as behavioural contracts rather
 than style: Track A's Reasoning Audit correlates logged decisions against
 executed orders, so these omissions were audit exposure, not untidiness.
+
+With `side_blocked` the known set is closed. Every path that opens, closes,
+resizes or refuses a position now writes what it did and what came back:
+`enter`, `exit`, `stop`, `refit_drop`, `news_derisk`, `kill_switch`,
+`maintenance`, `size_reduced`, and `skip` in five flavours (`gross_cap`,
+`min_notional`, `anomaly_veto`, `news_veto`, `side_blocked`). If a new path is
+added, it joins that list or the principle has quietly lapsed.
 
 One related limit worth pre-registering, because it constrains the Phase I
 post-mortem: **`transaction executions` does not serve fills older than about
