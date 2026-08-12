@@ -54,6 +54,22 @@ def _systemd(unit: str = "ltp-agent") -> dict | None:
         return None
 
 
+def _ai_spend() -> dict:
+    """Current-period AI spend against the organizer's floor.
+
+    The budget has two ends and we only ever watched one. On 2026-08-12 the
+    organizer threatened disqualification for spend below USD 1 in a period,
+    and the daily glance showed nothing about it -- the same shape of blind
+    spot as the news gate before it got a line here. Imported lazily so a
+    broken gateway degrades this line rather than the whole report.
+    """
+    try:
+        from deploy.ai_deep_review import AI_SPEND_FLOOR, spend_now
+        return {"spend": spend_now(), "floor": AI_SPEND_FLOOR}
+    except Exception as exc:                                 # noqa: BLE001
+        return {"spend": None, "floor": 1.0, "error": str(exc)[:120]}
+
+
 def _tail_ledger(path: str, n: int) -> tuple[list[dict], dict]:
     """Last n records plus a whole-file event tally."""
     p = Path(path)
@@ -169,6 +185,8 @@ def build_report(cfg: AgentConfig, use_marks: bool, ledger_n: int) -> dict:
         })
     rep["pairs"] = pairs_out
 
+    rep["ai_spend"] = _ai_spend()
+
     # --- ledger ---
     recent, tally = _tail_ledger(_LEDGER_PATH, ledger_n)
     rep["ledger_tally"] = tally
@@ -224,6 +242,18 @@ def _print_human(rep: dict) -> None:
         line("news gate", f"ok — no relevant news in window @ {gate.get('ts', '?')}")
     else:
         line("news gate", f"{gstatus} (no reading yet)")
+    ai = rep.get("ai_spend") or {}
+    spend, floor = ai.get("spend"), ai.get("floor", 1.0)
+    if spend is None:
+        line("ai spend", f"UNREADABLE ({ai.get('error', 'no meter')[:60]}) — "
+                         f"floor ${floor:.2f}/period, check /key/info by hand")
+    elif spend < floor:
+        line("ai spend", f"** ${spend:.4f} — BELOW the ${floor:.2f} floor. "
+                         f"Disqualification risk THIS PERIOD; run "
+                         f"ai_deep_review.py --daily **")
+    else:
+        line("ai spend", f"${spend:.4f} — clears the ${floor:.2f} floor "
+                         f"(budget $10/day, resets 16:00 UTC)")
     nxt = (rep["refit_every_bars"] - rep["bar"] % rep["refit_every_bars"]) \
         % rep["refit_every_bars"]
     line("bar", f"{rep['bar']}   (refit every {rep['refit_every_bars']}; "
@@ -289,6 +319,9 @@ def main() -> int:
         return 1
     if (rep.get("news_gate") or {}).get("status") in DEGRADED_GATE:
         return 1                      # risk gate dark: worth alarming on
+    ai = rep.get("ai_spend") or {}
+    if ai.get("spend") is not None and ai["spend"] < ai.get("floor", 1.0):
+        return 1                      # below the organizer floor: DQ risk
     return 0
 
 

@@ -138,16 +138,48 @@ agent does not make those.
 - **Funding carry is not modeled.** Both perp legs pay/receive funding; the
   net on a hedged pair is usually small over day-scale holds but it is not
   zero. Logged as a gap for the Phase 1 post-mortem.
-- **Fees are assumed 5 bps taker per leg** until `userFeeRate` is read from
-  the live account. The optimal-bands step already refuses pairs whose edge
-  can't pay this toll, so a higher real fee shrinks the tradeable set rather
-  than silently losing money.
+- ~~**Fees are assumed 5 bps taker per leg**~~ **Measured 2026-08-02 at 1.75
+  bps/side**, exact to five significant figures across 22 fills (`fee ==
+  tradingFee`, zero rebate, `execType` TAKER throughout). `taker_fee` is now
+  `2e-4`, a small margin over the measurement. `portfolio user-fee-rate` returns
+  upstream 2002 "API Invalid Authorization" — there is no real exchange account
+  behind a simulated portfolio to have a fee tier, so the fills are the source.
+  The optimal-bands step still refuses pairs whose edge can't pay the toll.
 - **1,000 USDT is small.** Some symbols' `minNotional` may exceed what the
   vol-targeted sizing wants to trade; the agent skips those entries and says
   so in the log, rather than oversizing to clear the floor.
 - The hourly refit/selection cadence, half-life band (6h to 1 week), and risk
   budget are set from reasoning, not from a tuned crypto backtest. Phase 1 is
   itself the out-of-sample test; expectations should be set accordingly.
+
+## Scheduled jobs (droplet crontab)
+
+```cron
+# state history — one JSON line per day, what was TRUE rather than decided
+50 23 * * *  cd ~/ou-statarb && set -a; . /root/ltp.env; set +a; \
+             .venv/bin/python deploy/record_state.py >> ltp_record.log 2>&1
+
+# fills reconciliation — MUST run daily; the venue serves ~7 days of
+# executions and a weekly job would sit exactly on the retention edge
+55 23 * * *  cd ~/ou-statarb && set -a; . /root/ltp.env; set +a; \
+             .venv/bin/python deploy/fills_report.py --save >> ltp_fills.log 2>&1
+
+# AI spend floor — the organizer requires >= USD 1 per budget period and the
+# meter resets at 16:00 UTC. Main pass 30 min after the reset, so the period
+# is compliant early; top-up 4h later, no-op if the main pass succeeded.
+30 16 * * *  cd ~/ou-statarb && set -a; . /root/ltp.env; set +a; \
+             .venv/bin/python deploy/ai_deep_review.py --daily >> ltp_ai.log 2>&1
+30 20 * * *  cd ~/ou-statarb && set -a; . /root/ltp.env; set +a; \
+             .venv/bin/python deploy/ai_deep_review.py --daily --floor 1.05 \
+             >> ltp_ai.log 2>&1
+```
+
+The spend jobs exist because the AI budget has **two** ends: max USD 10/day,
+**minimum USD 1**, and spend below the floor is disqualification (2026-08-12).
+`--floor` makes the second run a no-op when the first worked, so an ordinary
+day costs one pass. Both exit non-zero when the period is still under the
+floor, and `status.py` carries an `ai spend` line so the daily glance catches
+a failure without reading a log.
 
 ## Hosting
 

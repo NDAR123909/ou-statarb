@@ -10,15 +10,19 @@ pressure is exactly the kind that quietly becomes token-burning. These pin the
 properties that keep it from becoming that.
 """
 
+import json
 import os
 import sys
-from datetime import date
+from datetime import date, datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from deploy.ai_deep_review import (ELIMINATION_FLOOR, EQUITY_AT_REVIEW,  # noqa: E402
-                                   FOLLOWUPS, KILL_SWITCH, PHASE_I_END,
-                                   SYSTEM, constraint_prompt, days_left,
+from deploy.ai_deep_review import (AI_SPEND_FLOOR, ANGLES,  # noqa: E402
+                                   DAILY_TARGET, ELIMINATION_FLOOR,
+                                   EQUITY_AT_REVIEW, FOLLOWUPS, KILL_SWITCH,
+                                   PHASE_I_END, SYSTEM, TOPUP_BELOW,
+                                   constraint_prompt, days_left,
+                                   ledger_prompts, recent_events,
                                    strategy_prompts)
 
 
@@ -108,6 +112,92 @@ def test_days_remaining_is_derived_rather_than_typed():
     assert days_left(PHASE_I_END) == 0
     assert days_left(date(2026, 9, 1)) == 0          # never negative
     assert "9 days remain" in constraint_prompt(date(2026, 8, 12))
+
+
+def test_the_daily_target_clears_the_organizer_floor_with_margin():
+    """The floor is enforced by disqualification, so aiming AT it is aiming to
+    fail on any run that comes up a cent short."""
+    assert AI_SPEND_FLOOR == 1.00
+    assert DAILY_TARGET > AI_SPEND_FLOOR
+    # The top-up must not no-op while the period is still under the floor.
+    assert TOPUP_BELOW > AI_SPEND_FLOOR
+    assert TOPUP_BELOW <= DAILY_TARGET
+
+
+def test_the_two_candidate_angles_ask_genuinely_different_questions():
+    """Two angles exist to give the daily pass breadth from real material. If
+    they converge into the same question, that is padding wearing a numeral."""
+    a1, a2 = ANGLES[1], ANGLES[2]
+    assert a1 != a2
+    # The second explicitly forbids re-litigating the first, which is the
+    # property that keeps them from collapsing together.
+    assert "do NOT re-litigate whether the pair" in a2
+    # ...and asks about execution rather than validity.
+    for probe in ("reach the exit before", "median of 2.0 hours"):
+        assert probe in a2, probe
+    assert "split-half statistics" in a1
+
+
+def _write_ledger(tmp_path, rows):
+    p = tmp_path / "led.jsonl"
+    p.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    return p
+
+
+def test_ledger_prompts_are_built_from_the_days_own_decisions(tmp_path):
+    """The part of the daily pass that cannot go stale. If it silently falls
+    back to generic text the whole freshness argument collapses."""
+    now = datetime(2026, 8, 13, 12, 0, tzinfo=timezone.utc)
+    rows = [
+        {"ts": "2026-08-13T09:00:00+00:00", "event": "enter", "pair": "FIL/AR",
+         "side": -1, "z": 0.62},
+        {"ts": "2026-08-13T11:00:00+00:00", "event": "skip", "pair": "FIL/AR",
+         "reason": "side_blocked", "z": 0.71},
+        {"ts": "2026-08-01T09:00:00+00:00", "event": "stop", "pair": "OLD/PAIR"},
+    ]
+    topics = dict(ledger_prompts(hours=24.0, now=now,
+                                 path=_write_ledger(tmp_path, rows)))
+    assert "day_trades" in topics and "day_refusals" in topics
+    assert "FIL/AR" in topics["day_trades"]
+    assert "side_blocked" in topics["day_refusals"]
+    # The stale row is outside the window and must not appear anywhere.
+    assert not any("OLD/PAIR" in t for t in topics.values())
+    # A quiet-day topic must NOT be emitted when there was activity.
+    assert "day_idle" not in topics
+
+
+def test_a_quiet_day_gets_one_honest_topic_not_four_empty_ones(tmp_path):
+    """Manufacturing four topics about nothing is exactly the padding this
+    script has to avoid, and the quiet itself is a real question."""
+    now = datetime(2026, 8, 13, 12, 0, tzinfo=timezone.utc)
+    rows = [{"ts": "2026-08-13T10:00:00+00:00", "event": "ai_spread_assessment",
+             "pair": "FIL/AR"}]
+    topics = dict(ledger_prompts(hours=24.0, now=now,
+                                 path=_write_ledger(tmp_path, rows)))
+    assert list(topics) == ["day_idle"]
+    assert "loosening" in topics["day_idle"]
+
+
+def test_recent_events_survives_a_corrupt_or_missing_ledger(tmp_path):
+    """A half-written line must not take the daily pass down -- the floor is
+    cleared by this script and nothing else."""
+    assert recent_events(path=tmp_path / "nope.jsonl") == []
+    p = tmp_path / "led.jsonl"
+    p.write_text('{"ts": "2026-08-13T10:00:00+00:00", "event": "enter"}\n'
+                 '{"ts": "not-a-date", "event": "enter"}\n'
+                 'not json at all\n'
+                 '{"event": "no timestamp"}\n')
+    got = recent_events(hours=24.0,
+                        now=datetime(2026, 8, 13, 12, 0, tzinfo=timezone.utc),
+                        path=p)
+    assert len(got) == 1
+
+
+def test_the_elimination_floor_agrees_with_the_one_status_reports():
+    """Two modules each hardcode 800. They are the same competition rule, so a
+    change to one that misses the other is the bug this catches."""
+    from deploy.status import ELIMINATION_FLOOR as status_floor
+    assert status_floor == ELIMINATION_FLOOR
 
 
 def test_it_places_no_orders_and_touches_no_agent_state():

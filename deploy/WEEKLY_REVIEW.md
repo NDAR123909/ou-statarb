@@ -1142,6 +1142,48 @@ Discounted hardest: the size-reduction advice (`ETH/BTC` to one-third,
 
 **Nothing here has been acted on**, and week 4 item 1 is not pre-empted by it.
 
+### Same day, evening: the floor is DAILY, and a standing job now clears it
+
+`/key/info` returned `budget_duration: "1d"` with `spend` in the same block,
+and the reading that started the emergency — **USD 0.00359946** — settles it: a
+layer running since 07-20 at ~0.02/day is ~0.50 lifetime at minimum, so a
+cumulative meter could not have shown 0.0036. **`spend` is a per-period counter
+that zeroes at 16:00 UTC.** The floor recurs.
+
+The organizer checks it **at a moment**, not at a boundary (the warning named
+13:00 GMT+8, mid-period). We cannot predict the moment, so every period must
+read ≥ 1.00. Natural burn is ~0.04–0.08/day, **at most 8% of the floor** — the
+rest has to be deliberate.
+
+**Shipped**: `ai_deep_review.py --daily` (`daily_work()`), targeting 1.15
+against a 1.00 floor. Each candidate reviewed from **two angles** (`ANGLES` —
+statistical validity, then execution, separated so a reviewer cannot answer the
+easier one), rebuilt from a freshly re-fitted panel each run; plus
+`ledger_prompts()`, built from the previous 24 hours of our own decisions,
+which cannot be stale by construction. A quiet day gets **one** honest topic
+about the quiet rather than four about nothing. Two crons: main pass 16:30 UTC
+(30 min after reset), top-up 20:30 UTC that no-ops above 1.05. Both exit
+non-zero below the floor. **`status.py` gained an `ai spend` line** and returns
+1 when the period is short — the same blind spot the news gate had before it
+got a line, fixed the same way. 183 tests.
+
+**The part not to overclaim**: this takes the AI layer from ~0.05 to ~1.15
+USD/day and *a rule is the reason*, not a result. The per-candidate reviews were
+already on the week 4 agenda and are real; the daily cadence is not something
+the analysis earned. Where the material runs out below target the pass repeats
+it, stamps `pass_index` on every ledger row and prints "this is compliance
+volume, not new analysis" — so nobody counting rows later mistakes a second lap
+for twice the thinking.
+
+**Still unconfirmed**: whether the floor is formally daily or was one-off
+enforcement. Only the organizer can say, and that is the one answer that would
+let us stop. See Open commitments.
+
+Also corrected while here: `README_ltp.md` still said **"fees are assumed 5 bps
+taker per leg"**, superseded by the 1.75 bps measurement on 2026-08-02. A live
+doc asserting a number we disproved ten days ago is exactly the stale premise
+the close-out protocol exists to catch.
+
 ### Record hygiene done in the same pass
 
 Running the cold-start protocol surfaced four defects in this file, fixed now:
@@ -1180,7 +1222,9 @@ section existed; that is what it is for.
 | ~~`dist-upgrade` + reboot~~ **DONE 2026-08-09 23:28** — kernel 6.8.0-136 → 137, zero updates pending, banner cleared. Second clean reboot: NRestarts=0, peak 1041.19 and the bar counter both survived | 2026-08-06 | closed |
 | **Re-merge the fills snapshots weekly** for the loss attribution — the live report only reaches back ~7 days | 2026-08-09 | each review, before writing the numbers down |
 | **Synthesise the 399 deep reviews** — where they converge, where they contradict each other, which claims survive contact with the others. Discount the round-5 layer, which reasoned from the understated headroom | 2026-08-12 | Sun 2026-08-16 review. Until it exists, no claim from that run has been acted on |
-| **Check AI `spend` against BOTH ends of the band** (min USD 1, max 10/day) at every review — the floor is what nearly disqualified us on 2026-08-12 | 2026-08-12 | every review, and before Phase II opens |
+| **Check AI `spend` against BOTH ends of the band** (min USD 1, max 10/day) at every review — the floor is what nearly disqualified us on 2026-08-12 | 2026-08-12 | every review, and before Phase II opens. Now also automated: `status.py` exits 1 below the floor |
+| **Verify the two spend crons actually fired** — 16:30 and 20:30 UTC, first live run 2026-08-13. Check `ltp_ai.log` and that the top-up no-opped rather than double-spending | 2026-08-12 | first daily glance after 2026-08-13 17:00 UTC |
+| **Ask the organizers whether the USD 1 floor is daily or was one-off enforcement** — it is the only answer that would let us stop spending ~1.15/day, and it rides along with the header-only CSV report we already owe them | 2026-08-12 | next organizer contact; draft is written when the operator wants it |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
 > *below* the closing horizontal rule since 2026-08-09 — outside the table, where

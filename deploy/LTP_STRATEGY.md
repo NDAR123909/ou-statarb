@@ -710,6 +710,85 @@ contradict each other, which claims survive contact with the others — is
 committed for the 2026-08-16 review. Until that exists, **no claim from this run
 has been acted on**, and this addendum should not be read as adopting any of them.
 
+## Addendum — the AI spend floor recurs daily (2026-08-12, evening)
+
+Still no change to what the agent trades. A change to what it spends, and the
+reason is a rule rather than a result.
+
+### The meter settled the question
+
+The morning addendum above left open whether the USD 1 threshold was a one-time
+participation bar or a recurring one. `/key/info` answers it:
+
+```json
+{"spend": 1.204544, "max_budget": 10.0,
+ "budget_duration": "1d", "budget_reset_at": "2026-08-14T00:00:00+08:00"}
+```
+
+`budget_duration: "1d"`, and `spend` sits inside the same block. The decisive
+evidence is the reading at the start of the emergency: **USD 0.00359946**. The
+AI layer had been running since 2026-07-20 at roughly 0.02/day, which is ~0.50
+lifetime at minimum. A cumulative meter could not have read 0.0036. `spend` is
+a per-period counter that zeroes at `budget_reset_at`.
+
+The organizer checks it **at a moment** — the warning named 13:00 GMT+8 on
+2026-08-13, not a period boundary. Whichever period is live when they next look
+must read ≥ 1.00, and we cannot predict when they look. So every period has to
+clear it. That conclusion holds whether the rule is formally worded as daily or
+merely spot-checked, which is why the ambiguity does not change the response.
+
+Natural agent burn is ~0.04–0.08/day — **at most 8% of the floor.** Essentially
+the whole dollar has to be deliberate.
+
+### What ships: `--daily`, and an honest label on the part that is volume
+
+`deploy/ai_deep_review.py --daily` (see `daily_work()`) targets
+`DAILY_TARGET = 1.15` against `AI_SPEND_FLOOR = 1.00`, and assembles:
+
+- **each candidate pair from two angles** (`ANGLES`) — the first asks whether
+  the split-half statistics mean what the gate thinks; the second takes the fit
+  as given and asks how it would be executed. Separated because a reviewer
+  asked both at once answers the easier one. Both are rebuilt from a panel
+  re-fetched and re-fitted every run, so the numbers in them are that day's.
+- **the previous 24 hours of our own ledger** (`ledger_prompts()`) — the day's
+  entries, exits, stops, refusals and refits, which cannot be stale by
+  construction. A genuinely quiet day produces **one** topic about the quiet,
+  not four about nothing; that is a real question, since idle days drag the
+  Sharpe mean exactly as small losses do.
+- the four standing strategy prompts, now the smallest share rather than the
+  whole pass.
+
+Two cron lines: the main pass 30 minutes after each 16:00 UTC reset, and a
+top-up four hours later that no-ops above `TOPUP_BELOW = 1.05`. Both exit
+non-zero below the floor, and `status.py` gained an `ai spend` line — the same
+blind spot the news gate had before it got one, and for the same reason: a
+control nobody can see failing is a control that fails silently.
+
+**Where this is padding, it says so.** If the distinct material runs out below
+target the pass repeats it and stamps `pass_index` on every ledger row, and
+prints *"this is compliance volume, not new analysis."* A later reader counting
+`ai_deep_review` rows must not be able to mistake a second lap for twice the
+thinking.
+
+### The part that would be easy to overclaim
+
+This takes the AI layer from ~0.05 to ~1.15 USD/day, a twenty-fold increase,
+and **the honest reason is that a rule requires it.** The per-candidate reviews
+are real and were already on the week 4 agenda; the daily cadence is not
+something the analysis earned. Presenting this as a research decision would be
+the exact form of overclaiming this project exists to avoid, so it is written
+down as what it is: compliance spend, made as genuine as the material allows.
+
+The organizer's stated concern is agents that trade without AI involvement, and
+the honest defence is not the meter reading — it is that every one of these
+calls is grounded in that day's real fits and that day's real decisions, and
+every response is in the ledger where the audit correlates reasoning against
+orders.
+
+**Open**: whether the floor is formally daily or was a one-off enforcement is
+still unconfirmed by the organizer. Asking them is the only way to know, and it
+is the only thing that would let us stop. Until then we clear it every day.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;

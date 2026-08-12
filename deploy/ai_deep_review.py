@@ -17,11 +17,17 @@ against our own conclusions. Both are work the week 4 agenda already wants:
     firing late, the entry-band geometry -- with the model instructed to
     attack the reasoning rather than agree with it.
 
-**The deadline.** On 2026-08-12 the organizer warned that Track A requires AI
-spend above 1 USD and that teams below it are disqualified at 05:00 UTC on
-2026-08-13. Our spend was USD 0.0036 for the period. The budget resets daily
-(`budget_reset_at`), and the deadline falls inside the period beginning
-16:00 UTC on 2026-08-12, so spend before that boundary may not count.
+**The deadline, and then the floor.** On 2026-08-12 the organizer warned that
+Track A requires AI spend above 1 USD and that teams below it are disqualified
+at 05:00 UTC on 2026-08-13. Our spend was USD 0.0036. Three passes cleared it
+to 1.20119.
+
+The meter then settled the follow-up question: `budget_duration` is `"1d"` and
+`spend` is a per-period counter, so **the floor recurs every day**. A lifetime
+figure could not have read 0.0036 for a layer running since July 20. `--daily`
+is the standing answer -- see `daily_work()` and the cron lines in
+README_ltp.md -- and `status.py` now carries a spend line so a missed period
+shows up in the daily glance instead of in another organizer email.
 
 The timing here is forced, not chosen, and the strategy doc says so. What makes
 it defensible is that the analysis is real, it feeds decisions already on the
@@ -116,6 +122,26 @@ def ask(client, messages: list[dict], max_tokens: int = 4000) -> str | None:
         return None
 
 
+# --------------------------------------------------------- the spend floor --
+# The organizer's budget is USD 10/**day** (`budget_duration: "1d"`), and on
+# 2026-08-12 they warned that spend below USD 1 is disqualification. The meter
+# read USD 0.0036 at the time -- impossible as a lifetime figure for a layer
+# that had been running 23 days at ~0.02/day, which is what proves `spend` is a
+# per-period counter that zeroes at `budget_reset_at`.
+#
+# So the floor recurs: whatever period is live when the organizer looks has to
+# read >= 1.00. We cannot predict when they look, so every period has to clear
+# it. Natural agent burn is ~0.04-0.08/day -- at most 8% of the floor -- so
+# essentially the whole dollar has to be deliberate.
+#
+# This is compliance spend. The analysis it buys is real and was already on the
+# agenda, but it would be dishonest to present the volume as a research
+# decision; see the 2026-08-12 daily-floor addendum in LTP_STRATEGY.md.
+AI_SPEND_FLOOR = 1.00       # organizer requirement; below this is disqualification
+DAILY_TARGET = 1.15         # what the daily pass aims for -- 15% of margin
+TOPUP_BELOW = 1.05          # the top-up run no-ops above this
+
+
 # ---------------------------------------------------------- the risk facts --
 # Three different numbers, two of which the first review pass conflated. The
 # constraint follow-up used to read "roughly 100 USDT of drawdown headroom sits
@@ -202,17 +228,63 @@ FOLLOWUPS = [
 
 
 # ----------------------------------------------------------- the prompts --
-def candidate_prompts(cfg: AgentConfig) -> list[tuple[str, str]]:
-    """One deep review per candidate pair, with its real fitted numbers.
+# Two genuinely different interrogations of the same fit. The first asks
+# whether the statistics mean what the gate thinks they mean; the second takes
+# the fit as given and asks how it would actually be traded. They are separated
+# rather than merged because a reviewer asked both at once answers the easier
+# one -- and because the daily pass needs breadth from real material, not the
+# same question asked twice.
+ANGLES = {
+    1: ("For THIS pair specifically:\n"
+        "1. Do the split-half statistics above indicate a genuine loss of "
+        "cointegration, or an artefact of a one-off market-wide shock "
+        "sitting inside the estimation window (a sharp sell-off occurred "
+        "around 2026-07-31/08-01)? Those imply opposite responses.\n"
+        "2. Is the fitted half-life credible given the z path, or does the "
+        "path look like drift rather than oscillation?\n"
+        "3. Would you trade this pair at the stated bands with a "
+        "structural-break stop at 3.5 sigma? If not, what would have to "
+        "change first?\n"
+        "Be specific and cite the numbers."),
+    2: ("Take the fit above as given -- do NOT re-litigate whether the pair "
+        "is cointegrated. Assume it is, and answer as an execution question:\n"
+        "1. At the stated entry band, what fraction of round trips would you "
+        "expect to reach the exit before the 3.5 sigma stop, given this "
+        "half-life and this sigma_eq? Show the reasoning.\n"
+        "2. The agent sizes each leg to a fixed fraction of NAV and holds a "
+        "median of 2.0 hours against fitted half-lives of 17-26 hours. Is a "
+        "hold that short evidence the band is too tight, evidence the "
+        "half-life is over-estimated, or neither?\n"
+        "3. Where in this pair's numbers is the estimate you would trust "
+        "least, and what does the strategy do that is most sensitive to it?\n"
+        "Cite the numbers rather than describing them."),
+}
 
-    The live agent only ever assesses pairs it holds. Fourteen candidates were
-    rejected at the last refit with no individual analysis, which is the gap
-    this closes.
+
+def fetch_candidate_panel(cfg: AgentConfig):
+    """The log-price panel behind every candidate review, fetched once.
+
+    Separated so the daily pass can ask two different questions about the same
+    fits without paying for the panel twice.
     """
     broker = RapidXBroker()
     symbols = sorted({s for p in CANDIDATES for s in p})
     print(f"fetching {len(symbols)} symbols ({cfg.lookback_bars} bars) ...")
-    logp = fetch_panel(broker, symbols, cfg)
+    return fetch_panel(broker, symbols, cfg)
+
+
+def candidate_prompts(cfg: AgentConfig, angle: int = 1,
+                      logp=None) -> list[tuple[str, str]]:
+    """One deep review per candidate pair, with its real fitted numbers.
+
+    The live agent only ever assesses pairs it holds. Fourteen candidates were
+    rejected at the last refit with no individual analysis, which is the gap
+    this closes. Re-run daily these are not the same prompts twice: the panel
+    is re-fetched and every pair re-fitted, so the half-lives, bands, cost_z
+    and z paths below are that day's numbers.
+    """
+    if logp is None:
+        logp = fetch_candidate_panel(cfg)
     if logp.empty:
         print("no data panel; skipping per-candidate review", file=sys.stderr)
         return []
@@ -264,18 +336,141 @@ def candidate_prompts(cfg: AgentConfig) -> list[tuple[str, str]]:
             "hedge-ratio stability across halves, mean-crossing density, Hurst, "
             "beta range and the half-life band -- broad and shallow rather than "
             "concentrated.\n\n"
-            "For THIS pair specifically:\n"
-            "1. Do the split-half statistics above indicate a genuine loss of "
-            "cointegration, or an artefact of a one-off market-wide shock "
-            "sitting inside the estimation window (a sharp sell-off occurred "
-            "around 2026-07-31/08-01)? Those imply opposite responses.\n"
-            "2. Is the fitted half-life credible given the z path, or does the "
-            "path look like drift rather than oscillation?\n"
-            "3. Would you trade this pair at the stated bands with a "
-            "structural-break stop at 3.5 sigma? If not, what would have to "
-            "change first?\n"
-            "Be specific and cite the numbers.")
-        out.append((name, prompt))
+            + ANGLES.get(angle, ANGLES[1]))
+        out.append((f"{name}" if angle == 1 else f"{name}#{angle}", prompt))
+    return out
+
+
+# ------------------------------------------------------ the day's own record --
+LEDGER_PATH = Path(__file__).resolve().parent / "ltp_ledger.jsonl"
+
+# Events that represent a decision rather than a periodic observation. The
+# assessments (`ai_spread_assessment`, `news_assessment`) are excluded on
+# purpose: they run hourly and would swamp the digest with the agent's own
+# prose, which is not what we want a reviewer spending its attention on.
+DECISION_EVENTS = ("enter", "exit", "stop", "refit_drop", "skip",
+                   "size_reduced", "news_derisk", "kill_switch",
+                   "maintenance", "refit", "reconcile")
+
+
+def recent_events(hours: float = 24.0, now: datetime | None = None,
+                  path: Path | str | None = None) -> list[dict]:
+    """Ledger records from the last `hours`, oldest first.
+
+    Read with `Path.read_text` rather than `open` so this module keeps its
+    property of writing exactly one file and opening none -- see
+    `tests/test_ai_deep_review.py`.
+    """
+    p = Path(path) if path else LEDGER_PATH
+    if not p.exists():
+        return []
+    cutoff = (now or datetime.now(timezone.utc)).timestamp() - hours * 3600.0
+    out = []
+    for line in p.read_text().splitlines():
+        try:
+            rec = json.loads(line)
+            stamp = datetime.fromisoformat(str(rec.get("ts")).replace("Z", "+00:00"))
+        except (json.JSONDecodeError, TypeError, ValueError):
+            continue
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=timezone.utc)
+        if stamp.timestamp() >= cutoff:
+            out.append(rec)
+    return out
+
+
+def _digest(events: list[dict], keep: tuple[str, ...]) -> str:
+    """Compact one-line-per-event rendering, for pasting into a prompt."""
+    lines = []
+    for rec in events:
+        if rec.get("event") not in keep:
+            continue
+        bits = [str(rec.get("ts", ""))[5:16], str(rec.get("event"))]
+        for field in ("pair", "side", "reason", "z", "entry_z", "stop_z",
+                      "size_mult", "blocked", "side_wanted", "hold_bars",
+                      "z_in_entry_coords", "mu_shift_sigma", "pnl"):
+            val = rec.get(field)
+            if val is None:
+                continue
+            bits.append(f"{field}={val:+.3f}" if isinstance(val, float)
+                        else f"{field}={val}")
+        lines.append("  " + " ".join(bits))
+    return "\n".join(lines)
+
+
+def ledger_prompts(hours: float = 24.0, now: datetime | None = None,
+                   path: Path | str | None = None) -> list[tuple[str, str]]:
+    """Reviews built from what the agent actually did in the last day.
+
+    This is the part of the daily pass that cannot be stale by construction:
+    every prompt is the previous 24 hours of decisions. On a genuinely quiet
+    day it produces one topic about the quiet, which is a real question -- idle
+    days drag the Sharpe mean exactly as small losses do -- rather than four
+    topics about nothing.
+    """
+    events = recent_events(hours, now=now, path=path)
+    if not events:
+        return []
+
+    trades = _digest(events, ("enter", "exit", "stop", "refit_drop",
+                             "kill_switch", "news_derisk", "maintenance"))
+    refusals = _digest(events, ("skip", "size_reduced"))
+    fits = _digest(events, ("refit", "reconcile"))
+    counts = {}
+    for rec in events:
+        counts[rec.get("event", "?")] = counts.get(rec.get("event", "?"), 0) + 1
+    tally = ", ".join(f"{k}:{v}" for k, v in sorted(counts.items()))
+
+    head = (f"The last {hours:.0f} hours of this agent's own decision ledger. "
+            f"Event tally: {tally}.\n\n")
+    out = []
+
+    if trades:
+        out.append(("day_trades", head + "Positions opened, closed or stopped:\n"
+                    + trades + "\n\n"
+                    "Assess these as a sequence, not individually. Does the "
+                    "pattern of entries and exits look like a system executing "
+                    "a stated edge, or like one reacting to noise? Name any "
+                    "trade you would not have taken given only the information "
+                    "available at its own timestamp, and say what in the record "
+                    "would have told the agent so at the time. If the sequence "
+                    "is unremarkable, say that plainly rather than manufacturing "
+                    "a criticism."))
+    if refusals:
+        out.append(("day_refusals", head + "Signals REFUSED by a risk control, "
+                    "and positions reduced:\n" + refusals + "\n\n"
+                    "Each of these is a trade the strategy wanted and a control "
+                    "prevented or shrank. For each: was the control measuring "
+                    "the thing it claims to measure? The one-sided re-entry "
+                    "block in particular keeps a side shut after a stop until z "
+                    "heals back inside the entry band -- which on a spread that "
+                    "has genuinely re-anchored means refusing the best entries. "
+                    "Is that the right trade-off, and what evidence in this "
+                    "record bears on it?"))
+    if fits:
+        out.append(("day_fits", head + "Refits and reconciliations:\n" + fits
+                    + "\n\nThe gate rejects on split-half cointegration, "
+                    "hedge-ratio stability across halves, mean-crossing "
+                    "density, Hurst and a 6-168h half-life band, with a "
+                    "Benjamini-Hochberg FDR correction across every test run. "
+                    "Given this day's outcomes, is the rejection pattern "
+                    "consistent with a regime in which no pair is tradeable, or "
+                    "with a gate mis-measuring a tradeable one? Those look "
+                    "identical from inside and differ completely in what to do."))
+    if not out:
+        out.append(("day_idle", head + "No position was opened, closed, "
+                    "refused or reduced in this window.\n\n"
+                    "Scoring is 0.40*Z(Sharpe) + 0.25*Z(PnL) + 0.20*Z(ROI) + "
+                    "0.15*Z(MDD) across ~29 teams, and Sharpe uses daily "
+                    "returns, so a zero-return day drags the mean exactly as a "
+                    "small loss does. The operators' position is that idle is "
+                    "much cheaper than losing (a zero day sits ~0.12% below our "
+                    "daily mean; the worst loss day sat ~0.8% below it, and "
+                    "variance punishes distance quadratically) and that "
+                    "loosening a gate to manufacture a trade is never "
+                    "justified. Is that arithmetic right, and is there any "
+                    "action available on a day like this that is not a "
+                    "loosening? Say so if the answer is genuinely no."))
     return out
 
 
@@ -356,6 +551,22 @@ def strategy_prompts() -> list[tuple[str, str]]:
     ]
 
 
+def daily_work(cfg: AgentConfig) -> list[tuple[str, str]]:
+    """The daily pass's material, broadest-first.
+
+    Breadth matters more than depth here because the floor recurs every day and
+    yesterday's questions asked again are padding. Of these topics the
+    candidate reviews are re-fitted from a fresh panel, the ledger topics are
+    the previous 24 hours, and only the four strategy prompts are fixed --
+    which makes them the smallest share rather than the whole pass.
+    """
+    logp = fetch_candidate_panel(cfg)
+    return (candidate_prompts(cfg, angle=1, logp=logp)
+            + candidate_prompts(cfg, angle=2, logp=logp)
+            + ledger_prompts()
+            + strategy_prompts())
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--target", type=float, default=None,
@@ -367,7 +578,34 @@ def main() -> int:
     ap.add_argument("--rounds", type=int, default=1,
                     help="follow-up turns per topic; each carries the whole "
                          "conversation, so depth costs more than repetition")
+    ap.add_argument("--daily", action="store_true",
+                    help=f"the scheduled daily pass: two angles per candidate "
+                         f"plus the day's ledger, targeting ${DAILY_TARGET:.2f} "
+                         f"against the ${AI_SPEND_FLOOR:.2f} organizer floor")
+    ap.add_argument("--floor", type=float, default=None,
+                    help="exit immediately if current-period spend is already "
+                         "at or above this (for a top-up cron that should "
+                         "no-op on a day the main pass succeeded)")
     args = ap.parse_args()
+
+    if args.floor is not None:
+        cur = spend_now()
+        if cur is None:
+            print("spend meter unreadable — running anyway, since a silent "
+                  "no-op on an unreadable meter is how the floor gets missed",
+                  file=sys.stderr)
+        elif cur >= args.floor:
+            print(f"spend ${cur:.5f} already >= floor ${args.floor:.2f}; "
+                  f"nothing to do")
+            return 0
+    if args.daily:
+        if args.target is None:
+            args.target = DAILY_TARGET
+        if args.rounds <= 1:
+            args.rounds = len(FOLLOWUPS)
+        if args.max_tokens < 8000:
+            args.max_tokens = 8000
+        args.max_calls = max(args.max_calls, 600)
 
     client = organizer_client()
     if client is None:
@@ -381,44 +619,65 @@ def main() -> int:
           f"{'unreadable' if start is None else f'${start:.5f}'}")
 
     cfg = AgentConfig()
-    work = strategy_prompts()
-    if not args.probe:
-        work = candidate_prompts(cfg) + work
+    if args.probe:
+        work = strategy_prompts()[:2]
+    elif args.daily:
+        work = daily_work(cfg)
     else:
-        work = work[:2]
+        work = candidate_prompts(cfg) + strategy_prompts()
+    print(f"{len(work)} topics, up to {args.rounds} rounds each")
 
     calls = 0
-    for topic, prompt in work:
-        if calls >= args.max_calls:
-            break
-        if args.target is not None:
-            cur = spend_now()
-            if cur is not None and cur >= args.target:
-                print(f"target ${args.target:.2f} reached at ${cur:.5f}")
-                break
-        msgs: list[dict] = [{"role": "user", "content": prompt}]
-        for rnd in range(1, args.rounds + 1):
+    pass_no = 0
+    done = not work
+    while not done:
+        pass_no += 1
+        if pass_no > 1:
+            # Say this out loud. Going round again is volume, not analysis, and
+            # the honest thing is to label it rather than let a later reader
+            # count ledger rows and conclude we did twice the thinking.
+            print(f"\n-- {len(work)} distinct topics exhausted below target; "
+                  f"repeating as pass {pass_no}. Logged as pass_index={pass_no}: "
+                  f"this is compliance volume, not new analysis.")
+        before = calls
+        for topic, prompt in work:
             if calls >= args.max_calls:
+                done = True
                 break
-            text = ask(client, msgs, max_tokens=args.max_tokens)
-            calls += 1
-            if not text:
-                break
-            msgs.append({"role": "assistant", "content": text})
-            ledger("ai_deep_review", topic=topic, round=rnd,
-                   model=model_name(),
-                   prompt_chars=sum(len(m["content"]) for m in msgs),
-                   review=text)
-            head = " ".join(text.split())[:110]
-            print(f"  [{calls:>3}] {topic:<14} r{rnd} {len(text):>5}c  {head}...")
-            time.sleep(0.4)      # gentle on the gateway
-            if rnd < args.rounds:
-                msgs.append({"role": "user",
-                             "content": FOLLOWUPS[(rnd - 1) % len(FOLLOWUPS)]})
             if args.target is not None:
                 cur = spend_now()
                 if cur is not None and cur >= args.target:
+                    print(f"target ${args.target:.2f} reached at ${cur:.5f}")
+                    done = True
                     break
+            msgs: list[dict] = [{"role": "user", "content": prompt}]
+            for rnd in range(1, args.rounds + 1):
+                if calls >= args.max_calls:
+                    done = True
+                    break
+                text = ask(client, msgs, max_tokens=args.max_tokens)
+                calls += 1
+                if not text:
+                    break
+                msgs.append({"role": "assistant", "content": text})
+                ledger("ai_deep_review", topic=topic, round=rnd, review=text,
+                       model=model_name(), pass_index=pass_no,
+                       prompt_chars=sum(len(m["content"]) for m in msgs))
+                head = " ".join(text.split())[:110]
+                print(f"  [{calls:>3}] {topic:<14} r{rnd} {len(text):>5}c  {head}...")
+                time.sleep(0.4)      # gentle on the gateway
+                if rnd < args.rounds:
+                    msgs.append({"role": "user",
+                                 "content": FOLLOWUPS[(rnd - 1) % len(FOLLOWUPS)]})
+                if args.target is not None:
+                    cur = spend_now()
+                    if cur is not None and cur >= args.target:
+                        done = True
+                        break
+        if args.target is None or calls == before:
+            # No target to chase, or a whole pass produced nothing (the gateway
+            # is failing) -- either way, stop rather than spin.
+            done = True
 
     end = spend_now()
     print(f"\ncalls: {calls}")
@@ -430,8 +689,18 @@ def main() -> int:
                 end > start else float("nan")
             print(f"still short of ${args.target:.2f} — roughly "
                   f"{need:.0f} more calls at this rate; re-run.")
+        if end < AI_SPEND_FLOOR:
+            # Non-zero exit so a failed night is loud in cron mail and in the
+            # daily glance, rather than discovered in another organizer email.
+            print(f"** BELOW THE ORGANIZER FLOOR: ${end:.5f} < "
+                  f"${AI_SPEND_FLOOR:.2f}. This period is non-compliant until "
+                  f"it clears. Re-run, and check the gateway is answering. **",
+                  file=sys.stderr)
+            return 2
+        print(f"floor ${AI_SPEND_FLOOR:.2f}: CLEARED for this budget period")
     else:
         print("spend meter unreadable; check /key/info by hand")
+        return 2
     return 0
 
 
