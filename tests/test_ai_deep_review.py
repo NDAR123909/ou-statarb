@@ -18,10 +18,11 @@ from datetime import date, datetime, timezone
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from deploy.ai_deep_review import (AI_SPEND_FLOOR, ANGLES,  # noqa: E402
-                                   DAILY_TARGET, ELIMINATION_FLOOR,
+                                   CONSTRAINT_INDEX, DAILY_TARGET,
+                                   ELIMINATION_FLOOR, EQUITY_AS_OF,
                                    EQUITY_AT_REVIEW, FOLLOWUPS, KILL_SWITCH,
                                    PHASE_I_END, SYSTEM, TOPUP_BELOW,
-                                   constraint_prompt, days_left,
+                                   constraint_prompt, days_left, followups,
                                    ledger_prompts, recent_events,
                                    strategy_prompts)
 
@@ -112,6 +113,35 @@ def test_days_remaining_is_derived_rather_than_typed():
     assert days_left(PHASE_I_END) == 0
     assert days_left(date(2026, 9, 1)) == 0          # never negative
     assert "9 days remain" in constraint_prompt(date(2026, 8, 12))
+
+
+def test_the_risk_budget_is_read_live_rather_than_hardcoded():
+    """EQUITY_AT_REVIEW was written on 2026-08-09 and equity was 1016.66 four
+    days later. The constant survives only as a labelled fallback; the live
+    reading is what the reviewer should normally be given."""
+    live = constraint_prompt(date(2026, 8, 13), equity=1016.66)
+    assert "1016.66" in live
+    assert "216.66" in live                    # headroom above the 800 floor
+    assert "reading of" not in live            # not labelled stale when live
+
+    stale = constraint_prompt(date(2026, 8, 13))
+    assert f"{EQUITY_AT_REVIEW:.2f}" in stale
+    # A fallback the reviewer cannot tell is a fallback is worse than no
+    # number, so it has to announce its own date.
+    assert EQUITY_AS_OF in stale and "unreadable" in stale
+
+
+def test_followups_substitute_the_live_budget_into_the_right_prompt():
+    """Counting to the constraint prompt by index breaks the moment a question
+    is inserted above it, and it would break silently."""
+    assert FOLLOWUPS[CONSTRAINT_INDEX] == constraint_prompt()
+    turns = followups(equity=1016.66, today=date(2026, 8, 13))
+    assert len(turns) == len(FOLLOWUPS)
+    assert "1016.66" in turns[CONSTRAINT_INDEX]
+    # Every other follow-up must be untouched.
+    for i, (a, b) in enumerate(zip(turns, FOLLOWUPS)):
+        if i != CONSTRAINT_INDEX:
+            assert a == b, i
 
 
 def test_the_daily_target_clears_the_organizer_floor_with_margin():

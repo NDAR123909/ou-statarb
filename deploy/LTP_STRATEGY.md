@@ -758,6 +758,12 @@ the whole dollar has to be deliberate.
 - the four standing strategy prompts, now the smallest share rather than the
   whole pass.
 
+The risk budget in those prompts is **read live** (`live_equity()`,
+substituted by `followups()` at `CONSTRAINT_INDEX`). `EQUITY_AT_REVIEW`
+survives only as a fallback that labels itself with its own date when the venue
+read fails — the morning's headroom error came from a hardcoded number, and
+leaving a second one in the fix would have been the same mistake twice.
+
 Two cron lines: the main pass 30 minutes after each 16:00 UTC reset, and a
 top-up four hours later that no-ops above `TOPUP_BELOW = 1.05`. Both exit
 non-zero below the floor, and `status.py` gained an `ai spend` line — the same

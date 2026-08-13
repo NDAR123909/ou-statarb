@@ -158,7 +158,23 @@ TOPUP_BELOW = 1.05          # the top-up run no-ops above this
 PHASE_I_END = date(2026, 8, 21)
 ELIMINATION_FLOOR = 800.0     # competition rule: equity below this is out
 KILL_SWITCH = 916.25          # ours, self-imposed; halts and flattens first
-EQUITY_AT_REVIEW = 1024.78    # 2026-08-09 23:24 UTC, last verified reading
+
+# Fallback only. Equity is read live -- hardcoding it is the same rot as the
+# hardcoded "nine days remain" one function down, and it rots faster: this
+# constant was written on 2026-08-09 and equity was 1016.66 by 2026-08-13, four
+# days and 8 USDT later. When the live read fails the prompt uses this AND says
+# it is dated, because a reviewer given a stale number silently is worse off
+# than one told the number is old.
+EQUITY_AT_REVIEW = 1024.78    # 2026-08-09 23:24 UTC
+EQUITY_AS_OF = "2026-08-09"
+
+
+def live_equity() -> float | None:
+    """Account equity now, or None if the venue read fails. Read-only."""
+    try:
+        return float(RapidXBroker().equity_usdt())
+    except Exception:                                    # noqa: BLE001
+        return None
 
 
 def days_left(today: date | None = None) -> int:
@@ -171,11 +187,15 @@ def days_left(today: date | None = None) -> int:
     return max(0, (PHASE_I_END - (today or date.today())).days)
 
 
-def constraint_prompt(today: date | None = None) -> str:
+def constraint_prompt(today: date | None = None,
+                      equity: float | None = None) -> str:
     """The risk budget, stated so the two floors cannot be confused again."""
+    eq = EQUITY_AT_REVIEW if equity is None else float(equity)
+    dated = "" if equity is not None else f" (reading of {EQUITY_AS_OF}; the "
+    dated += "" if equity is not None else "live meter was unreadable)"
     return (
-        "{d} days remain in the phase. Equity is {eq:.2f} USDT against a "
-        "competition elimination floor of {floor:.0f} -- {to_floor:.2f} USDT "
+        "{d} days remain in the phase. Equity is {eq:.2f} USDT{dated} against "
+        "a competition elimination floor of {floor:.0f} -- {to_floor:.2f} USDT "
         "of headroom. Our own kill switch sits higher, at {ks:.2f}, only "
         "{to_ks:.2f} away, but that is a self-imposed halt we chose and not "
         "the rule that ends the competition; do not conflate the two. Max "
@@ -183,10 +203,9 @@ def constraint_prompt(today: date | None = None) -> str:
         "assured regardless of rank. Under those constraints specifically, "
         "what is the single highest-expected-value action, and what does "
         "doing nothing actually cost?"
-    ).format(d=days_left(today), eq=EQUITY_AT_REVIEW,
-             floor=ELIMINATION_FLOOR,
-             to_floor=EQUITY_AT_REVIEW - ELIMINATION_FLOOR,
-             ks=KILL_SWITCH, to_ks=EQUITY_AT_REVIEW - KILL_SWITCH)
+    ).format(d=days_left(today), eq=eq, dated=dated,
+             floor=ELIMINATION_FLOOR, to_floor=eq - ELIMINATION_FLOOR,
+             ks=KILL_SWITCH, to_ks=eq - KILL_SWITCH)
 
 
 # Escalating follow-ups, asked in order. Each turn carries the whole
@@ -210,7 +229,7 @@ FOLLOWUPS = [
     "distribution of exit reasons -- and state what observation would falsify "
     "you. A log query has to be able to check each one.",
 
-    constraint_prompt(),
+    constraint_prompt(),          # replaced with the live reading by followups()
 
     "What have the operators not asked you about this that they should have? "
     "Identify the assumption in the framing itself that you think is most "
@@ -225,6 +244,23 @@ FOLLOWUPS = [
     "to leave alone, what to measure first, and in what order. Keep every item "
     "tied to a number that appeared in this conversation.",
 ]
+
+# Which follow-up carries the risk budget. Named rather than counted, so
+# inserting a question above it cannot silently point the live-equity
+# substitution at the wrong prompt.
+CONSTRAINT_INDEX = 3
+
+
+def followups(equity: float | None = None,
+              today: date | None = None) -> list[str]:
+    """`FOLLOWUPS` with the risk budget filled in from the live reading.
+
+    The module-level list is built at import and must stay network-free, so the
+    substitution happens here, once, at the start of a run.
+    """
+    out = list(FOLLOWUPS)
+    out[CONSTRAINT_INDEX] = constraint_prompt(today=today, equity=equity)
+    return out
 
 
 # ----------------------------------------------------------- the prompts --
@@ -474,12 +510,14 @@ def ledger_prompts(hours: float = 24.0, now: datetime | None = None,
     return out
 
 
-def strategy_prompts() -> list[tuple[str, str]]:
+def strategy_prompts(equity: float | None = None) -> list[tuple[str, str]]:
     """Adversarial review of conclusions we have already drawn."""
+    eq = EQUITY_AT_REVIEW if equity is None else float(equity)
     common = (
-        "Live record, 2026-07-20 to 2026-08-12, 1000 USDT start, 2x max "
-        "leverage, hourly bars.\n"
-        "  equity 1024.78, peak 1041.19, max drawdown 3.7% (monotonic, scored)\n"
+        "Live record from 2026-07-20, 1000 USDT start, 2x max leverage, "
+        "hourly bars.\n"
+        f"  equity {eq:.2f}, peak 1041.19, max drawdown 3.7% (monotonic, "
+        f"scored)\n"
         "  13 completed round trips: 10 reverted (9 wins, +27.79 gross), "
         "2 stops (0 wins, -15.89), 1 refit-drop (-2.49). Total +9.41.\n"
         "  median hold 2.0h against fitted half-lives of 17-26h; ZERO trades "
@@ -551,7 +589,8 @@ def strategy_prompts() -> list[tuple[str, str]]:
     ]
 
 
-def daily_work(cfg: AgentConfig) -> list[tuple[str, str]]:
+def daily_work(cfg: AgentConfig,
+               equity: float | None = None) -> list[tuple[str, str]]:
     """The daily pass's material, broadest-first.
 
     Breadth matters more than depth here because the floor recurs every day and
@@ -564,7 +603,7 @@ def daily_work(cfg: AgentConfig) -> list[tuple[str, str]]:
     return (candidate_prompts(cfg, angle=1, logp=logp)
             + candidate_prompts(cfg, angle=2, logp=logp)
             + ledger_prompts()
-            + strategy_prompts())
+            + strategy_prompts(equity=equity))
 
 
 def main() -> int:
@@ -618,13 +657,22 @@ def main() -> int:
     print(f"model {model_name()}  |  spend at start: "
           f"{'unreadable' if start is None else f'${start:.5f}'}")
 
+    equity = live_equity()
+    print("equity: " + ("UNREADABLE — prompts fall back to the "
+                        f"{EQUITY_AS_OF} reading of {EQUITY_AT_REVIEW:.2f}, "
+                        "labelled as dated" if equity is None
+                        else f"{equity:.2f} USDT (live), "
+                             f"{equity - ELIMINATION_FLOOR:.2f} above the "
+                             f"{ELIMINATION_FLOOR:.0f} floor"))
+    turns = followups(equity=equity)
+
     cfg = AgentConfig()
     if args.probe:
-        work = strategy_prompts()[:2]
+        work = strategy_prompts(equity=equity)[:2]
     elif args.daily:
-        work = daily_work(cfg)
+        work = daily_work(cfg, equity=equity)
     else:
-        work = candidate_prompts(cfg) + strategy_prompts()
+        work = candidate_prompts(cfg) + strategy_prompts(equity=equity)
     print(f"{len(work)} topics, up to {args.rounds} rounds each")
 
     calls = 0
@@ -668,7 +716,7 @@ def main() -> int:
                 time.sleep(0.4)      # gentle on the gateway
                 if rnd < args.rounds:
                     msgs.append({"role": "user",
-                                 "content": FOLLOWUPS[(rnd - 1) % len(FOLLOWUPS)]})
+                                 "content": turns[(rnd - 1) % len(turns)]})
                 if args.target is not None:
                     cur = spend_now()
                     if cur is not None and cur >= args.target:

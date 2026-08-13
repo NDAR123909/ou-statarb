@@ -1184,6 +1184,40 @@ taker per leg"**, superseded by the 1.75 bps measurement on 2026-08-02. A live
 doc asserting a number we disproved ten days ago is exactly the stale premise
 the close-out protocol exists to catch.
 
+### Deployed, verified, and one more hardcoded number removed
+
+Crons installed and confirmed by `crontab -l`: two `ai_deep_review` entries, no
+duplicates. `--floor 1.05` correctly refused to spend at $1.20925, and the new
+`ai spend` line reads *"$1.2093 — clears the $1.00 floor"*. First live pass
+2026-08-13 16:30 UTC.
+
+Two defects found by looking at the real crontab rather than remembering it:
+the cron block I wrote **used `\` line continuations, which cron does not
+honour** — every entry would have truncated at the backslash, installed
+cleanly, listed cleanly, and done nothing. And my lines wrote `ltp_ai.log`
+**into the repo**, where nothing ignored it and one `git add -A` would have
+committed a growing log of raw AI output into the track record. Both fixed;
+`*.log` is now in `.gitignore`, and the README block is transcribed from the
+installed crontab rather than written from memory (it had the fills job's flags
+wrong too).
+
+**Live reading at 2026-08-13 00:40 UTC — supersedes the week 3 numbers:**
+equity **1016.66** (was 1024.78), peak 1041.19, drawdown **2.36%** (was 1.58%),
+headroom 100.41 to the kill switch and 216.66 to the 800 floor, one pair
+active, service up since 08-09 with `NRestarts=0`. Under the 3.7% banked MDD,
+so nothing here is actionable — but −8.12 in four days is real and the record
+should not keep quoting the older figure.
+
+That drift also exposed **the same rot I had fixed one line above and left in
+place**: `EQUITY_AT_REVIEW = 1024.78` was hardcoded into the reviewer's
+constraint prompt, so the daily pass would have claimed 224.78 of headroom
+against a real 216.66 — small next to this morning's 2× error, but growing
+daily. Equity is now read live (`live_equity()`), the constant survives only as
+a **labelled** fallback that tells the reviewer its own date when the meter is
+unreadable, and `followups()` substitutes it via a named `CONSTRAINT_INDEX`
+rather than a bare index that would silently point at the wrong prompt if a
+question were inserted above it. 185 tests.
+
 ### Record hygiene done in the same pass
 
 Running the cold-start protocol surfaced four defects in this file, fixed now:
