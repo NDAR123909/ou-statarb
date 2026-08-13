@@ -160,17 +160,25 @@ there. The lines below wrap in this file for reading; they do not wrap in the
 crontab. `%` is also special to cron (it becomes a newline) and must be
 escaped if a command ever needs one.
 
+This block is transcribed from the installed crontab on 2026-08-13, not
+written from memory. Logs go to `/var/log/`, never into the repo — an
+untracked `*.log` beside the source is one `git add -A` away from being
+committed. Note `\%` in the fills line: cron turns a bare `%` into a newline.
+
 ```cron
 # state history — one JSON line per day, what was TRUE rather than decided
-50 23 * * * cd /root/ou-statarb && set -a; . /root/ltp.env; set +a; .venv/bin/python deploy/record_state.py >> /root/ou-statarb/ltp_record.log 2>&1
+50 23 * * * cd /root/ou-statarb && set -a && . /root/ltp.env && set +a && .venv/bin/python deploy/record_state.py >> /var/log/ltp_record.log 2>&1
 
 # fills reconciliation — MUST run daily; the venue serves ~7 days of executions and a weekly job would sit exactly on the retention edge
-55 23 * * * cd /root/ou-statarb && set -a; . /root/ltp.env; set +a; .venv/bin/python deploy/fills_report.py --save >> /root/ou-statarb/ltp_fills.log 2>&1
+55 23 * * * cd /root/ou-statarb && set -a && . /root/ltp.env && set +a && .venv/bin/python deploy/fills_report.py --json track_record/fills_$(date -u +\%F).json >> /var/log/ltp_fills.log 2>&1
 
 # AI spend floor — the organizer requires >= USD 1 per budget period and the meter resets at 16:00 UTC. Main pass 30 min after the reset so the period is compliant early; top-up 4h later, no-op if the main pass succeeded.
-30 16 * * * cd /root/ou-statarb && set -a; . /root/ltp.env; set +a; .venv/bin/python deploy/ai_deep_review.py --daily >> /root/ou-statarb/ltp_ai.log 2>&1
-30 20 * * * cd /root/ou-statarb && set -a; . /root/ltp.env; set +a; .venv/bin/python deploy/ai_deep_review.py --daily --floor 1.05 >> /root/ou-statarb/ltp_ai.log 2>&1
+30 16 * * * cd /root/ou-statarb && set -a && . /root/ltp.env && set +a && .venv/bin/python deploy/ai_deep_review.py --daily >> /var/log/ltp_ai.log 2>&1
+30 20 * * * cd /root/ou-statarb && set -a && . /root/ltp.env && set +a && .venv/bin/python deploy/ai_deep_review.py --daily --floor 1.05 >> /var/log/ltp_ai.log 2>&1
 ```
+
+The `&&` chaining is deliberate: if `/root/ltp.env` is missing or unreadable
+the command aborts instead of running the agent with no credentials.
 
 cron runs `/bin/sh`, not bash, so it is `. /root/ltp.env` rather than
 `source` unless the crontab sets `SHELL=/bin/bash`. Paths are absolute
