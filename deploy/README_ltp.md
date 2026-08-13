@@ -173,12 +173,29 @@ committed. Note `\%` in the fills line: cron turns a bare `%` into a newline.
 55 23 * * * cd /root/ou-statarb && set -a && . /root/ltp.env && set +a && .venv/bin/python deploy/fills_report.py --json track_record/fills_$(date -u +\%F).json >> /var/log/ltp_fills.log 2>&1
 
 # AI spend floor — the organizer requires >= USD 1 per budget period and the meter resets at 16:00 UTC. Main pass 30 min after the reset so the period is compliant early; top-up 4h later, no-op if the main pass succeeded.
-30 16 * * * cd /root/ou-statarb && set -a && . /root/ltp.env && set +a && .venv/bin/python deploy/ai_deep_review.py --daily >> /var/log/ltp_ai.log 2>&1
-30 20 * * * cd /root/ou-statarb && set -a && . /root/ltp.env && set +a && .venv/bin/python deploy/ai_deep_review.py --daily --floor 1.05 >> /var/log/ltp_ai.log 2>&1
+30 16 * * * cd /root/ou-statarb && set -a && . /root/ltp.env && set +a && .venv/bin/python -u deploy/ai_deep_review.py --daily >> /var/log/ltp_ai.log 2>&1
+30 20 * * * cd /root/ou-statarb && set -a && . /root/ltp.env && set +a && .venv/bin/python -u deploy/ai_deep_review.py --daily --floor 1.05 >> /var/log/ltp_ai.log 2>&1
 ```
 
 The `&&` chaining is deliberate: if `/root/ltp.env` is missing or unreadable
-the command aborts instead of running the agent with no credentials.
+the command aborts instead of running the agent with no credentials. The `-u`
+on the review job is not cosmetic — Python block-buffers stdout when it is
+redirected to a file, so without it the log stays empty for the whole run and
+is **lost entirely** if the process dies, which is precisely when you want it.
+
+**Never install a crontab through a pipeline.** `crontab -l | sed … | crontab -`
+installs empty stdin whenever the middle stage fails — a wrapped paste, a stray
+quote — and empty stdin deletes every job. That happened on 2026-08-13. Edit a
+file, read it, then install, and refresh the backup afterwards so a restore
+does not silently revert a fix:
+
+```bash
+crontab -l > /root/cron.now
+sed -i 's|OLD|NEW|' /root/cron.now
+cat /root/cron.now          # read it before installing
+crontab /root/cron.now
+crontab -l > /root/cron.bak # so the backup matches what is now installed
+```
 
 cron runs `/bin/sh`, not bash, so it is `. /root/ltp.env` rather than
 `source` unless the crontab sets `SHELL=/bin/bash`. Paths are absolute

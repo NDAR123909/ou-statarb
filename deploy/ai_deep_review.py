@@ -50,6 +50,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from datetime import date, datetime, timezone
@@ -91,8 +92,12 @@ Reason from the numbers you are given. Cite them. Where you need a number you
 do not have, name it and say what it would settle."""
 
 
-def spend_now() -> float | None:
-    """Current-period spend from the gateway's own meter, or None."""
+def key_info() -> dict | None:
+    """The gateway's meter block, or None if it cannot be read.
+
+    Returns whichever nesting level actually carries `spend` -- the gateway
+    puts it under `info`, but that has changed shape before.
+    """
     base, key = os.environ.get("LTP_AI_BASE_URL"), os.environ.get("LTP_AI_API_KEY")
     if not (base and key and requests is not None):
         return None
@@ -105,10 +110,73 @@ def spend_now() -> float | None:
             body = r.json()
             for node in (body, body.get("info") or {}, body.get("data") or {}):
                 if isinstance(node, dict) and node.get("spend") is not None:
-                    return float(node["spend"])
+                    return node
         except (requests.RequestException, ValueError, TypeError):
             continue
     return None
+
+
+def spend_now() -> float | None:
+    """Current-period spend from the gateway's own meter, or None."""
+    info = key_info()
+    try:
+        return float(info["spend"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _duration_hours(text) -> float:
+    """`budget_duration` ("1d", "12h") as hours. Defaults to a day."""
+    m = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*([dhm])\s*", str(text or ""), re.I)
+    if not m:
+        return 24.0
+    return float(m.group(1)) * {"d": 24.0, "h": 1.0,
+                                "m": 1.0 / 60.0}[m.group(2).lower()]
+
+
+def period_age_hours(info: dict, now: datetime | None = None) -> float | None:
+    """Hours elapsed since the current budget period began.
+
+    `budget_reset_at` is the END of the period, so the start is that minus
+    `budget_duration`. None when the field is missing or unparseable -- and a
+    caller must read None as "do not suppress the alarm", never as "fine".
+    """
+    try:
+        end = datetime.fromisoformat(str((info or {})["budget_reset_at"]))
+    except (KeyError, TypeError, ValueError):
+        return None
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=timezone.utc)
+    start = end.timestamp() - _duration_hours(info.get("budget_duration")) * 3600.0
+    return ((now or datetime.now(timezone.utc)).timestamp() - start) / 3600.0
+
+
+# The daily pass fires at reset+0:30 and the top-up at reset+4:30, so a period
+# is not genuinely short until both have had their chance. Alarming before that
+# means alarming every morning, on schedule, for hours -- which teaches the
+# operator to scroll past the one line that would catch a real failure. That is
+# exactly how the news-gate blind spot would have come back.
+FLOOR_GRACE_H = 5.0
+
+
+def floor_state(spend: float | None, info: dict | None,
+                now: datetime | None = None) -> str:
+    """Where this budget period stands against the organizer floor.
+
+    `clear`   at or above the floor.
+    `pending` below it, but both scheduled passes have not yet had their turn.
+    `short`   below it with no scheduled run left to fix it -- alarm.
+    `unknown` the meter could not be read -- also alarm, because a floor we
+              cannot see is precisely the one that gets missed.
+    """
+    if spend is None:
+        return "unknown"
+    if spend >= AI_SPEND_FLOOR:
+        return "clear"
+    age = period_age_hours(info or {}, now=now)
+    if age is not None and age < FLOOR_GRACE_H:
+        return "pending"
+    return "short"
 
 
 def ask(client, messages: list[dict], max_tokens: int = 4000) -> str | None:

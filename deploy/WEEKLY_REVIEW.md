@@ -1218,6 +1218,60 @@ unreadable, and `followups()` substitutes it via a named `CONSTRAINT_INDEX`
 rather than a bare index that would silently point at the wrong prompt if a
 question were inserted above it. 185 tests.
 
+### Incident 2026-08-13 — a command I supplied deleted the whole crontab
+
+**All four cron jobs were wiped.** The fix I handed over was
+`crontab -l | sed … | crontab -`. The paste broke across a newline, sed died
+with *"unterminated `s' command"* and produced no output, and **`crontab -`
+installed that empty output** — which deletes every job. `crontab -l` came back
+silent.
+
+Cost: nothing, by luck. The wipe fell around 16:35 UTC and the next scheduled
+job was 20:30, so no run was missed and the pass already running (pid 41532)
+was unaffected — a running job holds no reference to the crontab. Had it landed
+after 23:00 it would have taken the 23:55 `fills_report` with it, and that
+evidence expires in ~7 days and cannot be re-fetched.
+
+Restoring exposed a second failure: **`/root/cron.bak` was captured before the
+2026-08-12 `&&`/log-path fix**, so the restore silently rolled that fix back.
+Caught by reading the output, not by anything automatic.
+
+**Two rules now in `README_ltp.md`:**
+1. **Never install a crontab through a pipeline.** Write to a file, `cat` it,
+   install, verify. A pipeline into `crontab -` has a failure mode of total
+   loss and a success mode that saves four keystrokes.
+2. **Refresh `cron.bak` after every verified change**, or the backup becomes a
+   time machine to a bug you already fixed.
+
+The generalisable form, and it is not "paste more carefully": *a recovery
+command must not have a destructive failure mode.* I optimised a one-liner for
+brevity in a situation where brevity was worth nothing.
+
+Also shipped from the same run: **`-u` on both review cron lines.** The log was
+empty while the process was demonstrably alive — Python block-buffers stdout
+when redirected to a file, so nothing appears until a 4–8KB flush and
+everything is lost if the process dies. A log that is invisible exactly when
+you need it is not a log.
+
+**And the false-alarm window is closed.** The 16:28 UTC glance read
+`** $0.0007 — BELOW the $1.00 floor **`, which was correct, useful once, and
+would have been correct-and-useless every morning between the 16:00 reset and
+whenever the pass finished. A warning that fires daily on schedule teaches the
+operator to scroll past it — the same way the news-gate blind spot would have
+returned. `floor_state()` now reads `budget_reset_at` and `budget_duration` and
+reports `clear` / `pending` / `short` / `unknown`; `status.py` only alarms and
+only exits non-zero on the last two. `pending` covers the first 5 hours, which
+outlasts both scheduled passes (+0:30 and +4:30). **A period whose age cannot
+be established reads `short`, not `pending`** — suppressing an alarm on
+ignorance is the exact failure the guard exists to prevent. 188 tests.
+
+**Repo note:** PR #27 merged while this work was in flight, and the local
+checkout was moved onto main's tip, so a session's edits were briefly being
+written against a version six commits stale. Nothing was lost — the remote
+branch held everything — and main was merged into the branch rather than
+rebased onto it, because the droplet is live on this branch and the week 3
+force-push cost a `git reset --hard` there.
+
 ### Record hygiene done in the same pass
 
 Running the cold-start protocol surfaced four defects in this file, fixed now:

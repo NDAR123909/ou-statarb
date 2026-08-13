@@ -22,9 +22,10 @@ from deploy.ai_deep_review import (AI_SPEND_FLOOR, ANGLES,  # noqa: E402
                                    ELIMINATION_FLOOR, EQUITY_AS_OF,
                                    EQUITY_AT_REVIEW, FOLLOWUPS, KILL_SWITCH,
                                    PHASE_I_END, SYSTEM, TOPUP_BELOW,
-                                   constraint_prompt, days_left, followups,
-                                   ledger_prompts, recent_events,
-                                   strategy_prompts)
+                                   FLOOR_GRACE_H, _duration_hours,
+                                   constraint_prompt, days_left, floor_state,
+                                   followups, ledger_prompts, period_age_hours,
+                                   recent_events, strategy_prompts)
 
 
 def test_the_reviewer_is_told_to_attack_not_approve():
@@ -221,6 +222,52 @@ def test_recent_events_survives_a_corrupt_or_missing_ledger(tmp_path):
                         now=datetime(2026, 8, 13, 12, 0, tzinfo=timezone.utc),
                         path=p)
     assert len(got) == 1
+
+
+def test_the_floor_alarm_stays_quiet_only_while_a_run_is_still_due():
+    """The meter zeroes at every reset, so a naive check alarms every morning
+    for hours, on schedule, correctly, and uselessly -- and an operator who
+    scrolls past it daily will scroll past the one that matters."""
+    # The period running 2026-08-13 16:00 UTC -> 2026-08-14 16:00 UTC. The
+    # gateway states the END, in GMT+8: 2026-08-15T00:00+08:00 is 08-14 16:00Z.
+    info = {"budget_reset_at": "2026-08-15T00:00:00+08:00",
+            "budget_duration": "1d"}
+    just_after = datetime(2026, 8, 13, 16, 30, tzinfo=timezone.utc)
+    much_later = datetime(2026, 8, 13, 23, 0, tzinfo=timezone.utc)
+
+    assert floor_state(0.0007, info, now=just_after) == "pending"
+    assert floor_state(0.0007, info, now=much_later) == "short"
+    assert floor_state(1.2093, info, now=just_after) == "clear"
+    # An unreadable meter must alarm: a floor nobody can see is the one missed.
+    assert floor_state(None, info, now=just_after) == "unknown"
+    # ...and so must a period whose age cannot be established. Suppressing on
+    # ignorance is the failure this whole guard exists to avoid.
+    assert floor_state(0.0007, {}, now=just_after) == "short"
+
+
+def test_the_grace_window_covers_both_scheduled_passes():
+    """16:30 and 20:30 against a 16:00 reset -- the window has to outlast the
+    top-up or the alarm fires while a run is still due to fix it."""
+    assert FLOOR_GRACE_H > 4.5
+    info = {"budget_reset_at": "2026-08-15T00:00:00+08:00",
+            "budget_duration": "1d"}
+    at_topup = datetime(2026, 8, 13, 20, 30, tzinfo=timezone.utc)
+    assert period_age_hours(info, now=at_topup) == 4.5
+    assert floor_state(0.5, info, now=at_topup) == "pending"
+
+
+def test_period_age_reads_the_duration_rather_than_assuming_a_day():
+    """`budget_duration` is "1d" today. If the organizer ever shortens it, an
+    assumed 24h would silence the alarm for most of the new period."""
+    twelve = {"budget_reset_at": "2026-08-13T12:00:00+00:00",
+              "budget_duration": "12h"}
+    noon = datetime(2026, 8, 13, 6, 0, tzinfo=timezone.utc)
+    assert period_age_hours(twelve, now=noon) == 6.0
+    # Unparseable duration falls back to a day rather than to zero, so the
+    # window errs toward alarming rather than toward silence.
+    assert _duration_hours("nonsense") == 24.0
+    assert _duration_hours("1d") == 24.0
+    assert _duration_hours("90m") == 1.5
 
 
 def test_the_elimination_floor_agrees_with_the_one_status_reports():
