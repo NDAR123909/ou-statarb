@@ -776,6 +776,22 @@ prints *"this is compliance volume, not new analysis."* A later reader counting
 `ai_deep_review` rows must not be able to mistake a second lap for twice the
 thinking.
 
+**Measured on the first full run (2026-08-13):** 36 distinct topics × 7 rounds
+= **252 calls of new material (~$0.77)**, plus **124 repeated calls (~$0.38)**
+to reach the target — **67% analysis, 33% labelled volume**, at $0.00307/call.
+That ratio is the honest headline figure for this arrangement, and it is
+published here rather than left to be inferred from a ledger row count.
+Closing the 33% would need ~18 more distinct topics; declined for Phase I on
+priority (8 days left, two agenda items with measured payoffs) and flagged for
+Phase II, where the floor runs for two months rather than a week.
+
+The pass was also checked for the one way it could harm the agent it reviews:
+376 calls in three hours through the shared gateway produced **zero**
+`sentinel_degraded` and **zero** `ai_assessment_unavailable` events, so it
+never starved the hourly news and spread assessments. AI engagement is not a
+scored term either — the 2026-08-13 leaderboard has the **#1 team at
+`0 | 0 | 0` engagement**, which settles it.
+
 ### The part that would be easy to overclaim
 
 This takes the AI layer from ~0.05 to ~1.15 USD/day, a twenty-fold increase,

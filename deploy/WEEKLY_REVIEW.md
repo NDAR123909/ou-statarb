@@ -1272,6 +1272,89 @@ branch held everything — and main was merged into the branch rather than
 rebased onto it, because the droplet is live on this branch and the week 3
 force-push cost a `git reset --hard` there.
 
+### 2026-08-13, first full daily pass: 67% analysis, 33% labelled volume
+
+The pass ran to target and the log pins the split exactly:
+
+```
+line 258:  -- 36 distinct topics exhausted below target; repeating as pass 2.
+target $1.15 reached at $1.15357
+calls: 376   spend: $0.00075 -> $1.15357  (+$1.15282, $0.00307/call)
+```
+
+**36 distinct topics** — 15 pairs × 2 angles, 2 ledger topics, 4 strategy —
+× 7 rounds = **252 calls of material that did not exist yesterday**. Reaching
+the target took **124 more** over the same ground.
+
+| | calls | cost | share |
+|---|---|---|---|
+| distinct material | **252** | ~$0.77 | **67%** |
+| labelled repetition | **124** | ~$0.38 | **33%** |
+
+So two-thirds of the daily dollar is genuine and one-third is compliance
+volume, and the third is stamped `pass_index=2` in the ledger and announced in
+the log. **This is a measurement, not an estimate**, and it is the number to
+quote if anyone asks what the spend bought. Also worth noting:
+`ledger_prompts()` returned 2 topics, so the quiet-day fallback did not fire —
+there was real activity to review.
+
+**Decision: do not close the 33%.** Reaching $1.15 on distinct material alone
+needs ~18 more topics, and there is a legitimate candidate (a third angle on
+cross-pair redundancy — whether the 15 candidates are 15 independent bets or
+four bets in fifteen costumes, which we have genuinely never checked and which
+bears on breadth, our binding constraint). It was declined on priority, not on
+merit: **8 days remain and the week 4 agenda carries two items with measured
+payoffs.** Broadening a compliance script ahead of those would be choosing the
+tidier problem over the valuable one. Revisit for Phase II, where the daily
+floor will run for two months rather than a week.
+
+### The AI-spend-hurts-our-score worry, closed on evidence
+
+The operator asked whether the jump to ~$1.15/day had cost us score. It has
+not, and the leaderboard itself is the disproof:
+
+- **T.Anh sits at #1 with AI Engagement `0 | 0 | 0`.** If engagement were
+  scored, a team with none of it could not lead. The formula has four terms and
+  none is AI.
+- **Our `AI-Adj PnL` gap is the smallest in the top ten**: +19.63 against
+  +19.65 PnL, a 0.02 haircut, versus T.Anh's 0.85 *at zero engagement*. Whatever
+  that column computes, it is not a token penalty.
+- **The timing is wrong.** Score was 94.4 (#2) on 08-02 and #6 by 08-04; the
+  spend increase was 08-12/13. The decline predates it by more than a week.
+
+The one mechanism that could have bitten — the review pass throttling the
+agent's own hourly assessments through the shared gateway — was checked rather
+than argued: `sentinel_degraded` **0**, `ai_assessment_unavailable` **0**,
+across 376 calls in three hours. Ruled out empirically.
+
+### Leaderboard 2026-08-13 — and MDD is what actually moved
+
+**#4 of the field, score 86.5** · Sharpe **2.94** · MDD **3.7%** · PnL
+**+19.65** · ROI **+2.0%** · 103 trades · ann. return +27.6%.
+
+| | T.Anh #1 | btcol #2 | Supes #3 | **NDAR #4** |
+|---|---|---|---|---|
+| Score | 96.7 | 91.5 | 88.6 | **86.5** |
+| Sharpe (40%) | 5.84 | 4.04 | 2.48 | **2.94** |
+| MDD (15%) | 3.8% | 1.3% | 2.6% | **3.7%** |
+| PnL (25%) | +58.71 | +26.10 | +24.91 | **+19.65** |
+| ROI (20%) | +5.9% | +2.6% | +2.5% | **+2.0%** |
+
+**We out-Sharpe third place and rank below them anyway.** The gap is size and
+MDD — and MDD is the one that used to be ours. It read **1.3%, best in the top
+10, on 2026-08-02**; it reads **3.7% now, second-worst**, while btcol holds
+1.3%, Krosus 1.0% and PSJeevaa 0.9%. Two stop-outs in early August spent it,
+and because MDD is monotonically non-decreasing **that 15% of the score cannot
+be earned back this phase.**
+
+This is the single most consequential fact on the board and it should open the
+Sunday review. It also sharpens week 4 item 1: the intra-bar monitor's entire
+case is that roughly a third of losses came from stops firing late, and late
+stops are exactly what banked this number. The counter-argument — that with
+3.7% already banked, further drawdown *below* that level costs nothing in the
+scored metric — is now load-bearing rather than academic, because we are past
+the point where MDD protection buys anything back.
+
 ### Record hygiene done in the same pass
 
 Running the cold-start protocol surfaced four defects in this file, fixed now:
@@ -1327,6 +1410,15 @@ section existed; that is what it is for.
 **Phase I ends 2026-08-21.** The review on 08-16 is the last one inside the
 phase. (This line read "12 days" when written on 08-09; countdowns rot, so the
 date is what is stated. It was 9 days out on 2026-08-12.)
+
+0. **Open on the MDD reading** (added 2026-08-13). We are **#4, score 86.5**,
+   out-Sharping third place (2.94 vs 2.48) and ranking below them on size and
+   drawdown. **MDD went 1.3% best-in-field → 3.7% second-worst and cannot
+   recover** — 15% of the score is spent. Every other item on this list should
+   be argued against that fact rather than against the week 2 position where we
+   led MDD, because it inverts one standing argument: with 3.7% banked, further
+   drawdown below that level costs nothing scored, which is the strongest case
+   *against* item 1.
 
 1. **Sub-hourly risk monitor — ship it or drop it, in writing.** The only change
    with a measured payoff: **roughly a third of every dollar lost** came from stops
