@@ -788,9 +788,33 @@ Phase II, where the floor runs for two months rather than a week.
 The pass was also checked for the one way it could harm the agent it reviews:
 376 calls in three hours through the shared gateway produced **zero**
 `sentinel_degraded` and **zero** `ai_assessment_unavailable` events, so it
-never starved the hourly news and spread assessments. AI engagement is not a
-scored term either — the 2026-08-13 leaderboard has the **#1 team at
-`0 | 0 | 0` engagement**, which settles it.
+never starved the hourly news and spread assessments.
+
+**AI usage is a gate, not a score term** — and the distinction is the one that
+matters for pre-registration, because it says what this spending can and cannot
+be expected to do. The scoring formula is
+`0.40×Z(Sharpe) + 0.25×Z(PnL) + 0.20×Z(ROI) + 0.15×Z(MDD)`; no AI term appears
+in it, so **more spend never buys score.** Separately, AI usage is an
+eligibility condition enforced by elimination: below USD 1 disqualifies (the
+2026-08-12 email), and a 2026-08-12 organizer exchange on Telegram confirms
+that teams at zero usage *"have already been eliminated in previous reviews"*
+with further reviews conducted at the organizer's discretion. Pass/fail at the
+bottom, no reward above it.
+
+> **A retraction belongs here.** The first version of this paragraph argued
+> engagement was unscored *because the 2026-08-13 leaderboard showed the #1
+> team at `0 | 0 | 0`*. That team is either a display bug or pending
+> elimination under the review above, so the row was never evidence — and it
+> pointed the opposite way, since zero usage is exactly what gets a team
+> removed. The conclusion is unchanged and now rests on the rule text instead
+> of on a leaderboard cell. **No argument in this repo should lean on the AI
+> Engagement column.**
+
+One thing this leaves genuinely open: the organizers say *"zero **total** AI
+usage"*, and whether they read a lifetime total or the per-period meter is
+unconfirmed. Clearing USD 1 every period satisfies either reading, so the
+arrangement is safe under both — but it is an assumption, not a fact, and
+asking them is the only way to close it.
 
 ### The part that would be easy to overclaim
 

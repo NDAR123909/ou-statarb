@@ -37,6 +37,16 @@ Hard exit: **equity < 800 USDT** → forced liquidation and elimination.
   **Monotonically non-decreasing** — once a drawdown is recorded it never
   recovers, so a bad day is permanent and protecting MDD is protecting a
   banked asset.
+- **AI usage is a GATE, not a score term.** No AI term appears in the scoring
+  formula, so **more spend never buys score**. But usage is an eligibility
+  condition enforced by elimination at both ends: zero usage removes a team
+  (organizer, Telegram 2026-08-12: teams at zero *"have already been eliminated
+  in previous reviews"*, with more reviews at their discretion), and spend
+  below USD 1 disqualifies. Pass/fail at the bottom, no reward above it.
+- **Do not lean any argument on the "AI Engagement" column.** On 2026-08-13 it
+  showed the #1 team at `0 | 0 | 0` — either a display bug or a team pending
+  elimination — and an argument built on that row had to be retracted the same
+  day.
 - "AI Engagement" and "AI-Adjusted PnL" are **display only, not scored**, and
   the engagement figure is a **rolling window, not a cumulative total** — it
   fell 72k → 61k across 2026-08-02 with no change in behaviour. A drop there is
@@ -1308,24 +1318,71 @@ payoffs.** Broadening a compliance script ahead of those would be choosing the
 tidier problem over the valuable one. Revisit for Phase II, where the daily
 floor will run for two months rather than a week.
 
-### The AI-spend-hurts-our-score worry, closed on evidence
+### The AI-spend-hurts-our-score worry, closed — but not for the reason I first gave
 
 The operator asked whether the jump to ~$1.15/day had cost us score. It has
-not, and the leaderboard itself is the disproof:
+not. My first answer leaned hardest on an argument that does not survive, and
+the retraction is recorded before the conclusion.
 
-- **T.Anh sits at #1 with AI Engagement `0 | 0 | 0`.** If engagement were
-  scored, a team with none of it could not lead. The formula has four terms and
-  none is AI.
-- **Our `AI-Adj PnL` gap is the smallest in the top ten**: +19.63 against
-  +19.65 PnL, a 0.02 haircut, versus T.Anh's 0.85 *at zero engagement*. Whatever
-  that column computes, it is not a token penalty.
-- **The timing is wrong.** Score was 94.4 (#2) on 08-02 and #6 by 08-04; the
-  spend increase was 08-12/13. The decline predates it by more than a week.
+> **RETRACTED, same day.** I wrote: *"T.Anh sits at #1 with AI Engagement
+> `0 | 0 | 0`. If engagement were scored, a team with none of it could not
+> lead."* The operator then supplied a 2026-08-12 organizer exchange on
+> Telegram:
+>
+> > **Mark Cooper:** When do the zero ai use teams get removed from the LB?
+> > **Liquidity Arena:** Teams with zero total AI usage have already been
+> > eliminated in previous reviews. We'll conduct another review today, and if
+> > any teams are still at zero AI usage, they will be eliminated accordingly.
+>
+> So T.Anh is either a **display bug** or a team **pending elimination**.
+> Either way the row proves nothing about scoring, and it cuts the opposite way
+> from how I used it: zero AI usage is an **elimination criterion**, which is
+> precisely the kind of AI-linked rule I was asserting did not exist.
+>
+> **Also withdrawn on the same grounds:** the *"our `AI-Adj PnL` haircut is the
+> smallest in the top ten (0.02 vs T.Anh's 0.85)"* argument. It compares against
+> a row I have just said is untrustworthy.
 
-The one mechanism that could have bitten — the review pass throttling the
-agent's own hourly assessments through the shared gateway — was checked rather
-than argued: `sentinel_degraded` **0**, `ai_assessment_unavailable` **0**,
-across 376 calls in three hours. Ruled out empirically.
+**The reframe, which is the right model: AI usage is a GATE, not a score term.**
+Zero usage → elimination. Below USD 1 → elimination. Pass/fail, with no points
+for exceeding it. That reconciles both facts without contradiction — the
+scoring formula genuinely has four terms and none is AI, *and* the organizers
+genuinely eliminate teams on AI usage. Add it to the standing rules: **more
+spend never buys score; too little ends the competition.**
+
+What the conclusion actually rests on, after the retraction:
+
+- **The published formula has four terms** — Sharpe, PnL, ROI, MDD — none of
+  them AI. Rule text, not an inference from one leaderboard row.
+- **The timing is wrong by a week.** Score was 94.4 (#2) on 08-02 and #6 by
+  08-04; the spend increase was 08-12/13.
+- **MDD accounts for the whole decline on its own** — see the next section.
+- The one mechanism that could have bitten — the review pass throttling the
+  agent's own hourly assessments through the shared gateway — was checked
+  rather than argued: `sentinel_degraded` **0**, `ai_assessment_unavailable`
+  **0**, across 376 calls in three hours.
+
+Two operational consequences from that exchange, both worth more than the
+retracted argument was:
+
+1. **The reviews recur and their timing is the organizer's discretion**
+   (*"we'll conduct another review today"*). That is a better justification for
+   clearing the floor every period than the one given on 08-12, which reasoned
+   from the meter's shape alone.
+2. They say *"zero **total** AI usage"* — so whether they read a lifetime total
+   or a per-period figure is **still unresolved**. Clearing USD 1 every period
+   satisfies both readings, so the current arrangement is safe under either;
+   but this sharpens the open commitment to just ask them.
+
+**Method note, and it is the third of its kind this week.** 08-04: compared two
+runs of a tool whose column labels I had changed between them. 08-12: conflated
+our kill switch with the elimination floor. Now: took a leaderboard cell at
+face value without asking whether that row was valid. Same shape every time —
+**reaching for the tidiest available data point before checking whether the
+instrument means what it says.** The conclusions have survived; the supporting
+arguments keep not surviving. The fix is not more careful retracting, it is
+asking "what would make this number wrong?" before it goes into the record.
+**Do not lean any future argument on the AI Engagement column.**
 
 ### Leaderboard 2026-08-13 — and MDD is what actually moved
 
@@ -1395,7 +1452,7 @@ section existed; that is what it is for.
 | **Synthesise the 399 deep reviews** — where they converge, where they contradict each other, which claims survive contact with the others. Discount the round-5 layer, which reasoned from the understated headroom | 2026-08-12 | Sun 2026-08-16 review. Until it exists, no claim from that run has been acted on |
 | **Check AI `spend` against BOTH ends of the band** (min USD 1, max 10/day) at every review — the floor is what nearly disqualified us on 2026-08-12 | 2026-08-12 | every review, and before Phase II opens. Now also automated: `status.py` exits 1 below the floor |
 | **Verify the two spend crons actually fired** — 16:30 and 20:30 UTC, first live run 2026-08-13. Check `ltp_ai.log` and that the top-up no-opped rather than double-spending | 2026-08-12 | first daily glance after 2026-08-13 17:00 UTC |
-| **Ask the organizers whether the USD 1 floor is daily or was one-off enforcement** — it is the only answer that would let us stop spending ~1.15/day, and it rides along with the header-only CSV report we already owe them | 2026-08-12 | next organizer contact; draft is written when the operator wants it |
+| **Ask the organizers whether the USD 1 floor is daily or was one-off enforcement, and whether they read a lifetime total or the per-period meter** — their 2026-08-12 Telegram reply says "zero **total** AI usage", which does not settle it. Clearing 1.00 every period is safe under either reading, but that is an assumption. Rides along with the header-only CSV report we already owe them | 2026-08-12 | next organizer contact; draft is written when the operator wants it |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
 > *below* the closing horizontal rule since 2026-08-09 — outside the table, where
