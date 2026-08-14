@@ -250,3 +250,20 @@ def test_the_glance_is_not_buried_by_the_advisory_review_layer():
         assert [r["event"] for r in shown] == ["enter"]
         # ...but the volume must stay visible somewhere.
         assert tally["ai_deep_review"] == 50 and tally["enter"] == 1
+
+
+def test_the_refit_countdown_does_not_say_a_day_when_it_means_next_bar():
+    """The agent tests `bar % refit_every == 0` at the top of an iteration and
+    increments at the bottom, so the persisted bar is what the next iteration
+    checks. At an exact multiple the refit is imminent. The old display
+    rendered that 0 as `24` and sent the operator looking for a skipped refit
+    after a restart landed on bar 432."""
+    from deploy.status import bars_to_refit
+
+    assert bars_to_refit(432, 24) == 0        # refit runs on the NEXT bar
+    assert bars_to_refit(431, 24) == 1
+    assert bars_to_refit(408, 24) == 0
+    assert bars_to_refit(409, 24) == 23
+    assert bars_to_refit(0, 24) == 0
+    # Never divide by zero on a misconfigured interval.
+    assert bars_to_refit(432, 0) == 0

@@ -1558,6 +1558,26 @@ selected pair *before* screening its first entry. That is the actual fix and it
 touches the entry path with a week left, so it goes to Sunday with the other
 behavioural decisions rather than being shipped on a Friday evening.
 
+### A cosmetic bug that stopped being cosmetic
+
+The 18:11 restart landed on **bar 432**, an exact multiple of the 24-bar refit
+interval, and the glance read *"next in 24 bars"* while `refit:28` said none had
+run. That looked like a restart had skipped a refit and left us idle a full
+extra day in the middle of a drought.
+
+It had not. `ltp_agent.py:1143` tests `state["bar"] % refit_every_bars == 0` at
+the **top** of an iteration and increments at the bottom, so the persisted bar
+is the one the next iteration checks. At 432 the refit was one bar away, not
+twenty-four. The display was computing `(every - bar % every) % every` and then
+rendering the resulting 0 through `nxt or every` — a fallback meant for "just
+refitted" that at the boundary says exactly the opposite of the truth.
+
+Fixed as `bars_to_refit()` with the boundary rendered as **"refit runs NEXT
+bar"**, pinned by a test. Filed here because the lesson is not the one-line fix:
+**a display that is wrong only at a boundary is wrong exactly when someone is
+looking hard at it.** This one cost a debugging round on the day a restart
+happened to land there. 195 tests.
+
 ### Record hygiene done in the same pass
 
 Running the cold-start protocol surfaced four defects in this file, fixed now:

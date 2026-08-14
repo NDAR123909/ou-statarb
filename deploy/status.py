@@ -57,6 +57,22 @@ def _systemd(unit: str = "ltp-agent") -> dict | None:
         return None
 
 
+def bars_to_refit(bar: int, every: int) -> int:
+    """Bars until the next refit. 0 means "on the very next bar".
+
+    The agent checks `state["bar"] % refit_every_bars == 0` at the TOP of an
+    iteration and increments `bar` at the bottom, so the persisted value is the
+    one the next iteration will test. At an exact multiple the refit is
+    therefore imminent, not a full cycle away.
+
+    This used to render `nxt or every`, which turned that 0 into `24` and told
+    the operator to wait a day when the answer was "next bar". It cost a round
+    of debugging on 2026-08-14 after a restart landed on bar 432, which is
+    where a cosmetic bug stops being cosmetic.
+    """
+    return 0 if every <= 0 else (every - bar % every) % every
+
+
 def _age_hours(stamp: str | None, now: datetime | None = None) -> float | None:
     """Hours since an ISO timestamp, or None if absent/unparseable."""
     try:
@@ -312,10 +328,10 @@ def _print_human(rep: dict) -> None:
     else:
         line("ai spend", f"** UNREADABLE ({ai.get('error', 'no meter')[:50]}) — "
                          f"floor ${floor:.2f}/period, check /key/info by hand **")
-    nxt = (rep["refit_every_bars"] - rep["bar"] % rep["refit_every_bars"]) \
-        % rep["refit_every_bars"]
+    nxt = bars_to_refit(rep["bar"], rep["refit_every_bars"])
     line("bar", f"{rep['bar']}   (refit every {rep['refit_every_bars']}; "
-                f"next in {nxt or rep['refit_every_bars']} bars)")
+                + ("refit runs NEXT bar)" if nxt == 0
+                   else f"next in {nxt} bars)"))
 
     print(f"\n  active pairs ({len(rep['pairs'])})")
     if not rep["pairs"]:
