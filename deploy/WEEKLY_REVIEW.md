@@ -37,6 +37,16 @@ Hard exit: **equity < 800 USDT** → forced liquidation and elimination.
   **Monotonically non-decreasing** — once a drawdown is recorded it never
   recovers, so a bad day is permanent and protecting MDD is protecting a
   banked asset.
+- **AI usage is a GATE, not a score term.** No AI term appears in the scoring
+  formula, so **more spend never buys score**. But usage is an eligibility
+  condition enforced by elimination at both ends: zero usage removes a team
+  (organizer, Telegram 2026-08-12: teams at zero *"have already been eliminated
+  in previous reviews"*, with more reviews at their discretion), and spend
+  below USD 1 disqualifies. Pass/fail at the bottom, no reward above it.
+- **Do not lean any argument on the "AI Engagement" column.** On 2026-08-13 it
+  showed the #1 team at `0 | 0 | 0` — either a display bug or a team pending
+  elimination — and an argument built on that row had to be retracted the same
+  day.
 - "AI Engagement" and "AI-Adjusted PnL" are **display only, not scored**, and
   the engagement figure is a **rolling window, not a cumulative total** — it
   fell 72k → 61k across 2026-08-02 with no change in behaviour. A drop there is
@@ -54,6 +64,13 @@ Hard exit: **equity < 800 USDT** → forced liquidation and elimination.
   rollover. They verify by correlating AI decision logs with executed orders,
   and warn that trading with zero/non-strategy AI usage may be read as "not an
   AI-driven process". Enforced in code by `LTP_COMPETITION_MODE=1`.
+- **AI spend is a BAND, not a cap: minimum USD 1, maximum USD 10/day.** The
+  floor is enforced by disqualification and it nearly ended our competition on
+  2026-08-12 (see that addendum). Week 2 measured spend at 0.021/day and called
+  the quota machinery "three orders of magnitude from binding" — true of the
+  ceiling, blind to the floor. **Check `spend` against BOTH ends at every
+  review**: `GET https://ai.ltp-contest.com/key/info`. A frugal agent is not
+  automatically a compliant one.
 - **Leverage**: max 2× opening leverage. All 28 whitelist symbols were set to
   2× on 2026-07-20 via `deploy/set_leverage.py` (re-run it if symbols reset).
 - **Never place manual orders through the LTP web UI** — an unlogged order
@@ -1037,6 +1054,469 @@ If it goes red, **append to this log — never touch the date.**
 
 ---
 
+## Post-review addendum — 2026-08-12: near-disqualification on AI spend
+
+**We came within about thirteen hours of being thrown out of the competition,
+for a reason nothing in this record had flagged as a risk.**
+
+### What happened
+
+The organizer emailed: Track A requires AI spend above **1 USD**, and teams
+below it are **automatically disqualified** at 13:00 GMT+8 on 2026-08-13
+(05:00 UTC). Our spend for the period was **USD 0.0036**.
+
+The cause is a blind spot this log helped create. The week 2 entry measured
+spend at USD 0.021/day against a 10.00/day budget and concluded the quota
+machinery "guards a constraint three orders of magnitude from binding." True of
+the ceiling. There is also a **floor**, and we were two orders of magnitude
+*under* that one. The standing-context block above now states the band at both
+ends, because the week 2 sentence would otherwise have gone on reassuring
+future sessions about the wrong side of the constraint.
+
+Nothing about the agent was wrong. It is frugal by design and the frugality was
+never the problem — the problem is that a rule existed which we had modelled
+only halfway, and no amount of care about the half we understood would have
+caught it.
+
+### How it was cleared
+
+`deploy/ai_deep_review.py`, written and shipped the same day, run three times:
+
+| pass | calls | spend after | per call |
+|---|---|---|---|
+| probe | 2 | $0.00359 → $0.00521 | $0.00131 |
+| `--rounds 7 --max-tokens 4000` | 133 | **$0.39646** | $0.00257 |
+| `--rounds 7 --max-tokens 8000` | 133 | **$0.79932** | $0.00300 |
+| `--rounds 7 --max-tokens 8000` | 133 | **$1.20119** | $0.00299 |
+
+**399 reviews, final spend $1.20119** — 20% clear of the requirement, banked
+inside the current budget period (`budget_reset_at` 2026-08-13 16:00 UTC falls
+*after* the 05:00 UTC deadline, so the reset cannot claw it back).
+
+The design decision that makes this defensible rather than padding: the seven
+follow-ups **escalate**, and each call carries the whole conversation, so cost
+scales with depth rather than repetition. Re-asking one question 399 times
+would have moved the meter identically and taught us nothing. The analysis
+itself was already on the week 4 agenda — the fourteen candidates rejected at
+each refit had never had individual review, and the model had never been asked
+to argue against us. Read-only with respect to trading, pinned by source
+inspection in `tests/test_ai_deep_review.py`. Full disclosure in
+LTP_STRATEGY.md, including that the timing was forced.
+
+### I put a wrong number in the prompt and it biased 19 answers per pass
+
+The constraint follow-up read *"Roughly 100 USDT of drawdown headroom sits above
+the elimination floor."* Elimination is at **800**; equity was **1024.78**;
+headroom above the floor is **224.78**. The ~100 is the distance to **our own
+kill switch at 916.25** — a self-imposed halt, not the competition's exit.
+
+Every round-5 "highest-expected-value action" reasoned from it explicitly, and
+a reviewer told it has half its real risk budget will counsel more caution than
+it should. **That layer is contaminated in a known direction.** Two reviewers
+attacked the figure from the inside without being able to check it — *"is the
+headroom figure real?"* — which is the single most useful output of the run and
+is a finding about my prompt, not about the market.
+
+Fixed at the source, not just in prose: `ELIMINATION_FLOOR`, `KILL_SWITCH` and
+`EQUITY_AT_REVIEW` are named constants; `constraint_prompt()` does the
+arithmetic and says which floor is ours; `days_left()` derives the phase length
+from `PHASE_I_END` rather than the hardcoded "nine days" that would have been
+wrong the next morning. Two new tests, 177 total.
+
+**The pattern is the one from 2026-08-04**: I reached for a framing before
+checking whether the instrument said what I thought. There the sweep labels had
+gone stale; here the headroom figure conflated two floors. Both times the fix
+was to derive the number instead of typing it.
+
+### What the reviewer found — hypotheses, not conclusions
+
+One model arguing with itself 399 times, on no data we did not hand it. Volume
+is not evidence. Three items clear that bar and go to the synthesis pass:
+
+- **The split-half rejections may be shock artefact rather than
+  de-cointegration** — raised unprompted across nearly every pair, and
+  `AVAX/SOL` r1 argues the split-half statistics actively *defend* the pair. If
+  right, the gate is rejecting on the market-wide 2026-07-31 dislocation now
+  sitting inside the 960-bar lookback — which is precisely the hypothesis the
+  week 3 entry raised and considered falsified by KAS/ETC passing on Aug 7.
+  Worth a second look because it arrives from an independent direction.
+- **Realised half-life per closed trade** as the measurement that should gate
+  the intra-bar monitor, rather than the reasoning week 3 used. `stop_geometry`
+  r1 grants the instinct is defensible and denies the evidence supports the
+  mechanism claimed — which is a sharper objection than agreement would have been.
+- **Whether the 3.5σ stop triggers correctly at all** (`ADA/DOT` r6) — mechanical,
+  never checked in that form.
+
+Discounted hardest: the size-reduction advice (`ETH/BTC` to one-third,
+`LINK/QNT` by half), being the most direct consequence of the bad headroom.
+
+**Nothing here has been acted on**, and week 4 item 1 is not pre-empted by it.
+
+### Same day, evening: the floor is DAILY, and a standing job now clears it
+
+`/key/info` returned `budget_duration: "1d"` with `spend` in the same block,
+and the reading that started the emergency — **USD 0.00359946** — settles it: a
+layer running since 07-20 at ~0.02/day is ~0.50 lifetime at minimum, so a
+cumulative meter could not have shown 0.0036. **`spend` is a per-period counter
+that zeroes at 16:00 UTC.** The floor recurs.
+
+The organizer checks it **at a moment**, not at a boundary (the warning named
+13:00 GMT+8, mid-period). We cannot predict the moment, so every period must
+read ≥ 1.00. Natural burn is ~0.04–0.08/day, **at most 8% of the floor** — the
+rest has to be deliberate.
+
+**Shipped**: `ai_deep_review.py --daily` (`daily_work()`), targeting 1.15
+against a 1.00 floor. Each candidate reviewed from **two angles** (`ANGLES` —
+statistical validity, then execution, separated so a reviewer cannot answer the
+easier one), rebuilt from a freshly re-fitted panel each run; plus
+`ledger_prompts()`, built from the previous 24 hours of our own decisions,
+which cannot be stale by construction. A quiet day gets **one** honest topic
+about the quiet rather than four about nothing. Two crons: main pass 16:30 UTC
+(30 min after reset), top-up 20:30 UTC that no-ops above 1.05. Both exit
+non-zero below the floor. **`status.py` gained an `ai spend` line** and returns
+1 when the period is short — the same blind spot the news gate had before it
+got a line, fixed the same way. 183 tests.
+
+**The part not to overclaim**: this takes the AI layer from ~0.05 to ~1.15
+USD/day and *a rule is the reason*, not a result. The per-candidate reviews were
+already on the week 4 agenda and are real; the daily cadence is not something
+the analysis earned. Where the material runs out below target the pass repeats
+it, stamps `pass_index` on every ledger row and prints "this is compliance
+volume, not new analysis" — so nobody counting rows later mistakes a second lap
+for twice the thinking.
+
+**Still unconfirmed**: whether the floor is formally daily or was one-off
+enforcement. Only the organizer can say, and that is the one answer that would
+let us stop. See Open commitments.
+
+Also corrected while here: `README_ltp.md` still said **"fees are assumed 5 bps
+taker per leg"**, superseded by the 1.75 bps measurement on 2026-08-02. A live
+doc asserting a number we disproved ten days ago is exactly the stale premise
+the close-out protocol exists to catch.
+
+### Deployed, verified, and one more hardcoded number removed
+
+Crons installed and confirmed by `crontab -l`: two `ai_deep_review` entries, no
+duplicates. `--floor 1.05` correctly refused to spend at $1.20925, and the new
+`ai spend` line reads *"$1.2093 — clears the $1.00 floor"*. First live pass
+2026-08-13 16:30 UTC.
+
+Two defects found by looking at the real crontab rather than remembering it:
+the cron block I wrote **used `\` line continuations, which cron does not
+honour** — every entry would have truncated at the backslash, installed
+cleanly, listed cleanly, and done nothing. And my lines wrote `ltp_ai.log`
+**into the repo**, where nothing ignored it and one `git add -A` would have
+committed a growing log of raw AI output into the track record. Both fixed;
+`*.log` is now in `.gitignore`, and the README block is transcribed from the
+installed crontab rather than written from memory (it had the fills job's flags
+wrong too).
+
+**Live reading at 2026-08-13 00:40 UTC — supersedes the week 3 numbers:**
+equity **1016.66** (was 1024.78), peak 1041.19, drawdown **2.36%** (was 1.58%),
+headroom 100.41 to the kill switch and 216.66 to the 800 floor, one pair
+active, service up since 08-09 with `NRestarts=0`. Under the 3.7% banked MDD,
+so nothing here is actionable — but −8.12 in four days is real and the record
+should not keep quoting the older figure.
+
+That drift also exposed **the same rot I had fixed one line above and left in
+place**: `EQUITY_AT_REVIEW = 1024.78` was hardcoded into the reviewer's
+constraint prompt, so the daily pass would have claimed 224.78 of headroom
+against a real 216.66 — small next to this morning's 2× error, but growing
+daily. Equity is now read live (`live_equity()`), the constant survives only as
+a **labelled** fallback that tells the reviewer its own date when the meter is
+unreadable, and `followups()` substitutes it via a named `CONSTRAINT_INDEX`
+rather than a bare index that would silently point at the wrong prompt if a
+question were inserted above it. 185 tests.
+
+### Incident 2026-08-13 — a command I supplied deleted the whole crontab
+
+**All four cron jobs were wiped.** The fix I handed over was
+`crontab -l | sed … | crontab -`. The paste broke across a newline, sed died
+with *"unterminated `s' command"* and produced no output, and **`crontab -`
+installed that empty output** — which deletes every job. `crontab -l` came back
+silent.
+
+Cost: nothing, by luck. The wipe fell around 16:35 UTC and the next scheduled
+job was 20:30, so no run was missed and the pass already running (pid 41532)
+was unaffected — a running job holds no reference to the crontab. Had it landed
+after 23:00 it would have taken the 23:55 `fills_report` with it, and that
+evidence expires in ~7 days and cannot be re-fetched.
+
+Restoring exposed a second failure: **`/root/cron.bak` was captured before the
+2026-08-12 `&&`/log-path fix**, so the restore silently rolled that fix back.
+Caught by reading the output, not by anything automatic.
+
+**Two rules now in `README_ltp.md`:**
+1. **Never install a crontab through a pipeline.** Write to a file, `cat` it,
+   install, verify. A pipeline into `crontab -` has a failure mode of total
+   loss and a success mode that saves four keystrokes.
+2. **Refresh `cron.bak` after every verified change**, or the backup becomes a
+   time machine to a bug you already fixed.
+
+The generalisable form, and it is not "paste more carefully": *a recovery
+command must not have a destructive failure mode.* I optimised a one-liner for
+brevity in a situation where brevity was worth nothing.
+
+Also shipped from the same run: **`-u` on both review cron lines.** The log was
+empty while the process was demonstrably alive — Python block-buffers stdout
+when redirected to a file, so nothing appears until a 4–8KB flush and
+everything is lost if the process dies. A log that is invisible exactly when
+you need it is not a log.
+
+**And the false-alarm window is closed.** The 16:28 UTC glance read
+`** $0.0007 — BELOW the $1.00 floor **`, which was correct, useful once, and
+would have been correct-and-useless every morning between the 16:00 reset and
+whenever the pass finished. A warning that fires daily on schedule teaches the
+operator to scroll past it — the same way the news-gate blind spot would have
+returned. `floor_state()` now reads `budget_reset_at` and `budget_duration` and
+reports `clear` / `pending` / `short` / `unknown`; `status.py` only alarms and
+only exits non-zero on the last two. `pending` covers the first 5 hours, which
+outlasts both scheduled passes (+0:30 and +4:30). **A period whose age cannot
+be established reads `short`, not `pending`** — suppressing an alarm on
+ignorance is the exact failure the guard exists to prevent. 188 tests.
+
+**Repo note:** PR #27 merged while this work was in flight, and the local
+checkout was moved onto main's tip, so a session's edits were briefly being
+written against a version six commits stale. Nothing was lost — the remote
+branch held everything — and main was merged into the branch rather than
+rebased onto it, because the droplet is live on this branch and the week 3
+force-push cost a `git reset --hard` there.
+
+### 2026-08-13, first full daily pass: 67% analysis, 33% labelled volume
+
+The pass ran to target and the log pins the split exactly:
+
+```
+line 258:  -- 36 distinct topics exhausted below target; repeating as pass 2.
+target $1.15 reached at $1.15357
+calls: 376   spend: $0.00075 -> $1.15357  (+$1.15282, $0.00307/call)
+```
+
+**36 distinct topics** — 15 pairs × 2 angles, 2 ledger topics, 4 strategy —
+× 7 rounds = **252 calls of material that did not exist yesterday**. Reaching
+the target took **124 more** over the same ground.
+
+| | calls | cost | share |
+|---|---|---|---|
+| distinct material | **252** | ~$0.77 | **67%** |
+| labelled repetition | **124** | ~$0.38 | **33%** |
+
+So two-thirds of the daily dollar is genuine and one-third is compliance
+volume, and the third is stamped `pass_index=2` in the ledger and announced in
+the log. **This is a measurement, not an estimate**, and it is the number to
+quote if anyone asks what the spend bought. Also worth noting:
+`ledger_prompts()` returned 2 topics, so the quiet-day fallback did not fire —
+there was real activity to review.
+
+**Decision: do not close the 33%.** Reaching $1.15 on distinct material alone
+needs ~18 more topics, and there is a legitimate candidate (a third angle on
+cross-pair redundancy — whether the 15 candidates are 15 independent bets or
+four bets in fifteen costumes, which we have genuinely never checked and which
+bears on breadth, our binding constraint). It was declined on priority, not on
+merit: **8 days remain and the week 4 agenda carries two items with measured
+payoffs.** Broadening a compliance script ahead of those would be choosing the
+tidier problem over the valuable one. Revisit for Phase II, where the daily
+floor will run for two months rather than a week.
+
+### The AI-spend-hurts-our-score worry, closed — but not for the reason I first gave
+
+The operator asked whether the jump to ~$1.15/day had cost us score. It has
+not. My first answer leaned hardest on an argument that does not survive, and
+the retraction is recorded before the conclusion.
+
+> **RETRACTED, same day.** I wrote: *"T.Anh sits at #1 with AI Engagement
+> `0 | 0 | 0`. If engagement were scored, a team with none of it could not
+> lead."* The operator then supplied a 2026-08-12 organizer exchange on
+> Telegram:
+>
+> > **Mark Cooper:** When do the zero ai use teams get removed from the LB?
+> > **Liquidity Arena:** Teams with zero total AI usage have already been
+> > eliminated in previous reviews. We'll conduct another review today, and if
+> > any teams are still at zero AI usage, they will be eliminated accordingly.
+>
+> So T.Anh is either a **display bug** or a team **pending elimination**.
+> Either way the row proves nothing about scoring, and it cuts the opposite way
+> from how I used it: zero AI usage is an **elimination criterion**, which is
+> precisely the kind of AI-linked rule I was asserting did not exist.
+>
+> **Also withdrawn on the same grounds:** the *"our `AI-Adj PnL` haircut is the
+> smallest in the top ten (0.02 vs T.Anh's 0.85)"* argument. It compares against
+> a row I have just said is untrustworthy.
+
+**The reframe, which is the right model: AI usage is a GATE, not a score term.**
+Zero usage → elimination. Below USD 1 → elimination. Pass/fail, with no points
+for exceeding it. That reconciles both facts without contradiction — the
+scoring formula genuinely has four terms and none is AI, *and* the organizers
+genuinely eliminate teams on AI usage. Add it to the standing rules: **more
+spend never buys score; too little ends the competition.**
+
+What the conclusion actually rests on, after the retraction:
+
+- **The published formula has four terms** — Sharpe, PnL, ROI, MDD — none of
+  them AI. Rule text, not an inference from one leaderboard row.
+- **The timing is wrong by a week.** Score was 94.4 (#2) on 08-02 and #6 by
+  08-04; the spend increase was 08-12/13.
+- **MDD accounts for the whole decline on its own** — see the next section.
+- The one mechanism that could have bitten — the review pass throttling the
+  agent's own hourly assessments through the shared gateway — was checked
+  rather than argued: `sentinel_degraded` **0**, `ai_assessment_unavailable`
+  **0**, across 376 calls in three hours.
+
+Two operational consequences from that exchange, both worth more than the
+retracted argument was:
+
+1. **The reviews recur and their timing is the organizer's discretion**
+   (*"we'll conduct another review today"*). That is a better justification for
+   clearing the floor every period than the one given on 08-12, which reasoned
+   from the meter's shape alone.
+2. They say *"zero **total** AI usage"* — so whether they read a lifetime total
+   or a per-period figure is **still unresolved**. Clearing USD 1 every period
+   satisfies both readings, so the current arrangement is safe under either;
+   but this sharpens the open commitment to just ask them.
+
+**Method note, and it is the third of its kind this week.** 08-04: compared two
+runs of a tool whose column labels I had changed between them. 08-12: conflated
+our kill switch with the elimination floor. Now: took a leaderboard cell at
+face value without asking whether that row was valid. Same shape every time —
+**reaching for the tidiest available data point before checking whether the
+instrument means what it says.** The conclusions have survived; the supporting
+arguments keep not surviving. The fix is not more careful retracting, it is
+asking "what would make this number wrong?" before it goes into the record.
+**Do not lean any future argument on the AI Engagement column.**
+
+### Leaderboard 2026-08-13 — and MDD is what actually moved
+
+**#4 of the field, score 86.9** · Sharpe **3.16** · MDD **3.7%** · PnL
+**+20.30** · ROI **+2.0%** · 105 trades · ann. return +28.5%. (An earlier
+reading the same day showed 86.5 / 2.94 / +19.65; **the metrics rose across
+the window the first daily AI pass ran in**, which is one more thing the
+spend-hurts-score story has to explain away.)
+
+| | T.Anh #1 | btcol #2 | Supes #3 | **NDAR #4** |
+|---|---|---|---|---|
+| Score | 95.2 | 92.0 | 88.4 | **86.9** |
+| Sharpe (40%) | 4.00 | 4.57 | 2.43 | **3.16** |
+| MDD (15%) | 3.8% | 1.3% | 2.6% | **3.7%** |
+| PnL (25%) | +58.71 | +26.53 | +24.91 | **+20.30** |
+| ROI (20%) | +5.9% | +2.7% | +2.5% | **+2.0%** |
+
+**#3 is 1.5 points away and #5 is 1.8 behind** — Krosus at 85.1 with MDD 1.0%.
+This is a tight band, not a settled position.
+
+**We out-Sharpe third place and rank below them anyway.** The gap is size and
+MDD — and MDD is the one that used to be ours. It read **1.3%, best in the top
+10, on 2026-08-02**; it reads **3.7% now, second-worst**, while btcol holds
+1.3%, Krosus 1.0% and PSJeevaa 0.9%. Two stop-outs in early August spent it,
+and because MDD is monotonically non-decreasing **that 15% of the score cannot
+be earned back this phase.**
+
+This is the single most consequential fact on the board and it should open the
+Sunday review. It also sharpens week 4 item 1: the intra-bar monitor's entire
+case is that roughly a third of losses came from stops firing late, and late
+stops are exactly what banked this number. The counter-argument — that with
+3.7% already banked, further drawdown *below* that level costs nothing in the
+scored metric — is now load-bearing rather than academic, because we are past
+the point where MDD protection buys anything back.
+
+### The refit-cadence premise has inverted — and it was load-bearing
+
+Prompted by the operator asking whether the review layer could be suppressing
+entries (it cannot — see below), the fills report was re-run. **Five round
+trips, 2026-08-07 → 08-12:**
+
+| date | pair | exit | hold | gross |
+|---|---|---|---|---|
+| 08-07 | KAS/ETC | refit_drop | 24.0h | −2.49 |
+| 08-08 | FIL/AR | **reverted** | 26.0h | **+6.29** |
+| 08-10 | FIL/AR | refit_drop | 10.0h | +2.46 |
+| 08-10 | XLM/XRP | **stop** | 11.0h | **−5.61** |
+| 08-12 | XLM/XRP | refit_drop | 23.0h | −0.24 |
+
+Gross **+0.41**, fees **1.52**, **net −1.10**. Fees are **366% of gross** — the
+book is currently paying more to trade than the trades earn. The single stop
+carries 67% of losses. Funding **+0.337** received; slippage 0.91 bps (was
+0.57).
+
+**Two numbers that a week-3 decision rested on have both inverted.** The
+operator's proposal to lengthen the refit interval was declined on this exact
+reasoning, quoted from the week 3 entry: *"Median hold **2.0h** against a 24h
+interval; refit-drops are **~10%** of closes."*
+
+- **median hold is now 23.02h** — essentially the 24h refit interval itself
+- **`refit_drop` is 3 of 5 exits, 60%** — not 10%
+
+Positions are no longer reverting and closing on their own; they survive to the
+next refit and are dropped by it. **Four of five exits are plumbing** (stop,
+refit cadence, band geometry) against one that was the edge — and that one was
+the only clean winner.
+
+**No change made, and lengthening the interval is not obviously the fix**:
+one of the three refit_drops was a **winner** (+2.46) closed early, and n=5 in
+the low-cointegration stretch. But the decision was made on a premise that no
+longer holds, so it is re-opened rather than inherited. **Week 4 agenda item
+0b.**
+
+### The review layer is advisory — verified, not asserted
+
+The operator asked whether `ai_deep_review` could suppress entries, noting that
+if it could, we would have a layer recommending "stop trading" on the basis of
+a portfolio we do not hold and a risk budget I had described wrongly for a
+whole pass. Checked three ways:
+
+1. **Nothing imports it** except `status.py`, which reads the spend meter for
+   display. `ltp_agent.py` contains no reference to it.
+2. **The agent never reads the ledger.** `_LEDGER_PATH` appears exactly twice
+   in `ltp_agent.py`: the constant, and `open(_LEDGER_PATH, "a")`. Its only
+   file reads are `ltp_state.json` and `ltp_hwm.json`.
+3. **Separate processes** — systemd pid 715 versus a cron-spawned process that
+   exits. No IPC. Pinned by `test_it_places_no_orders_and_touches_no_agent_state`.
+
+Worth recording because it is counter-intuitive: the one indirect channel
+**fails open, not closed.** If the review pass exhausted the gateway the news
+gate goes dark, and the week-1 decision was fail-open — the agent keeps trading
+at full size, unscreened. Gateway contention cannot produce "stop trading"; it
+produces the opposite.
+
+**Shipped from the same question — `SPEND_CEILING = 8.00`.** The only bound was
+`--target`, so a future raised target could have eaten the agent's allocation.
+The ceiling is enforced independently of `--target`, reserving ≥2.00/day
+against measured agent burn of ~0.04–0.08/day, and
+`DAILY_TARGET < SPEND_CEILING < 10.0` is pinned so nobody can raise the target
+past the reserve without CI going red. **An unreadable meter does not stop the
+run** — missing the floor is disqualification while overspending only darkens a
+fail-open gate, and `--max-calls` (600, ~1.80 USD) is the backstop that makes
+blind running safe.
+
+### A third hardcoded-number rot, in the reviewer's own briefing
+
+`strategy_prompts()` was telling the model *"13 round trips… median hold 2.0h…
+ZERO trades have ever hit the max-hold clock"* — a week after the median hold
+became 23h and refit-drops became the majority exit. **The reviewer was being
+briefed on a strategy that had stopped behaving that way**, which devalues
+every answer it gave about hold times and band geometry. Same failure as
+`days_left()` and `EQUITY_AT_REVIEW`, third instance.
+
+`record_facts()` now derives the block from the newest `track_record/fills_*.json`
+snapshot — round trips, exit mix, gross/fees/net, win rate, median hold,
+measured fee, slippage, funding — and states outright when fees exceeded gross,
+which is the sort of thing a reviewer derives late or not at all. When no
+snapshot is readable it falls back to the 2026-08-09 figures **and labels them
+dated**, the same contract as the equity read. 191 tests.
+
+### Record hygiene done in the same pass
+
+Running the cold-start protocol surfaced four defects in this file, fixed now:
+`be4fab2` and `66ac146` had shipped `ai_deep_review.py` with no log line (the
+exact drift the read order exists to catch); three commitment rows had been
+stranded *below* the table's closing rule, one of them open; and two rows
+already decided at the week 3 review were still listed as pending. Also worth
+knowing for anyone reading the repo as live truth: **`deploy/ltp_hwm.json` in
+git says `peak_equity: 1000.0`** (live is 1041.19) and **`track_record/equity.csv`
+is the Alpaca paper record**, flat at 100000 — neither is the competition
+account.
+
+---
+
 ## Open commitments (write these down WHEN PROMISED, not later)
 
 Anything said in chat as "I'll look at that Sunday" belongs here immediately.
@@ -1045,30 +1525,57 @@ section existed; that is what it is for.
 
 | promised | on | trigger / when |
 |---|---|---|
-| Decide whether to **restore `risk_per_pair` 0.002 → 0.004** | 2026-07-30 | Sunday review, only if the fills analysis shows drawdown behaving |
+| ~~Decide whether to **restore `risk_per_pair` 0.002 → 0.004**~~ **DECIDED 2026-08-09: HOLD at 0.002** | 2026-07-30 | closed — see the row below for the reasoning, and the week 3 "Decisions taken" |
 | Decide whether the sentinel should gain **macro-event awareness** (Fed/CPI/GDP are market-wide; our prompt is asset-specific and would rate them `none`) | 2026-07-28 | Sunday review; design question is whether market-wide risk should shrink size across all pairs, or whether the hedge already handles it |
-| **Sample the AI rationales for genuine depth**, not just presence — the audit judges logical depth, and quiet-day rationales read as boilerplate | 2026-07-27 | Sunday review |
+| ~~**Sample the AI rationales for genuine depth**~~ **CLOSED 2026-08-04, nothing to fix** — `ai_spread_assessment` n=300, median 54 words, `max_tokens` never binding; the sampled rationales cite the z path, half-life and band. The "~22 tokens per call" that raised this divided a rolling-window count by a lifetime count | 2026-07-27 | closed |
 | ~~Reboot the droplet~~ **DONE 2026-08-06** — 19s down, hwm/bar counter/crontab all survived, first ever test. Kernel packages were kept back; `dist-upgrade` + the second reboot completed 2026-08-09 | 2026-07-28 | closed |
 | **Rotate LTP + AI keys** (pasted in chat; mitigated by IP allowlist) | 2026-07-20 | when convenient before Phase II |
 | **Give the droplet a non-interactive git credential** (deploy key or stored PAT), then extend the 23:50 UTC cron to `git add track_record/ && git commit && git push` | 2026-07-30 | next time the operator is at the droplet terminal — until then `ltp_state_history.jsonl` exists only on that machine |
 | ~~Re-check rank~~ **DONE 2026-08-02**: #2 of 29, score 94.4 | 2026-07-30 | closed |
-| ~~Restore `risk_per_pair` 0.002 → 0.004~~ **APPROVED 2026-08-02, HELD the same evening** | 2026-07-30 | The position condition was met at 18:00 (stopped at z=+3.63) but the second-pair condition was not, and both sides of AVAX/SOL stopped inside 31 hours — new adverse evidence after the approval. **Re-decide at the Sun 2026-08-09 review** on: has selection produced a second pair, and has the pair stopped whipsawing. If we are still on one pair and it has settled, execute anyway and record that the concentration was accepted deliberately. Do NOT execute on a week where the only pair has just stopped twice |
+| ~~Restore `risk_per_pair` 0.002 → 0.004~~ **APPROVED 2026-08-02, HELD the same evening, and DECIDED AGAINST at the 2026-08-09 review** | 2026-07-30 | **closed.** Sizing is scale-invariant in Sharpe, so a restore buys the 45% of the score made of PnL and ROI while doing nothing for the 40% made of Sharpe, and roughly doubles the MDD we still lead on. The organizer's 2026-08-04 Quant Tip reaches the same place from the scoring side. Re-opening this needs a new argument, not the old one |
 | **Report the header-only CSV exports to the organizers** — order, transaction and position history all export zero rows | 2026-08-02 | next organizer contact; a broken data export in a competition judged on auditability is worth raising |
-| **Decide on the sub-hourly risk check** (read-only pass that may only close or stop, never open). Measured cost of not having it: ~4.7 USDT on one trade | 2026-08-02 | week 3 review — needs a design, not a hunch |
+| **Decide on the sub-hourly risk check** (read-only pass that may only close or stop, never open). Measured cost of not having it: −10.67 across five stops, ~a third of all losses | 2026-08-02 | **carried to the Sun 2026-08-16 review as agenda item 1 — ship it or drop it in writing.** Design is settled (two-tier, 4.0–4.5σ intra-bar); what is left is the judgement call, with Phase I ending 08-21 |
 | ~~Schedule `fills_report.py`~~ **DONE 2026-08-02**, daily at 23:55. Without it this week's loss attribution would not exist — retention had already eaten the live window | 2026-08-02 | closed |
 | ~~Restart for `taker_fee`~~ **DONE 2026-08-02 20:54** | 2026-08-02 | closed |
-
----
-
 | ~~Restart for `side_blocked` logging~~ **DONE 2026-08-09 23:28** — live now, dormant until a block actually declines a signal | 2026-08-08 | closed |
 | ~~`dist-upgrade` + reboot~~ **DONE 2026-08-09 23:28** — kernel 6.8.0-136 → 137, zero updates pending, banner cleared. Second clean reboot: NRestarts=0, peak 1041.19 and the bar counter both survived | 2026-08-06 | closed |
 | **Re-merge the fills snapshots weekly** for the loss attribution — the live report only reaches back ~7 days | 2026-08-09 | each review, before writing the numbers down |
+| **Synthesise the 399 deep reviews** — where they converge, where they contradict each other, which claims survive contact with the others. Discount the round-5 layer, which reasoned from the understated headroom | 2026-08-12 | Sun 2026-08-16 review. Until it exists, no claim from that run has been acted on |
+| **Check AI `spend` against BOTH ends of the band** (min USD 1, max 10/day) at every review — the floor is what nearly disqualified us on 2026-08-12 | 2026-08-12 | every review, and before Phase II opens. Now also automated: `status.py` exits 1 below the floor |
+| **Verify the two spend crons actually fired** — 16:30 and 20:30 UTC, first live run 2026-08-13. Check `ltp_ai.log` and that the top-up no-opped rather than double-spending | 2026-08-12 | first daily glance after 2026-08-13 17:00 UTC |
+| **Ask the organizers whether the USD 1 floor is daily or was one-off enforcement, and whether they read a lifetime total or the per-period meter** — their 2026-08-12 Telegram reply says "zero **total** AI usage", which does not settle it. Clearing 1.00 every period is safe under either reading, but that is an assumption. Rides along with the header-only CSV report we already owe them | 2026-08-12 | next organizer contact; draft is written when the operator wants it |
+
+> **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
+> *below* the closing horizontal rule since 2026-08-09 — outside the table, where
+> the next review would likely not have read them, and one of them was open.
+> Merged back in. If rows appear below a `---` again, that is the bug, not a
+> section break.
 
 ---
 
 ## Week 4 agenda — review due Sun 2026-08-16
 
-**Phase I ends 2026-08-21 — 12 days. One more review after this one.**
+**Phase I ends 2026-08-21.** The review on 08-16 is the last one inside the
+phase. (This line read "12 days" when written on 08-09; countdowns rot, so the
+date is what is stated. It was 9 days out on 2026-08-12.)
+
+0. **Open on the MDD reading** (added 2026-08-13). We are **#4, score 86.5**,
+   out-Sharping third place (2.94 vs 2.48) and ranking below them on size and
+   drawdown. **MDD went 1.3% best-in-field → 3.7% second-worst and cannot
+   recover** — 15% of the score is spent. Every other item on this list should
+   be argued against that fact rather than against the week 2 position where we
+   led MDD, because it inverts one standing argument: with 3.7% banked, further
+   drawdown below that level costs nothing scored, which is the strongest case
+   *against* item 1.
+
+0b. **Re-decide the refit cadence — its premise is gone** (added 2026-08-13).
+   Week 3 declined lengthening the interval because *"median hold 2.0h against
+   a 24h interval; refit-drops are ~10% of closes."* Both have inverted:
+   **median hold 23.02h, refit_drop 60% of exits.** Four of five recent exits
+   are plumbing rather than edge, and fees ran 366% of gross. **Do not simply
+   reverse it** — one refit_drop was a winner closed early, n=5, and this is
+   the low-cointegration stretch. Decide it on the numbers, and note this is
+   the same machinery as item 2: a hold-time simulation answers both.
 
 1. **Sub-hourly risk monitor — ship it or drop it, in writing.** The only change
    with a measured payoff: **roughly a third of every dollar lost** came from stops
@@ -1090,7 +1597,14 @@ section existed; that is what it is for.
    `response_keys` it now records rather than probing live again.
 4. **Self-ranking endpoint into `status.py`** — carried three times. **Do it or
    delete it from the agenda**; carrying it a fourth time is just noise.
-5. **Phase I close-out preparation.** Whatever the post-mortem needs must exist
+5. **Synthesise the 399 deep reviews** (added 2026-08-12). Where they converge,
+   where they contradict each other, and which claims survive contact with the
+   others — discounting the round-5 layer, which reasoned from an understated
+   headroom figure. Three candidates are already named in that addendum: the
+   split-half-as-shock-artefact reading, realised half-life per closed trade as
+   the gate on item 1, and whether the 3.5σ stop triggers correctly at all.
+   **The output is a list of testable claims, not a list of changes.**
+6. **Phase I close-out preparation.** Whatever the post-mortem needs must exist
    before Aug 21: the fills snapshots keep rolling, but decide now what else
    expires. Draft the honest write-up — backtest 0.36 net Sharpe OOS versus what
    actually happened, including that the headline live Sharpe was never real.

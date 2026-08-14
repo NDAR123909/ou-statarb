@@ -9,6 +9,9 @@ venv/
 *.npz
 # the public track record is never ignored — it IS the product
 !track_record/**
+# cron logs belong in /var/log; this is a guard against one landing here and
+# being swept up by `git add -A`
+*.log
 deploy/ltp_state.json
 deploy/ltp_hwm.json
 deploy/ltp_ledger.jsonl

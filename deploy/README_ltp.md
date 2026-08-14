@@ -138,16 +138,84 @@ agent does not make those.
 - **Funding carry is not modeled.** Both perp legs pay/receive funding; the
   net on a hedged pair is usually small over day-scale holds but it is not
   zero. Logged as a gap for the Phase 1 post-mortem.
-- **Fees are assumed 5 bps taker per leg** until `userFeeRate` is read from
-  the live account. The optimal-bands step already refuses pairs whose edge
-  can't pay this toll, so a higher real fee shrinks the tradeable set rather
-  than silently losing money.
+- ~~**Fees are assumed 5 bps taker per leg**~~ **Measured 2026-08-02 at 1.75
+  bps/side**, exact to five significant figures across 22 fills (`fee ==
+  tradingFee`, zero rebate, `execType` TAKER throughout). `taker_fee` is now
+  `2e-4`, a small margin over the measurement. `portfolio user-fee-rate` returns
+  upstream 2002 "API Invalid Authorization" — there is no real exchange account
+  behind a simulated portfolio to have a fee tier, so the fills are the source.
+  The optimal-bands step still refuses pairs whose edge can't pay the toll.
 - **1,000 USDT is small.** Some symbols' `minNotional` may exceed what the
   vol-targeted sizing wants to trade; the agent skips those entries and says
   so in the log, rather than oversizing to clear the floor.
 - The hourly refit/selection cadence, half-life band (6h to 1 week), and risk
   budget are set from reasoning, not from a tuned crypto backtest. Phase 1 is
   itself the out-of-sample test; expectations should be set accordingly.
+
+## Scheduled jobs (droplet crontab)
+
+**Every entry must be ONE physical line.** cron does not honour `\`
+continuations — a backslash at end of line silently truncates the command
+there. The lines below wrap in this file for reading; they do not wrap in the
+crontab. `%` is also special to cron (it becomes a newline) and must be
+escaped if a command ever needs one.
+
+This block is transcribed from the installed crontab on 2026-08-13, not
+written from memory. Logs go to `/var/log/`, never into the repo — an
+untracked `*.log` beside the source is one `git add -A` away from being
+committed. Note `\%` in the fills line: cron turns a bare `%` into a newline.
+
+```cron
+# state history — one JSON line per day, what was TRUE rather than decided
+50 23 * * * cd /root/ou-statarb && set -a && . /root/ltp.env && set +a && .venv/bin/python deploy/record_state.py >> /var/log/ltp_record.log 2>&1
+
+# fills reconciliation — MUST run daily; the venue serves ~7 days of executions and a weekly job would sit exactly on the retention edge
+55 23 * * * cd /root/ou-statarb && set -a && . /root/ltp.env && set +a && .venv/bin/python deploy/fills_report.py --json track_record/fills_$(date -u +\%F).json >> /var/log/ltp_fills.log 2>&1
+
+# AI spend floor — the organizer requires >= USD 1 per budget period and the meter resets at 16:00 UTC. Main pass 30 min after the reset so the period is compliant early; top-up 4h later, no-op if the main pass succeeded.
+30 16 * * * cd /root/ou-statarb && set -a && . /root/ltp.env && set +a && .venv/bin/python -u deploy/ai_deep_review.py --daily >> /var/log/ltp_ai.log 2>&1
+30 20 * * * cd /root/ou-statarb && set -a && . /root/ltp.env && set +a && .venv/bin/python -u deploy/ai_deep_review.py --daily --floor 1.05 >> /var/log/ltp_ai.log 2>&1
+```
+
+The `&&` chaining is deliberate: if `/root/ltp.env` is missing or unreadable
+the command aborts instead of running the agent with no credentials. The `-u`
+on the review job is not cosmetic — Python block-buffers stdout when it is
+redirected to a file, so without it the log stays empty for the whole run and
+is **lost entirely** if the process dies, which is precisely when you want it.
+
+**Never install a crontab through a pipeline.** `crontab -l | sed … | crontab -`
+installs empty stdin whenever the middle stage fails — a wrapped paste, a stray
+quote — and empty stdin deletes every job. That happened on 2026-08-13. Edit a
+file, read it, then install, and refresh the backup afterwards so a restore
+does not silently revert a fix:
+
+```bash
+crontab -l > /root/cron.now
+sed -i 's|OLD|NEW|' /root/cron.now
+cat /root/cron.now          # read it before installing
+crontab /root/cron.now
+crontab -l > /root/cron.bak # so the backup matches what is now installed
+```
+
+cron runs `/bin/sh`, not bash, so it is `. /root/ltp.env` rather than
+`source` unless the crontab sets `SHELL=/bin/bash`. Paths are absolute
+because cron's `HOME` and `PATH` are not the login shell's.
+
+Install without an editor, keeping a backup:
+
+```bash
+crontab -l > /root/cron.bak && cp /root/cron.bak /root/cron.new
+# append the lines to /root/cron.new, then:
+crontab /root/cron.new && crontab -l
+# to revert:  crontab /root/cron.bak
+```
+
+The spend jobs exist because the AI budget has **two** ends: max USD 10/day,
+**minimum USD 1**, and spend below the floor is disqualification (2026-08-12).
+`--floor` makes the second run a no-op when the first worked, so an ordinary
+day costs one pass. Both exit non-zero when the period is still under the
+floor, and `status.py` carries an `ai spend` line so the daily glance catches
+a failure without reading a log.
 
 ## Hosting
 

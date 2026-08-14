@@ -610,6 +610,231 @@ other reverted exit on record was profitable. It goes to the week 3 agenda
 alongside the entry-band simulation, to be decided on realised Sharpe and MDD
 rather than on one trade.
 
+## Addendum — a deep review run against a deadline (2026-08-12)
+
+No change to what the agent trades. This is disclosed here because a large body
+of AI analysis was produced on a schedule that was **forced rather than chosen**,
+and a later reader should not be left to infer a planned research programme.
+
+### Why it ran when it ran
+
+On 2026-08-12 the organizer wrote that Track A requires AI spend above **1 USD**
+and that teams below it are **automatically disqualified** at 13:00 GMT+8 on
+2026-08-13 (05:00 UTC). Our spend for the period was **USD 0.0036**, with about
+thirteen hours left.
+
+That we were caught by this is itself worth pre-registering. The agent is frugal
+by design, and the week 2 review measured spend at USD 0.021/day against a
+10.00/day budget and concluded the quota machinery "guards a constraint three
+orders of magnitude from binding." That sentence was true about the ceiling and
+blind to the floor. **The AI budget is a band, not a cap**, and we had modelled
+only one end of it.
+
+`deploy/ai_deep_review.py` was written that day and run three times — a 2-call
+cost probe, then 133 calls at `--max-tokens 4000`, then 133 at 8000 — ending at
+**USD 1.20119**, 20% clear of the requirement. 399 reviews in total.
+
+### What it is, and the line it does not cross
+
+It is read-only with respect to trading: no orders, no automation session, no
+writes to agent state. `tests/test_ai_deep_review.py` asserts that by source
+inspection rather than by trust, because a script written under deadline
+pressure on a live competition account is exactly the kind that acquires a
+side effect later. Every response is written to `ltp_ledger.jsonl` as an
+`ai_deep_review` event with its full text, so the Reasoning Audit sees the
+analysis rather than a spend figure.
+
+The work itself was already on the week 4 agenda and is not padding: the live
+agent only ever assesses pairs it holds, so the fourteen candidates rejected at
+each refit had never received individual analysis, and the model had never been
+asked to argue *against* our own conclusions. The system prompt instructs it to
+attack rather than approve, and the seven escalating follow-ups make each call
+carry the whole conversation, so cost scales with depth instead of repetition.
+Re-asking one question twenty times would have raised the meter equally well
+and taught us nothing — that distinction is the whole defence of this run.
+
+**Nothing in the agent's behaviour changed as a result.** The reviewer's
+recommendations converged on inaction — *"do nothing, and here is why it is not
+laziness"*, *"do not change the live rule"*, *"keep trading FIL/AR at the
+configured bands"* — which agrees with our standing default, though see the next
+section before crediting the agreement.
+
+### The prompt contained a wrong number, and it biased the answers
+
+The constraint follow-up said *"Roughly 100 USDT of drawdown headroom sits above
+the elimination floor."* It does not. Elimination is at **800 USDT** and equity
+was **1024.78**, so headroom above the floor is **224.78**. The ~100 figure is
+the distance to **our own kill switch at 916.25**, which is a self-imposed halt
+we chose, not the rule that ends the competition.
+
+Every round-5 "highest-expected-value action" answer — one per topic, 19 of them
+per pass — reasoned explicitly from that constraint, and a reviewer told it has
+half the risk budget it really has will counsel more caution than it otherwise
+would. **That layer of output is contaminated in a known direction** and should
+be read as such. Two reviewers independently attacked the figure from the inside
+without being able to check it (*"is the headroom figure real?"*), which is the
+most useful thing the run produced and is a finding about our prompt rather than
+about the market.
+
+Fixed at the source rather than only in prose, the same way `fee_label()` fixed
+the stale sweep headings: `ELIMINATION_FLOOR`, `KILL_SWITCH` and
+`EQUITY_AT_REVIEW` are named constants, `constraint_prompt()` does the
+arithmetic and states plainly which floor is ours, and `days_left()` derives the
+remaining phase length from `PHASE_I_END` instead of the hardcoded "nine days"
+that would have been wrong the following morning. Pinned by two new tests.
+
+### What is worth chasing from it, and what is not
+
+Standing caveat: this is one model arguing with itself 399 times, on no data we
+did not hand it. It is a source of hypotheses and objections, never of
+conclusions, and volume is not evidence. Three items survive that bar:
+
+- **The split-half rejections may be shock artefact rather than de-cointegration**
+  — raised unprompted across nearly every pair, and `AVAX/SOL` went further, that
+  the split-half statistics *defend* the pair. If right, the gate is rejecting on
+  the market-wide 2026-07-31 dislocation sitting inside the 960-bar lookback, which
+  bears directly on the three-day drought. Testable.
+- **Realised half-life per closed trade** as the measurement that should gate the
+  intra-bar monitor decision, in place of the reasoning the week 3 entry used.
+  `stop_geometry` grants the instinct is defensible while denying the evidence
+  supports the mechanism claimed for it.
+- **Whether the 3.5σ stop is triggering correctly at all** — a mechanical check
+  we have never run in that form.
+
+The size-reduction recommendations (`ETH/BTC` to one-third, `LINK/QNT` by half)
+are discounted hardest, being the most direct consequence of the understated
+headroom.
+
+A synthesis pass over the 399 reviews — where they converge, where they
+contradict each other, which claims survive contact with the others — is
+committed for the 2026-08-16 review. Until that exists, **no claim from this run
+has been acted on**, and this addendum should not be read as adopting any of them.
+
+## Addendum — the AI spend floor recurs daily (2026-08-12, evening)
+
+Still no change to what the agent trades. A change to what it spends, and the
+reason is a rule rather than a result.
+
+### The meter settled the question
+
+The morning addendum above left open whether the USD 1 threshold was a one-time
+participation bar or a recurring one. `/key/info` answers it:
+
+```json
+{"spend": 1.204544, "max_budget": 10.0,
+ "budget_duration": "1d", "budget_reset_at": "2026-08-14T00:00:00+08:00"}
+```
+
+`budget_duration: "1d"`, and `spend` sits inside the same block. The decisive
+evidence is the reading at the start of the emergency: **USD 0.00359946**. The
+AI layer had been running since 2026-07-20 at roughly 0.02/day, which is ~0.50
+lifetime at minimum. A cumulative meter could not have read 0.0036. `spend` is
+a per-period counter that zeroes at `budget_reset_at`.
+
+The organizer checks it **at a moment** — the warning named 13:00 GMT+8 on
+2026-08-13, not a period boundary. Whichever period is live when they next look
+must read ≥ 1.00, and we cannot predict when they look. So every period has to
+clear it. That conclusion holds whether the rule is formally worded as daily or
+merely spot-checked, which is why the ambiguity does not change the response.
+
+Natural agent burn is ~0.04–0.08/day — **at most 8% of the floor.** Essentially
+the whole dollar has to be deliberate.
+
+### What ships: `--daily`, and an honest label on the part that is volume
+
+`deploy/ai_deep_review.py --daily` (see `daily_work()`) targets
+`DAILY_TARGET = 1.15` against `AI_SPEND_FLOOR = 1.00`, and assembles:
+
+- **each candidate pair from two angles** (`ANGLES`) — the first asks whether
+  the split-half statistics mean what the gate thinks; the second takes the fit
+  as given and asks how it would be executed. Separated because a reviewer
+  asked both at once answers the easier one. Both are rebuilt from a panel
+  re-fetched and re-fitted every run, so the numbers in them are that day's.
+- **the previous 24 hours of our own ledger** (`ledger_prompts()`) — the day's
+  entries, exits, stops, refusals and refits, which cannot be stale by
+  construction. A genuinely quiet day produces **one** topic about the quiet,
+  not four about nothing; that is a real question, since idle days drag the
+  Sharpe mean exactly as small losses do.
+- the four standing strategy prompts, now the smallest share rather than the
+  whole pass.
+
+The risk budget in those prompts is **read live** (`live_equity()`,
+substituted by `followups()` at `CONSTRAINT_INDEX`). `EQUITY_AT_REVIEW`
+survives only as a fallback that labels itself with its own date when the venue
+read fails — the morning's headroom error came from a hardcoded number, and
+leaving a second one in the fix would have been the same mistake twice.
+
+Two cron lines: the main pass 30 minutes after each 16:00 UTC reset, and a
+top-up four hours later that no-ops above `TOPUP_BELOW = 1.05`. Both exit
+non-zero below the floor, and `status.py` gained an `ai spend` line — the same
+blind spot the news gate had before it got one, and for the same reason: a
+control nobody can see failing is a control that fails silently.
+
+**Where this is padding, it says so.** If the distinct material runs out below
+target the pass repeats it and stamps `pass_index` on every ledger row, and
+prints *"this is compliance volume, not new analysis."* A later reader counting
+`ai_deep_review` rows must not be able to mistake a second lap for twice the
+thinking.
+
+**Measured on the first full run (2026-08-13):** 36 distinct topics × 7 rounds
+= **252 calls of new material (~$0.77)**, plus **124 repeated calls (~$0.38)**
+to reach the target — **67% analysis, 33% labelled volume**, at $0.00307/call.
+That ratio is the honest headline figure for this arrangement, and it is
+published here rather than left to be inferred from a ledger row count.
+Closing the 33% would need ~18 more distinct topics; declined for Phase I on
+priority (8 days left, two agenda items with measured payoffs) and flagged for
+Phase II, where the floor runs for two months rather than a week.
+
+The pass was also checked for the one way it could harm the agent it reviews:
+376 calls in three hours through the shared gateway produced **zero**
+`sentinel_degraded` and **zero** `ai_assessment_unavailable` events, so it
+never starved the hourly news and spread assessments.
+
+**AI usage is a gate, not a score term** — and the distinction is the one that
+matters for pre-registration, because it says what this spending can and cannot
+be expected to do. The scoring formula is
+`0.40×Z(Sharpe) + 0.25×Z(PnL) + 0.20×Z(ROI) + 0.15×Z(MDD)`; no AI term appears
+in it, so **more spend never buys score.** Separately, AI usage is an
+eligibility condition enforced by elimination: below USD 1 disqualifies (the
+2026-08-12 email), and a 2026-08-12 organizer exchange on Telegram confirms
+that teams at zero usage *"have already been eliminated in previous reviews"*
+with further reviews conducted at the organizer's discretion. Pass/fail at the
+bottom, no reward above it.
+
+> **A retraction belongs here.** The first version of this paragraph argued
+> engagement was unscored *because the 2026-08-13 leaderboard showed the #1
+> team at `0 | 0 | 0`*. That team is either a display bug or pending
+> elimination under the review above, so the row was never evidence — and it
+> pointed the opposite way, since zero usage is exactly what gets a team
+> removed. The conclusion is unchanged and now rests on the rule text instead
+> of on a leaderboard cell. **No argument in this repo should lean on the AI
+> Engagement column.**
+
+One thing this leaves genuinely open: the organizers say *"zero **total** AI
+usage"*, and whether they read a lifetime total or the per-period meter is
+unconfirmed. Clearing USD 1 every period satisfies either reading, so the
+arrangement is safe under both — but it is an assumption, not a fact, and
+asking them is the only way to close it.
+
+### The part that would be easy to overclaim
+
+This takes the AI layer from ~0.05 to ~1.15 USD/day, a twenty-fold increase,
+and **the honest reason is that a rule requires it.** The per-candidate reviews
+are real and were already on the week 4 agenda; the daily cadence is not
+something the analysis earned. Presenting this as a research decision would be
+the exact form of overclaiming this project exists to avoid, so it is written
+down as what it is: compliance spend, made as genuine as the material allows.
+
+The organizer's stated concern is agents that trade without AI involvement, and
+the honest defence is not the meter reading — it is that every one of these
+calls is grounded in that day's real fits and that day's real decisions, and
+every response is in the ledger where the audit correlates reasoning against
+orders.
+
+**Open**: whether the floor is formally daily or was a one-off enforcement is
+still unconfirmed by the organizer. Asking them is the only way to know, and it
+is the only thing that would let us stop. Until then we clear it every day.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;
