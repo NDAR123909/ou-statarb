@@ -1503,6 +1503,61 @@ which is the sort of thing a reviewer derives late or not at all. When no
 snapshot is readable it falls back to the 2026-08-09 figures **and labels them
 dated**, the same contract as the equity read. 191 tests.
 
+### 2026-08-14 — the news gate goes silent when the book is idle
+
+The 17:58 UTC glance read `news gate ok — 2 assets rated @ 2026-08-13T20:01`.
+**Twenty-two hours old, rendered as `ok`.** The ledger tallies prove it was not
+a display artefact:
+
+| | 08-13 16:28 | 08-14 17:58 | Δ |
+|---|---|---|---|
+| bar | 405 | 430 | **+25** |
+| `news_assessment` | 340 | 344 | **+4** |
+| `ai_spread_assessment` | 458 | 462 | **+4** |
+
+Twenty-five bars, four assessments — and the four line up exactly with the
+hours XLM/XRP was alive before the 21:00 refit dropped it. Cause is one line in
+the bar loop (`ltp_agent.py`): `assets = active_assets()` then
+`if assets: sentinel.refresh(assets)`. **Zero active pairs → no refresh.**
+
+Three consequences, in order of weight:
+
+1. **A pair selected out of a drought is entered on verdicts that never covered
+   it.** `active_assets()` is computed *before* `trade_step`, and `trade_step`
+   runs the refit that adds pairs. So on the bar a new pair is selected and
+   entered, the sentinel holds the old asset list — or nothing — and
+   `screening_provenance` stamped that entry `news_status: ok`. Same defect
+   class as the four logging gaps: **a control that appears to have acted and
+   did not.** No money lost — the news veto has never fired — but it is audit
+   exposure of exactly the kind Track A correlates.
+2. **During a drought our own AI usage falls to ~zero**, and the organizers
+   eliminate teams at zero usage (Telegram, 08-12). Droughts here have run 3+
+   days. **Without the daily review pass a long idle stretch could have walked
+   us into the zero-usage elimination with the glance showing a healthy agent.**
+   That is a materially stronger justification for the daily pass than the one
+   written on 08-12: it does not top up a floor the agent nearly reaches, it
+   **carries the floor entirely whenever we are flat.**
+3. **The review layer buried the daily glance.** 968 `ai_deep_review` rows
+   against 29 `enter`; `--ledger 20` returned 20 of 20 advisory rows. The
+   operator's decision-history view was unusable. My regression, from 08-13.
+
+**Shipped (logging and display only — `screened` and `news_status` are
+write-only, confirmed by grep, so nothing here can reach trading):**
+`NEWS_STALE_H = 2.0` and `verdict_age_hours()`; provenance now reports
+`stale` / `missing_legs` with `news_age_h`, `news_refreshed_at` and
+`news_unrated_legs`, and sets `screened: False` for both — **with degraded
+status taking precedence**, so a quota outage still reports `quota` rather than
+losing the cause behind a symptom (an existing test caught that and was right).
+`status.py` prints the gate's age, renders `STALE` past the threshold, and says
+whether the cause is an idle book or a genuine failure to refresh with pairs
+active. `GLANCE_HIDE` keeps advisory rows out of the tail while the tally still
+counts them. 194 tests.
+
+**NOT shipped, and it is week 4 item 0c:** refreshing the sentinel for a newly
+selected pair *before* screening its first entry. That is the actual fix and it
+touches the entry path with a week left, so it goes to Sunday with the other
+behavioural decisions rather than being shipped on a Friday evening.
+
 ### Record hygiene done in the same pass
 
 Running the cold-start protocol surfaced four defects in this file, fixed now:
@@ -1576,6 +1631,14 @@ date is what is stated. It was 9 days out on 2026-08-12.)
    reverse it** — one refit_drop was a winner closed early, n=5, and this is
    the low-cointegration stretch. Decide it on the numbers, and note this is
    the same machinery as item 2: a hold-time simulation answers both.
+
+0c. **Refresh the news gate for a newly selected pair before its first entry**
+   (added 2026-08-14). `assets = active_assets()` is computed before the refit
+   that adds pairs, so a pair coming out of a drought is entered on verdicts
+   that never covered its legs. The logging now says so (`missing_legs` /
+   `stale`, `screened: False`); the behaviour is unchanged. Smallest of the
+   behavioural items and the least contentious — but it is the entry path, so
+   it gets decided here rather than shipped ad hoc.
 
 1. **Sub-hourly risk monitor — ship it or drop it, in writing.** The only change
    with a measured payoff: **roughly a third of every dollar lost** came from stops

@@ -38,6 +38,9 @@ from deploy.ltp_agent import AgentConfig, _LEDGER_PATH, load_state  # noqa: E402
 ELIMINATION_FLOOR = 800.0     # contest: equity < 800 USDT (NAV<0.8) = out
 # Sentinel states in which the news gate is DOWN rather than merely quiet.
 DEGRADED_GATE = ("no_client", "quota", "api_error", "parse_error")
+# Mirrors ltp_agent.NEWS_STALE_H: the sentinel refreshes hourly, so a
+# verdict older than this did not screen the bar it is shown against.
+from deploy.ltp_agent import NEWS_STALE_H                        # noqa: E402
 
 
 def _systemd(unit: str = "ltp-agent") -> dict | None:
@@ -52,6 +55,17 @@ def _systemd(unit: str = "ltp-agent") -> dict | None:
         return dict(l.split("=", 1) for l in out.stdout.splitlines() if "=" in l)
     except Exception:
         return None
+
+
+def _age_hours(stamp: str | None, now: datetime | None = None) -> float | None:
+    """Hours since an ISO timestamp, or None if absent/unparseable."""
+    try:
+        t = datetime.fromisoformat(str(stamp))
+    except (TypeError, ValueError):
+        return None
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=timezone.utc)
+    return ((now or datetime.now(timezone.utc)).timestamp() - t.timestamp()) / 3600.0
 
 
 def _ai_spend() -> dict:
@@ -79,8 +93,17 @@ def _ai_spend() -> dict:
             "grace_h": FLOOR_GRACE_H}
 
 
-def _tail_ledger(path: str, n: int) -> tuple[list[dict], dict]:
-    """Last n records plus a whole-file event tally."""
+# Advisory events that flood the tail without being decisions. The review
+# layer writes ~380 rows in one nightly pass, which buried enter/exit/stop
+# entirely -- the glance showed 20 of 20 rows as `ai_deep_review` and the
+# operator could no longer see what the agent had actually done. Hidden from
+# the tail, still counted in the tally.
+GLANCE_HIDE = ("ai_deep_review",)
+
+
+def _tail_ledger(path: str, n: int,
+                 hide: tuple[str, ...] = GLANCE_HIDE) -> tuple[list[dict], dict]:
+    """Last n DECISION records, plus a whole-file tally over everything."""
     p = Path(path)
     if not p.exists():
         return [], {}
@@ -94,7 +117,8 @@ def _tail_ledger(path: str, n: int) -> tuple[list[dict], dict]:
     for r in recs:
         ev = r.get("event", "?")
         tally[ev] = tally.get(ev, 0) + 1
-    return recs[-n:], tally
+    shown = [r for r in recs if r.get("event") not in hide]
+    return shown[-n:], tally
 
 
 def _z_for_pair(broker: RapidXBroker, pair: dict, marks: dict) -> float | None:
@@ -194,6 +218,9 @@ def build_report(cfg: AgentConfig, use_marks: bool, ledger_n: int) -> dict:
         })
     rep["pairs"] = pairs_out
 
+    gate_ts = (state.get("news_gate") or {}).get("ts")
+    rep["news_gate_age_h"] = _age_hours(gate_ts)
+
     rep["ai_spend"] = _ai_spend()
 
     # --- ledger ---
@@ -241,14 +268,27 @@ def _print_human(rep: dict) -> None:
 
     gate = rep.get("news_gate") or {}
     gstatus = gate.get("status", "unknown")
+    age = rep.get("news_gate_age_h")
+    aged = "" if age is None else f", {age:.1f}h old"
     if gstatus in DEGRADED_GATE:
         line("news gate", f"** DEGRADED ({gstatus}) — entries are NOT being "
                           f"screened for event risk ** {gate.get('error', '')[:80]}")
+    elif age is not None and age > NEWS_STALE_H:
+        # The sentinel only refreshes for assets of already-active pairs, so an
+        # idle book freezes it. Rendering that as "ok" is how a 22-hour-old
+        # verdict read as healthy on 2026-08-14.
+        line("news gate", f"STALE — last rated {age:.1f}h ago "
+                          f"@ {gate.get('ts', '?')}"
+                          + ("  (no active pairs: nothing to screen, and "
+                             "nothing refreshing)" if not rep["pairs"] else
+                             "  ** pairs are active and the gate is not "
+                             "refreshing **"))
     elif gstatus == "ok":
         line("news gate", f"ok — {gate.get('rated', 0)} assets rated "
-                          f"@ {gate.get('ts', '?')}")
+                          f"@ {gate.get('ts', '?')}{aged}")
     elif gstatus == "no_news":
-        line("news gate", f"ok — no relevant news in window @ {gate.get('ts', '?')}")
+        line("news gate", f"ok — no relevant news in window "
+                          f"@ {gate.get('ts', '?')}{aged}")
     else:
         line("news gate", f"{gstatus} (no reading yet)")
     ai = rep.get("ai_spend") or {}
