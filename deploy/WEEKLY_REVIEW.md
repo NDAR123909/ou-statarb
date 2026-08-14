@@ -1386,16 +1386,22 @@ asking "what would make this number wrong?" before it goes into the record.
 
 ### Leaderboard 2026-08-13 — and MDD is what actually moved
 
-**#4 of the field, score 86.5** · Sharpe **2.94** · MDD **3.7%** · PnL
-**+19.65** · ROI **+2.0%** · 103 trades · ann. return +27.6%.
+**#4 of the field, score 86.9** · Sharpe **3.16** · MDD **3.7%** · PnL
+**+20.30** · ROI **+2.0%** · 105 trades · ann. return +28.5%. (An earlier
+reading the same day showed 86.5 / 2.94 / +19.65; **the metrics rose across
+the window the first daily AI pass ran in**, which is one more thing the
+spend-hurts-score story has to explain away.)
 
 | | T.Anh #1 | btcol #2 | Supes #3 | **NDAR #4** |
 |---|---|---|---|---|
-| Score | 96.7 | 91.5 | 88.6 | **86.5** |
-| Sharpe (40%) | 5.84 | 4.04 | 2.48 | **2.94** |
+| Score | 95.2 | 92.0 | 88.4 | **86.9** |
+| Sharpe (40%) | 4.00 | 4.57 | 2.43 | **3.16** |
 | MDD (15%) | 3.8% | 1.3% | 2.6% | **3.7%** |
-| PnL (25%) | +58.71 | +26.10 | +24.91 | **+19.65** |
-| ROI (20%) | +5.9% | +2.6% | +2.5% | **+2.0%** |
+| PnL (25%) | +58.71 | +26.53 | +24.91 | **+20.30** |
+| ROI (20%) | +5.9% | +2.7% | +2.5% | **+2.0%** |
+
+**#3 is 1.5 points away and #5 is 1.8 behind** — Krosus at 85.1 with MDD 1.0%.
+This is a tight band, not a settled position.
 
 **We out-Sharpe third place and rank below them anyway.** The gap is size and
 MDD — and MDD is the one that used to be ours. It read **1.3%, best in the top
@@ -1411,6 +1417,91 @@ stops are exactly what banked this number. The counter-argument — that with
 3.7% already banked, further drawdown *below* that level costs nothing in the
 scored metric — is now load-bearing rather than academic, because we are past
 the point where MDD protection buys anything back.
+
+### The refit-cadence premise has inverted — and it was load-bearing
+
+Prompted by the operator asking whether the review layer could be suppressing
+entries (it cannot — see below), the fills report was re-run. **Five round
+trips, 2026-08-07 → 08-12:**
+
+| date | pair | exit | hold | gross |
+|---|---|---|---|---|
+| 08-07 | KAS/ETC | refit_drop | 24.0h | −2.49 |
+| 08-08 | FIL/AR | **reverted** | 26.0h | **+6.29** |
+| 08-10 | FIL/AR | refit_drop | 10.0h | +2.46 |
+| 08-10 | XLM/XRP | **stop** | 11.0h | **−5.61** |
+| 08-12 | XLM/XRP | refit_drop | 23.0h | −0.24 |
+
+Gross **+0.41**, fees **1.52**, **net −1.10**. Fees are **366% of gross** — the
+book is currently paying more to trade than the trades earn. The single stop
+carries 67% of losses. Funding **+0.337** received; slippage 0.91 bps (was
+0.57).
+
+**Two numbers that a week-3 decision rested on have both inverted.** The
+operator's proposal to lengthen the refit interval was declined on this exact
+reasoning, quoted from the week 3 entry: *"Median hold **2.0h** against a 24h
+interval; refit-drops are **~10%** of closes."*
+
+- **median hold is now 23.02h** — essentially the 24h refit interval itself
+- **`refit_drop` is 3 of 5 exits, 60%** — not 10%
+
+Positions are no longer reverting and closing on their own; they survive to the
+next refit and are dropped by it. **Four of five exits are plumbing** (stop,
+refit cadence, band geometry) against one that was the edge — and that one was
+the only clean winner.
+
+**No change made, and lengthening the interval is not obviously the fix**:
+one of the three refit_drops was a **winner** (+2.46) closed early, and n=5 in
+the low-cointegration stretch. But the decision was made on a premise that no
+longer holds, so it is re-opened rather than inherited. **Week 4 agenda item
+0b.**
+
+### The review layer is advisory — verified, not asserted
+
+The operator asked whether `ai_deep_review` could suppress entries, noting that
+if it could, we would have a layer recommending "stop trading" on the basis of
+a portfolio we do not hold and a risk budget I had described wrongly for a
+whole pass. Checked three ways:
+
+1. **Nothing imports it** except `status.py`, which reads the spend meter for
+   display. `ltp_agent.py` contains no reference to it.
+2. **The agent never reads the ledger.** `_LEDGER_PATH` appears exactly twice
+   in `ltp_agent.py`: the constant, and `open(_LEDGER_PATH, "a")`. Its only
+   file reads are `ltp_state.json` and `ltp_hwm.json`.
+3. **Separate processes** — systemd pid 715 versus a cron-spawned process that
+   exits. No IPC. Pinned by `test_it_places_no_orders_and_touches_no_agent_state`.
+
+Worth recording because it is counter-intuitive: the one indirect channel
+**fails open, not closed.** If the review pass exhausted the gateway the news
+gate goes dark, and the week-1 decision was fail-open — the agent keeps trading
+at full size, unscreened. Gateway contention cannot produce "stop trading"; it
+produces the opposite.
+
+**Shipped from the same question — `SPEND_CEILING = 8.00`.** The only bound was
+`--target`, so a future raised target could have eaten the agent's allocation.
+The ceiling is enforced independently of `--target`, reserving ≥2.00/day
+against measured agent burn of ~0.04–0.08/day, and
+`DAILY_TARGET < SPEND_CEILING < 10.0` is pinned so nobody can raise the target
+past the reserve without CI going red. **An unreadable meter does not stop the
+run** — missing the floor is disqualification while overspending only darkens a
+fail-open gate, and `--max-calls` (600, ~1.80 USD) is the backstop that makes
+blind running safe.
+
+### A third hardcoded-number rot, in the reviewer's own briefing
+
+`strategy_prompts()` was telling the model *"13 round trips… median hold 2.0h…
+ZERO trades have ever hit the max-hold clock"* — a week after the median hold
+became 23h and refit-drops became the majority exit. **The reviewer was being
+briefed on a strategy that had stopped behaving that way**, which devalues
+every answer it gave about hold times and band geometry. Same failure as
+`days_left()` and `EQUITY_AT_REVIEW`, third instance.
+
+`record_facts()` now derives the block from the newest `track_record/fills_*.json`
+snapshot — round trips, exit mix, gross/fees/net, win rate, median hold,
+measured fee, slippage, funding — and states outright when fees exceeded gross,
+which is the sort of thing a reviewer derives late or not at all. When no
+snapshot is readable it falls back to the 2026-08-09 figures **and labels them
+dated**, the same contract as the equity read. 191 tests.
 
 ### Record hygiene done in the same pass
 
@@ -1476,6 +1567,15 @@ date is what is stated. It was 9 days out on 2026-08-12.)
    led MDD, because it inverts one standing argument: with 3.7% banked, further
    drawdown below that level costs nothing scored, which is the strongest case
    *against* item 1.
+
+0b. **Re-decide the refit cadence — its premise is gone** (added 2026-08-13).
+   Week 3 declined lengthening the interval because *"median hold 2.0h against
+   a 24h interval; refit-drops are ~10% of closes."* Both have inverted:
+   **median hold 23.02h, refit_drop 60% of exits.** Four of five recent exits
+   are plumbing rather than edge, and fees ran 366% of gross. **Do not simply
+   reverse it** — one refit_drop was a winner closed early, n=5, and this is
+   the low-cointegration stretch. Decide it on the numbers, and note this is
+   the same machinery as item 2: a hold-time simulation answers both.
 
 1. **Sub-hourly risk monitor — ship it or drop it, in writing.** The only change
    with a measured payoff: **roughly a third of every dollar lost** came from stops

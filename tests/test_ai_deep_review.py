@@ -22,9 +22,11 @@ from deploy.ai_deep_review import (AI_SPEND_FLOOR, ANGLES,  # noqa: E402
                                    ELIMINATION_FLOOR, EQUITY_AS_OF,
                                    EQUITY_AT_REVIEW, FOLLOWUPS, KILL_SWITCH,
                                    PHASE_I_END, SYSTEM, TOPUP_BELOW,
-                                   FLOOR_GRACE_H, _duration_hours,
-                                   constraint_prompt, days_left, floor_state,
-                                   followups, ledger_prompts, period_age_hours,
+                                   FLOOR_GRACE_H, SPEND_CEILING,
+                                   _duration_hours, constraint_prompt,
+                                   days_left, floor_state, followups,
+                                   ledger_prompts, over_ceiling,
+                                   period_age_hours, record_facts,
                                    recent_events, strategy_prompts)
 
 
@@ -62,6 +64,63 @@ def test_prompts_carry_the_real_measured_numbers():
                  "-10.67",            # total overshoot cost
                  "median hold 2.0h"):
         assert fact in p, fact
+    # ...and when the live snapshot is unavailable it must SAY those figures
+    # are dated rather than presenting them as current.
+    assert "treat them as dated" in p
+
+
+def test_the_record_block_is_measured_when_a_snapshot_exists():
+    """The briefing used to hardcode "13 round trips, median hold 2.0h". By
+    2026-08-13 the median hold was 23.0h and refit-drops had gone from ~10% of
+    closes to 60%, so the reviewer was reasoning about a strategy that had
+    stopped behaving that way. Derived now."""
+    facts = {"as_of": "2026-08-13", "funding": 0.337, "summary": {
+        "round_trips": 5, "gross_pnl": 0.4136, "fees_paid": 1.5165,
+        "net_pnl": -1.1029, "win_rate": 0.4, "worst": -5.6092,
+        "median_hold_h": 23.02, "measured_fee_bps_per_side": 1.748,
+        "slippage_bps_mean": 0.91,
+        "exit_reasons": {"refit_drop": 3, "reverted": 1, "stop": 1}}}
+    p = strategy_prompts(facts=facts)[0][1]
+    assert "5 completed round trips" in p
+    assert "3 refit_drop" in p                  # the mix, most common first
+    assert "23.0h" in p
+    assert "2026-08-13" in p
+    # The stale fallback must be gone entirely, not merely appended to.
+    assert "median hold 2.0h" not in p
+    # Fees exceeding gross is the kind of thing a reviewer derives late or not
+    # at all, so the briefing states it outright.
+    assert "paid more to trade than the trades earned" in p
+
+
+def test_record_facts_survives_a_missing_or_junk_snapshot(tmp_path):
+    """A corrupt snapshot must degrade the briefing to the labelled fallback,
+    never take the daily pass down -- that pass is what clears the floor."""
+    assert record_facts(tmp_path) is None                      # none present
+    (tmp_path / "track_record").mkdir()
+    (tmp_path / "track_record" / "fills_2026-08-13.json").write_text("{oops")
+    assert record_facts(tmp_path) is None                      # unparseable
+    (tmp_path / "track_record" / "fills_2026-08-14.json").write_text(
+        json.dumps({"summary": {"round_trips": 0}}))
+    assert record_facts(tmp_path) is None                      # empty window
+
+
+def test_the_review_layer_cannot_starve_the_layers_that_gate_trades():
+    """The agent's own news and spread assessments share this budget, and if
+    they go dark the news gate fails OPEN -- entries stop being screened. An
+    advisory layer must never be able to cause that."""
+    assert DAILY_TARGET < SPEND_CEILING < 10.0     # 10.00/day is the budget
+    assert SPEND_CEILING <= 8.0                    # >= 2.00 left for the agent
+    assert over_ceiling(SPEND_CEILING) is True
+    assert over_ceiling(SPEND_CEILING - 0.01) is False
+    # An unreadable meter must NOT stop the run: missing the floor is
+    # disqualification, overspending only darkens a gate that fails open.
+    assert over_ceiling(None) is False
+    # And the ceiling has to be enforced where the target is, or --target
+    # simply walks past it.
+    import inspect
+    import deploy.ai_deep_review as m
+    src = inspect.getsource(m.main)
+    assert src.count("over_ceiling(") >= 2, "ceiling not checked in the loop"
 
 
 def test_the_stop_prompt_supplies_the_evidence_against_our_own_position():

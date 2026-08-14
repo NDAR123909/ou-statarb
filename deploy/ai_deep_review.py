@@ -159,6 +159,27 @@ def period_age_hours(info: dict, now: datetime | None = None) -> float | None:
 FLOOR_GRACE_H = 5.0
 
 
+def over_ceiling(spend: float | None) -> bool:
+    """True when this tool must stop, whatever `--target` says.
+
+    An unreadable meter does NOT stop the run, and the asymmetry is deliberate:
+    failing to clear the floor is disqualification, while overspending only
+    darkens a gate that fails open. `--max-calls` is the backstop that makes
+    that safe -- the daily pass is capped at 600 calls, about 1.80 USD at the
+    measured rate, so a blind run cannot reach an 8.00 ceiling even in
+    principle.
+    """
+    if spend is None:
+        return False
+    if spend >= SPEND_CEILING:
+        print(f"** SPEND CEILING ${SPEND_CEILING:.2f} reached at ${spend:.5f}. "
+              f"Stopping: the remaining budget is reserved for the agent's own "
+              f"news and spread assessments, which gate trades. **",
+              file=sys.stderr)
+        return True
+    return False
+
+
 def floor_state(spend: float | None, info: dict | None,
                 now: datetime | None = None) -> str:
     """Where this budget period stands against the organizer floor.
@@ -208,6 +229,15 @@ def ask(client, messages: list[dict], max_tokens: int = 4000) -> str | None:
 AI_SPEND_FLOOR = 1.00       # organizer requirement; below this is disqualification
 DAILY_TARGET = 1.15         # what the daily pass aims for -- 15% of margin
 TOPUP_BELOW = 1.05          # the top-up run no-ops above this
+
+# Hard reserve. The agent's own hourly news and spread assessments share this
+# gateway and this budget, and they are the layers that actually gate trades --
+# if they go dark the news gate fails OPEN and entries stop being screened for
+# event risk. The review layer is advisory and must never be able to starve
+# them. Enforced independently of --target, so raising the target cannot eat
+# the reserve; measured agent burn is ~0.04-0.08/day, so 2.00 of headroom is a
+# 25-50x margin.
+SPEND_CEILING = 8.00        # of a 10.00/day budget; never crossed by this tool
 
 
 # ---------------------------------------------------------- the risk facts --
@@ -578,7 +608,86 @@ def ledger_prompts(hours: float = 24.0, now: datetime | None = None,
     return out
 
 
-def strategy_prompts(equity: float | None = None) -> list[tuple[str, str]]:
+FILLS_GLOB = "track_record/fills_*.json"
+
+# The record block used to be typed in: "13 round trips… median hold 2.0h".
+# By 2026-08-13 the median hold was 23.0h and refit-drops had gone from ~10% of
+# closes to 60%, so the reviewer was being briefed on a strategy that had
+# stopped behaving that way a week earlier -- and its answers about hold times
+# and band geometry were worth less than they looked. Third instance of the
+# same rot after `days_left()` and `EQUITY_AT_REVIEW`, so it is derived now.
+RECORD_FALLBACK = (
+    "  13 completed round trips: 10 reverted (9 wins, +27.79 gross), "
+    "2 stops (0 wins, -15.89), 1 refit-drop (-2.49). Total +9.41.\n"
+    "  median hold 2.0h against fitted half-lives of 17-26h; ZERO trades "
+    "have ever hit the 3x-half-life max-hold clock.\n"
+    "  taker fee measured at 1.75 bps/side (was assumed 5.0); slippage "
+    "0.57 bps mean; funding +0.385 net received.\n"
+    "  [the four lines above are the 2026-08-09 reading; the live snapshot "
+    "could not be read, so treat them as dated]\n")
+
+
+def record_facts(root: Path | str | None = None) -> dict | None:
+    """Headline numbers from the newest dated fills snapshot, or None.
+
+    The snapshots are written daily at 23:55 UTC and are the only durable
+    record of realised trades -- the venue serves roughly seven days of
+    executions and then forgets.
+    """
+    base = Path(root) if root else Path(__file__).resolve().parent.parent
+    snaps = sorted(base.glob(FILLS_GLOB))
+    if not snaps:
+        return None
+    try:
+        blob = json.loads(snaps[-1].read_text())
+    except (json.JSONDecodeError, OSError, ValueError):
+        return None
+    summary = blob.get("summary") or {}
+    if not summary.get("round_trips"):
+        return None
+    return {"as_of": snaps[-1].stem.replace("fills_", ""),
+            "summary": summary,
+            "funding": ((blob.get("funding") or {}).get("totals_by_type")
+                        or {}).get("FUNDING_FEE")}
+
+
+def _record_block(facts: dict | None) -> str:
+    """The live-record lines of the briefing, measured where possible."""
+    if not facts:
+        return RECORD_FALLBACK
+    s = facts["summary"]
+    mix = ", ".join(f"{v} {k}" for k, v in
+                    sorted(s.get("exit_reasons", {}).items(),
+                           key=lambda kv: -kv[1])) or "none recorded"
+    fund = facts.get("funding")
+    out = (
+        "  In the most recent reconciled window (snapshot {as_of}, the venue "
+        "serves only ~7 days of executions): **{n} completed round trips**, "
+        "exits {mix}.\n"
+        "  gross {gross:+.2f}, fees {fees:.2f}, NET {net:+.2f}. win rate "
+        "{wr:.0%}, worst {worst:+.2f}.\n"
+        "  median hold {hold:.1f}h against fitted half-lives of 17-26h.\n"
+        "  taker fee measured {fee:.2f} bps/side; slippage {slip:.2f} bps "
+        "mean{fundtxt}.\n"
+    ).format(
+        as_of=facts["as_of"], n=s.get("round_trips"), mix=mix,
+        gross=s.get("gross_pnl") or 0.0, fees=s.get("fees_paid") or 0.0,
+        net=s.get("net_pnl") or 0.0, wr=s.get("win_rate") or 0.0,
+        worst=s.get("worst") or 0.0, hold=s.get("median_hold_h") or 0.0,
+        fee=s.get("measured_fee_bps_per_side") or 0.0,
+        slip=s.get("slippage_bps_mean") or 0.0,
+        fundtxt="" if fund is None else "; funding {:+.3f} net".format(fund))
+    # State it plainly when the trades cost more than they made. A reviewer
+    # that has to derive this from two numbers usually does not.
+    net = s.get("net_pnl")
+    if net is not None and net < 0 <= (s.get("gross_pnl") or 0):
+        out += ("  NOTE: fees exceeded gross P&L in this window -- the book "
+                "paid more to trade than the trades earned.\n")
+    return out
+
+
+def strategy_prompts(equity: float | None = None,
+                     facts: dict | None = None) -> list[tuple[str, str]]:
     """Adversarial review of conclusions we have already drawn."""
     eq = EQUITY_AT_REVIEW if equity is None else float(equity)
     common = (
@@ -586,12 +695,7 @@ def strategy_prompts(equity: float | None = None) -> list[tuple[str, str]]:
         "hourly bars.\n"
         f"  equity {eq:.2f}, peak 1041.19, max drawdown 3.7% (monotonic, "
         f"scored)\n"
-        "  13 completed round trips: 10 reverted (9 wins, +27.79 gross), "
-        "2 stops (0 wins, -15.89), 1 refit-drop (-2.49). Total +9.41.\n"
-        "  median hold 2.0h against fitted half-lives of 17-26h; ZERO trades "
-        "have ever hit the 3x-half-life max-hold clock.\n"
-        "  taker fee measured at 1.75 bps/side (was assumed 5.0); slippage "
-        "0.57 bps mean; funding +0.385 net received.\n"
+        + _record_block(facts) +
         "  5 lifetime stops. Median overshoot past the 3.5 band is 0.2 sigma, "
         "but two fired at 1.08 and 6.75 sigma past it, and those two carry "
         "-8.31 of a -10.67 total overshoot cost.\n"
@@ -657,8 +761,8 @@ def strategy_prompts(equity: float | None = None) -> list[tuple[str, str]]:
     ]
 
 
-def daily_work(cfg: AgentConfig,
-               equity: float | None = None) -> list[tuple[str, str]]:
+def daily_work(cfg: AgentConfig, equity: float | None = None,
+               facts: dict | None = None) -> list[tuple[str, str]]:
     """The daily pass's material, broadest-first.
 
     Breadth matters more than depth here because the floor recurs every day and
@@ -671,7 +775,7 @@ def daily_work(cfg: AgentConfig,
     return (candidate_prompts(cfg, angle=1, logp=logp)
             + candidate_prompts(cfg, angle=2, logp=logp)
             + ledger_prompts()
-            + strategy_prompts(equity=equity))
+            + strategy_prompts(equity=equity, facts=facts))
 
 
 def main() -> int:
@@ -732,15 +836,23 @@ def main() -> int:
                         else f"{equity:.2f} USDT (live), "
                              f"{equity - ELIMINATION_FLOOR:.2f} above the "
                              f"{ELIMINATION_FLOOR:.0f} floor"))
+    facts = record_facts()
+    print("record: " + ("no fills snapshot found -- the strategy briefing "
+                        "falls back to the 2026-08-09 numbers, labelled dated"
+                        if facts is None else
+                        "snapshot {}, {} round trips, median hold {}h".format(
+                            facts["as_of"], facts["summary"].get("round_trips"),
+                            facts["summary"].get("median_hold_h"))))
     turns = followups(equity=equity)
 
     cfg = AgentConfig()
     if args.probe:
-        work = strategy_prompts(equity=equity)[:2]
+        work = strategy_prompts(equity=equity, facts=facts)[:2]
     elif args.daily:
-        work = daily_work(cfg, equity=equity)
+        work = daily_work(cfg, equity=equity, facts=facts)
     else:
-        work = candidate_prompts(cfg) + strategy_prompts(equity=equity)
+        work = candidate_prompts(cfg) + strategy_prompts(
+            equity=equity, facts=facts)
     print(f"{len(work)} topics, up to {args.rounds} rounds each")
 
     calls = 0
@@ -762,6 +874,9 @@ def main() -> int:
                 break
             if args.target is not None:
                 cur = spend_now()
+                if over_ceiling(cur):
+                    done = True
+                    break
                 if cur is not None and cur >= args.target:
                     print(f"target ${args.target:.2f} reached at ${cur:.5f}")
                     done = True
@@ -787,7 +902,8 @@ def main() -> int:
                                  "content": turns[(rnd - 1) % len(turns)]})
                 if args.target is not None:
                     cur = spend_now()
-                    if cur is not None and cur >= args.target:
+                    if over_ceiling(cur) or (cur is not None
+                                             and cur >= args.target):
                         done = True
                         break
         if args.target is None or calls == before:
