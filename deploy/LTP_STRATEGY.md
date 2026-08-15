@@ -835,6 +835,56 @@ orders.
 still unconfirmed by the organizer. Asking them is the only way to know, and it
 is the only thing that would let us stop. Until then we clear it every day.
 
+## Addendum — the breadth mechanism did not happen (2026-08-15)
+
+No change to what the agent trades. A claim in this document is falsified by
+measurement, and a pre-registration that quietly keeps a broken claim is worth
+nothing.
+
+The scoring table above maps **profitability** to *"breadth across 14
+sector-restricted pairs"*. Measured across **22 scored refits**, 2026-07-26 to
+2026-08-15:
+
+| pairs passed | refits |
+|---|---|
+| 3 | 1 (day one) |
+| 2 | 2 |
+| **1** | **13** |
+| 0 | 6 |
+
+**Mean 0.91 pairs per refit; overall pass rate ~6% (20 of 329 tests).** `tested`
+was 15 on every refit but one, so the universe never shrank — the result is the
+gate, not a vanishing pool. **Only 5 of the 15 candidates have ever passed
+once**: AVAX/SOL, FIL/AR, TAO/RENDER, KAS/ETC, XLM/XRP. **Ten have never
+cleared it in three weeks.** AVAX/SOL passed 11 refits running and was the sole
+survivor on 8 of them, then never passed again after Aug 4.
+
+**So breadth never materialised. This has been a single-pair strategy for its
+entire life**, and whatever Sharpe the live record shows was produced by one
+position at a time with fourteen candidates idle. The mechanism named in the
+design was aspirational; the realised strategy is concentrated by construction.
+
+Two readings, and the evidence here does not separate them:
+
+1. **The gate is correctly rigorous** and crypto pairs simply do not cointegrate
+   often — in which case 6% is the honest yield and the universe must be much
+   larger to support a diversified book.
+2. **A 15-name pool is too thin for a multi-test pipeline**, so the screen is
+   starving rather than protecting.
+
+Both imply the same Phase II action and neither justifies loosening anything
+now: **widen the universe, do not weaken the screen.** More candidates means
+more tests, which Benjamini-Hochberg already penalises correctly, so this is
+not a way of manufacturing passes. It is also not judgeable inside the six days
+left of Phase I, which is why nothing changes here and `universe_scan.py` is
+re-run as Phase II design work — with 22 refits of evidence behind it rather
+than the three available when week 1 concluded *"mostly regime, not too-small
+universe."* That conclusion was drawn from a sample that could not have
+distinguished the two readings above.
+
+Recorded because the post-mortem must not be able to claim breadth as a
+strength: it was designed for, and it did not occur.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;
