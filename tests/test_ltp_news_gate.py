@@ -175,3 +175,95 @@ def test_provenance_marks_an_unscreened_entry():
 def test_provenance_without_a_sentinel_at_all():
     prov = agent.screening_provenance(None, {}, TAO, REN)
     assert prov["screened"] is False and prov["news_status"] == "disabled"
+
+
+# --- staleness: a verdict that did not screen the bar it is attached to ----
+
+def test_provenance_marks_a_stale_verdict_instead_of_claiming_ok():
+    """The sentinel only refreshes for assets of ALREADY-active pairs, and that
+    list is built before the refit that adds new ones. So a pair selected out
+    of a drought could be entered while the sentinel held verdicts hours old --
+    and the record stamped that entry `news_status: ok`. A log that claims a
+    screening which did not happen is worse than one that says nothing."""
+    from datetime import datetime, timedelta, timezone
+    from deploy.ltp_agent import screening_provenance
+
+    now = datetime(2026, 8, 14, 18, 0, tzinfo=timezone.utc)
+
+    class S:
+        status, degraded = "ok", False
+        verdicts = {"XLM": {"severity": "none"}, "XRP": {"severity": "none"}}
+        last_refresh = (now - timedelta(hours=22)).isoformat(timespec="seconds")
+
+    p = screening_provenance(S(), {}, "BINANCE_PERP_XLM_USDT",
+                             "BINANCE_PERP_XRP_USDT", now=now)
+    assert p["news_status"] == "stale"
+    assert p["screened"] is False
+    assert 21.9 < p["news_age_h"] < 22.1
+
+    S.last_refresh = (now - timedelta(minutes=20)).isoformat(timespec="seconds")
+    fresh = screening_provenance(S(), {}, "BINANCE_PERP_XLM_USDT",
+                                 "BINANCE_PERP_XRP_USDT", now=now)
+    assert fresh["news_status"] == "ok" and fresh["screened"] is True
+
+
+def test_provenance_names_legs_that_were_never_rated_at_all():
+    """The drought case is worse than staleness: a newly selected pair's legs
+    may have no verdict at any age. That entry is unscreened, and the field has
+    to say so rather than reporting a severity of None as if it were a rating.
+    """
+    from datetime import datetime, timezone
+    from deploy.ltp_agent import screening_provenance
+
+    now = datetime(2026, 8, 14, 18, 0, tzinfo=timezone.utc)
+
+    class S:
+        status, degraded = "ok", False
+        verdicts = {"XLM": {"severity": "none"}}          # XRP never rated
+        last_refresh = now.isoformat(timespec="seconds")
+
+    p = screening_provenance(S(), {}, "BINANCE_PERP_XLM_USDT",
+                             "BINANCE_PERP_XRP_USDT", now=now)
+    assert p["news_status"] == "missing_legs"
+    assert p["news_unrated_legs"] == ["XRP"]
+    assert p["screened"] is False
+
+
+def test_the_glance_is_not_buried_by_the_advisory_review_layer():
+    """The review pass writes ~380 ledger rows a night. It buried enter/exit/
+    stop completely -- 20 of 20 rows in the operator's daily glance were
+    `ai_deep_review`. Hidden from the tail, still counted in the tally."""
+    import json
+    import tempfile
+    from pathlib import Path
+    from deploy.status import _tail_ledger
+
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / "led.jsonl"
+        rows = [{"ts": "2026-08-14T09:00:00+00:00", "event": "enter",
+                 "pair": "FIL/AR"}]
+        rows += [{"ts": "2026-08-14T17:00:00+00:00", "event": "ai_deep_review",
+                  "topic": f"t{i}"} for i in range(50)]
+        p.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+
+        shown, tally = _tail_ledger(str(p), 8)
+        assert [r["event"] for r in shown] == ["enter"]
+        # ...but the volume must stay visible somewhere.
+        assert tally["ai_deep_review"] == 50 and tally["enter"] == 1
+
+
+def test_the_refit_countdown_does_not_say_a_day_when_it_means_next_bar():
+    """The agent tests `bar % refit_every == 0` at the top of an iteration and
+    increments at the bottom, so the persisted bar is what the next iteration
+    checks. At an exact multiple the refit is imminent. The old display
+    rendered that 0 as `24` and sent the operator looking for a skipped refit
+    after a restart landed on bar 432."""
+    from deploy.status import bars_to_refit
+
+    assert bars_to_refit(432, 24) == 0        # refit runs on the NEXT bar
+    assert bars_to_refit(431, 24) == 1
+    assert bars_to_refit(408, 24) == 0
+    assert bars_to_refit(409, 24) == 23
+    assert bars_to_refit(0, 24) == 0
+    # Never divide by zero on a misconfigured interval.
+    assert bars_to_refit(432, 0) == 0

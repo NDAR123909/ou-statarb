@@ -558,8 +558,26 @@ def maintenance_state(now: datetime, windows: list, lead_minutes: int) -> str:
     return "clear"
 
 
+# A verdict older than this did not screen the bar it is attached to. The
+# sentinel refreshes hourly, so two hours is already an outage or an idle book.
+NEWS_STALE_H = 2.0
+
+
+def verdict_age_hours(sentinel: NewsSentinel | None,
+                      now: datetime | None = None) -> float | None:
+    """Hours since the sentinel last refreshed, or None if never/unparseable."""
+    try:
+        stamp = datetime.fromisoformat(str(sentinel.last_refresh))
+    except (AttributeError, TypeError, ValueError):
+        return None
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=timezone.utc)
+    return ((now or datetime.now(timezone.utc)).timestamp()
+            - stamp.timestamp()) / 3600.0
+
+
 def screening_provenance(sentinel: NewsSentinel | None, assessment: dict,
-                         a: str, b: str) -> dict:
+                         a: str, b: str, now: datetime | None = None) -> dict:
     """Structured record of which gates actually screened this decision.
 
     The reasoning prose already distinguishes a screened entry from an
@@ -573,12 +591,35 @@ def screening_provenance(sentinel: NewsSentinel | None, assessment: dict,
         news = {"news_status": "disabled", "news_severity": {}}
         screened = False
     else:
-        news = {"news_status": sentinel.status,
-                "news_severity": {ba: (sentinel.verdicts.get(ba.upper()) or {})
-                                       .get("severity"),
-                                  bb: (sentinel.verdicts.get(bb.upper()) or {})
-                                       .get("severity")}}
-        screened = (not sentinel.degraded) and bool(sentinel.verdicts)
+        # The sentinel only refreshes for assets of ALREADY-active pairs
+        # (`ltp_agent.py`, the bar loop: `assets = active_assets()`), and that
+        # list is computed BEFORE the refit that adds new ones. So a pair
+        # selected out of a drought can be entered while the sentinel holds
+        # verdicts that never covered its legs -- and this record used to stamp
+        # that entry `news_status: ok`. A log that claims a screening which did
+        # not happen is worse than one that says nothing.
+        severity = {ba: (sentinel.verdicts.get(ba.upper()) or {}).get("severity"),
+                    bb: (sentinel.verdicts.get(bb.upper()) or {}).get("severity")}
+        age = verdict_age_hours(sentinel, now=now)
+        missing = sorted(k for k, v in severity.items() if v is None)
+        stale = age is not None and age > NEWS_STALE_H
+        # Precedence matters: a degraded sentinel must keep reporting WHY it is
+        # down (`quota`, `api_error`, ...). "missing_legs" on a quota outage
+        # would describe the symptom and lose the cause.
+        status = sentinel.status
+        if sentinel.degraded:
+            pass
+        elif missing:
+            status = "missing_legs"          # never rated: this leg is unscreened
+        elif stale:
+            status = "stale"                 # rated, but not for this bar
+        news = {"news_status": status,
+                "news_severity": severity,
+                "news_age_h": None if age is None else round(age, 2),
+                "news_refreshed_at": sentinel.last_refresh or None,
+                "news_unrated_legs": missing or None}
+        screened = ((not sentinel.degraded) and bool(sentinel.verdicts)
+                    and not missing and not stale)
     return {"screened": screened,
             "regime": (assessment or {}).get("regime"),
             "regime_confidence": (assessment or {}).get("confidence"),

@@ -1503,6 +1503,148 @@ which is the sort of thing a reviewer derives late or not at all. When no
 snapshot is readable it falls back to the 2026-08-09 figures **and labels them
 dated**, the same contract as the equity read. 191 tests.
 
+### 2026-08-14 — the news gate goes silent when the book is idle
+
+The 17:58 UTC glance read `news gate ok — 2 assets rated @ 2026-08-13T20:01`.
+**Twenty-two hours old, rendered as `ok`.** The ledger tallies prove it was not
+a display artefact:
+
+| | 08-13 16:28 | 08-14 17:58 | Δ |
+|---|---|---|---|
+| bar | 405 | 430 | **+25** |
+| `news_assessment` | 340 | 344 | **+4** |
+| `ai_spread_assessment` | 458 | 462 | **+4** |
+
+Twenty-five bars, four assessments — and the four line up exactly with the
+hours XLM/XRP was alive before the 21:00 refit dropped it. Cause is one line in
+the bar loop (`ltp_agent.py`): `assets = active_assets()` then
+`if assets: sentinel.refresh(assets)`. **Zero active pairs → no refresh.**
+
+Three consequences, in order of weight:
+
+1. **A pair selected out of a drought is entered on verdicts that never covered
+   it.** `active_assets()` is computed *before* `trade_step`, and `trade_step`
+   runs the refit that adds pairs. So on the bar a new pair is selected and
+   entered, the sentinel holds the old asset list — or nothing — and
+   `screening_provenance` stamped that entry `news_status: ok`. Same defect
+   class as the four logging gaps: **a control that appears to have acted and
+   did not.** No money lost — the news veto has never fired — but it is audit
+   exposure of exactly the kind Track A correlates.
+2. **During a drought our own AI usage falls to ~zero**, and the organizers
+   eliminate teams at zero usage (Telegram, 08-12). Droughts here have run 3+
+   days. **Without the daily review pass a long idle stretch could have walked
+   us into the zero-usage elimination with the glance showing a healthy agent.**
+   That is a materially stronger justification for the daily pass than the one
+   written on 08-12: it does not top up a floor the agent nearly reaches, it
+   **carries the floor entirely whenever we are flat.**
+3. **The review layer buried the daily glance.** 968 `ai_deep_review` rows
+   against 29 `enter`; `--ledger 20` returned 20 of 20 advisory rows. The
+   operator's decision-history view was unusable. My regression, from 08-13.
+
+**Shipped (logging and display only — `screened` and `news_status` are
+write-only, confirmed by grep, so nothing here can reach trading):**
+`NEWS_STALE_H = 2.0` and `verdict_age_hours()`; provenance now reports
+`stale` / `missing_legs` with `news_age_h`, `news_refreshed_at` and
+`news_unrated_legs`, and sets `screened: False` for both — **with degraded
+status taking precedence**, so a quota outage still reports `quota` rather than
+losing the cause behind a symptom (an existing test caught that and was right).
+`status.py` prints the gate's age, renders `STALE` past the threshold, and says
+whether the cause is an idle book or a genuine failure to refresh with pairs
+active. `GLANCE_HIDE` keeps advisory rows out of the tail while the tally still
+counts them. 194 tests.
+
+**NOT shipped, and it is week 4 item 0c:** refreshing the sentinel for a newly
+selected pair *before* screening its first entry. That is the actual fix and it
+touches the entry path with a week left, so it goes to Sunday with the other
+behavioural decisions rather than being shipped on a Friday evening.
+
+### A cosmetic bug that stopped being cosmetic
+
+The 18:11 restart landed on **bar 432**, an exact multiple of the 24-bar refit
+interval, and the glance read *"next in 24 bars"* while `refit:28` said none had
+run. That looked like a restart had skipped a refit and left us idle a full
+extra day in the middle of a drought.
+
+It had not. `ltp_agent.py:1143` tests `state["bar"] % refit_every_bars == 0` at
+the **top** of an iteration and increments at the bottom, so the persisted bar
+is the one the next iteration checks. At 432 the refit was one bar away, not
+twenty-four. The display was computing `(every - bar % every) % every` and then
+rendering the resulting 0 through `nxt or every` — a fallback meant for "just
+refitted" that at the boundary says exactly the opposite of the truth.
+
+Fixed as `bars_to_refit()` with the boundary rendered as **"refit runs NEXT
+bar"**, pinned by a test. Filed here because the lesson is not the one-line fix:
+**a display that is wrong only at a boundary is wrong exactly when someone is
+looking hard at it.** This one cost a debugging round on the day a restart
+happened to land there. 195 tests.
+
+### 2026-08-15 — this has been a single-pair strategy for its entire life
+
+The operator pulled every `ai_refit_review` record and read the `passed` column
+across the competition. It is the most important thing measured this week, and
+no daily glance could have shown it.
+
+**22 scored refits, 2026-07-26 → 2026-08-15:**
+
+| pairs passed | refits | share |
+|---|---|---|
+| 3 | 1 (Jul 26, day one) | 5% |
+| 2 | 2 (Jul 27, Aug 1) | 9% |
+| **1** | **13** | **59%** |
+| 0 | 6 | **27%** |
+
+- **Mean 0.91 pairs per refit.** Modal outcome is exactly one.
+- **`tested` is 15 on every refit but one** (14 on Aug 5). The universe never
+  shrank, so the zeros are cointegration genuinely failing, not candidates
+  going missing. That closes the refit review's own stated caveat.
+- **Overall pass rate 20 / 329 ≈ 6%.**
+- **Only 5 of the 15 candidates have EVER passed**: AVAX/SOL, FIL/AR,
+  TAO/RENDER, KAS/ETC, XLM/XRP. **Ten have never once cleared the gate in
+  three weeks.**
+- **AVAX/SOL appeared in all 11 refits from Jul 26 to Aug 4 and was the sole
+  survivor on 8 of them** — then never passed again after Aug 4.
+- Zero-pair refits are **not unusual**: six of 22. The current run of three
+  consecutive is the longest, but the prior record was two (Aug 5–6), broken
+  the next day.
+
+**The reframing, and it is harsher than the "unfavourable regime" reading the
+AI refit review gave:** the current dry spell is not a departure from a healthy
+state. **The gate has been passing 0–1 pairs out of 15 for three weeks.** The
+recorded Sharpe came from one position at a time with fourteen candidates idle.
+Every diversification claim in the design is aspirational rather than realised
+— disclosed in LTP_STRATEGY.md, because the pre-registration names *"breadth
+across 14 sector-restricted pairs"* as the profitability mechanism and that is
+now falsified by measurement.
+
+**Decision for Phase I: change nothing.** The universe is stable, the gate is
+not miscalibrated, the refit review says adjust nothing, and this pass rate is
+normal for this setup rather than degraded. With six days left, loosening a
+screen would spend a 3.7% MDD we cannot recover chasing a pair the pipeline
+says is not there. **But keep the two questions separate:** "do not loosen the
+gate" and "do not widen the universe" are different decisions. Widening adds
+hypotheses, which BH-FDR correctly penalises — it is not cheating. It also
+cannot produce judgeable evidence in six days. So it is **Phase II design
+work**, where a single-pair book running eight weeks is a structural fragility
+rather than an observation.
+
+### Method note — substring-grepping the ledger is now unsafe
+
+The same pull turned up four `ai_refit_review`-matching rows with `tested:
+None`, which looked like refits that had failed to record a result — invisible
+zeros that would have corrupted the distribution above.
+
+They were not. The operator's filter was `if 'ai_refit_review' in line`, and
+**the ledger now contains long AI prose that names our own event types**: an
+`ai_deep_review` response discussing the schema matches that filter. The
+arithmetic gave it away before any command did — the grep returned 26 rows,
+`status.py` counts `ai_refit_review: 22`, and all four extras resolve to
+`ai_deep_review` at timestamps inside daily review passes.
+
+This is the 2026-07-27 `severity` trap on a new surface, and worse now that
+~1,500 review rows carry paragraphs of text. **Parse each line and match on
+`d["event"]`; never `in line`.** The event tally in `status.py` remains the
+reliable probe.
+
 ### Record hygiene done in the same pass
 
 Running the cold-start protocol surfaced four defects in this file, fixed now:
@@ -1568,6 +1710,18 @@ date is what is stated. It was 9 days out on 2026-08-12.)
    drawdown below that level costs nothing scored, which is the strongest case
    *against* item 1.
 
+0a. **Open on the pass-rate distribution, not on the drought** (added
+   2026-08-15). Across 22 scored refits the gate passed **0.91 pairs on
+   average**, one pair 59% of the time and **zero 27% of the time**, and only
+   **5 of 15 candidates have ever passed at all**. This has been a single-pair
+   strategy since day one; the current three-day dry spell is the low end of a
+   distribution that was always this tight, not a break from health. It
+   reframes every other item — a monitor, a band or a refit cadence all tune a
+   book that holds at most one position. **Phase I answer is still "change
+   nothing".** The real question is Phase II: eight weeks on one pair at a time
+   is a fragility, and `universe_scan.py` should be re-run as design work with
+   22 refits of evidence rather than week 1's three.
+
 0b. **Re-decide the refit cadence — its premise is gone** (added 2026-08-13).
    Week 3 declined lengthening the interval because *"median hold 2.0h against
    a 24h interval; refit-drops are ~10% of closes."* Both have inverted:
@@ -1576,6 +1730,14 @@ date is what is stated. It was 9 days out on 2026-08-12.)
    reverse it** — one refit_drop was a winner closed early, n=5, and this is
    the low-cointegration stretch. Decide it on the numbers, and note this is
    the same machinery as item 2: a hold-time simulation answers both.
+
+0c. **Refresh the news gate for a newly selected pair before its first entry**
+   (added 2026-08-14). `assets = active_assets()` is computed before the refit
+   that adds pairs, so a pair coming out of a drought is entered on verdicts
+   that never covered its legs. The logging now says so (`missing_legs` /
+   `stale`, `screened: False`); the behaviour is unchanged. Smallest of the
+   behavioural items and the least contentious — but it is the entry path, so
+   it gets decided here rather than shipped ad hoc.
 
 1. **Sub-hourly risk monitor — ship it or drop it, in writing.** The only change
    with a measured payoff: **roughly a third of every dollar lost** came from stops
