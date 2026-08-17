@@ -1695,7 +1695,153 @@ section existed; that is what it is for.
 
 ---
 
-## Week 4 agenda — review due Sun 2026-08-16
+## Week 4 — 2026-08-10 → 2026-08-16 (reviewed Sun 2026-08-16)
+
+**The last review inside Phase I.** It ends 2026-08-21.
+
+### Position at review
+Reading **2026-08-17 01:19 UTC**. Equity **1020.30**, peak 1041.19, drawdown
+**2.01%**, **MDD 3.7% banked**, kill switch 916.25 with 104.05 headroom.
+**Flat, zero pairs, fourth consecutive day.** Service up since 08-14 with
+`NRestarts=0`; AI floor cleared at $1.1534; 195 tests.
+
+**Rank #5 of the 30 displayed, score 84.9.** Krosus passed us.
+
+| | T.Anh #1 | btcol #2 | Supes #3 | Krosus #4 | **NDAR #5** |
+|---|---|---|---|---|---|
+| Score | 93.9 | 91.8 | 86.3 | 85.9 | **84.9** |
+| Sharpe (40%) | 3.79 | 4.90 | 2.31 | 3.72 | **2.99** |
+| MDD (15%) | 3.8% | 1.3% | 2.6% | **1.0%** | 3.7% |
+| PnL (25%) | +58.71 | +30.37 | +24.91 | +15.09 | **+20.30** |
+| ROI (20%) | +5.9% | +3.0% | +2.5% | +1.5% | **+2.0%** |
+
+**Sharpe is decaying ~0.06/day while idle** — 3.16 (08-13) → 3.10 → 2.99. Every
+other metric is frozen because we hold nothing. Straight-lined to 08-21 that is
+~2.7 Sharpe and ~83 score, roughly 6th. **Krosus beats us on both quality
+metrics** (Sharpe 3.72, MDD 1.0%); we lead them only on PnL.
+
+### The organizer clarification settles four things
+Posted 2026-08-13 in reply to another team; no message was addressed to us and
+there were no announcements this week.
+
+1. **Phase 1 scores do NOT carry over. Every team resets to 1,000 USDT in
+   Phase 2.** We had assumed this since 2026-07-28; it is now confirmed in
+   writing. **The entire remaining value of Phase I is advancement plus
+   evidence** — the score itself is worthless after the 21st.
+2. **Advancement is the top 30 by overall ranking.** We are **5th**, and the
+   displayed #30 scores 49.9 — a **35-point cushion**. Sixteen of the thirty
+   shown carry negative PnL. **Advancement is not in doubt**, and four more
+   idle days cannot threaten it. This closes the field-size question raised
+   2026-08-14: it no longer matters that the board hides everyone below 30.
+3. **Eliminated teams leave the normalization pool.** Z-scores are computed
+   against the eligible pool only, so **our score moves when other teams die,
+   with no action from us.** Do not read a score move as signal without
+   checking whether the pool changed.
+4. **Advancement also requires "continuously run automated trading strategies
+   throughout the competition period."** We have held no position for four
+   days. The defence is strong and should be ready rather than improvised: the
+   agent runs continuously and logs refits, AI reviews and hourly assessments;
+   **the absence of positions is the strategy's output, not its absence**, and
+   the ledger proves it bar by bar. Recorded as a watch item, not an incident.
+
+### The decision that governs this week: ship nothing, and why
+**There is a 17-day dead window between Phase I closing (08-21) and Phase II
+opening (09-07).** That reframes every ship-or-drop question on the agenda. It
+was never "ship now or never" — it is **"ship into five days of live risk, or
+into seventeen days with time to test and no position at stake."**
+
+Stated that way all three answered themselves, and **no behavioural change
+shipped this week. That is a decision, not an idle week:**
+
+- **Sub-hourly monitor — DROPPED for Phase I.** The measured payoff is real
+  (roughly a third of losses came from stops firing late) but MDD is already
+  spent, we are flat so it would very likely never fire, and Phase I scores
+  evaporate on the 21st. A new loop that can close positions, inside a process
+  whose job is to stay up, buying nothing that survives the phase.
+- **Refit cadence — no change.** The premise genuinely inverted (median hold
+  2.0h → 23.0h, refit_drop 10% → 60%) but n=5, one refit_drop was a *winner*
+  closed early, and with zero pairs it cannot bind.
+- **News-gate refresh — no change.** The logging now tells the truth, which was
+  the audit-critical half; the behavioural half touches the entry path.
+
+### Week 4 agenda outcomes
+| # | item | outcome |
+|---|---|---|
+| 0a | single-pair finding | **the frame for everything else** — 0.91 pairs/refit, only 5 of 15 candidates have ever passed |
+| 0 | MDD reading | 3.7%, spent. We now out-Sharpe nobody in the top 4 |
+| 0b | refit cadence | **no change**, reasons above |
+| 0c | gate refresh | **no change**, reasons above |
+| 1 | sub-hourly monitor | **DROPPED for Phase I**, scheduled for the gap window |
+| 2 | band/`mu` simulation | **not done, deprioritised** — it tunes a book holding at most one position |
+| 3 | verify logging | `refit_drop` ✓ live · `size_reduced` never exercised · **close price still null — now diagnosed, see below** |
+| 4 | self-ranking in `status.py` | **DELETED** after four carries. The board shows only the top 30, so the endpoint would not have answered the question we actually had |
+| 5 | synthesis of ~1,900 reviews | **still owed** |
+| 6 | close-out prep | now the main event — week 5 item 1 |
+
+### The close-price gap is diagnosed, and it is nesting
+The last close (08-13 20:01, XLM/XRP) recorded `executed_price: null`,
+`executed_qty: null`, `order_id: null` — and the fallback did its job:
+
+```
+"response_keys": ["closePosition", "readbackNote", "reduceOnlyRequested",
+                  "request", "response", "sourceCapability"]
+```
+
+**The venue's close response is nested.** The probe checks top-level keys only,
+so all three lookups failed on depth rather than spelling. That converted "we
+need another live probing session" into a diagnosis read from the ledger, which
+is exactly what the mechanism was built for — **but only one level.** It records
+key names, not nested contents, so what sits under `response` is still unknown.
+A limit of the design worth writing down rather than a triumph.
+
+**Not fixed now**: `close_position` is trading-critical, and an exception there
+means a position that will not close — materially worse than the gap it repairs.
+Gap window, with the probe extended to recurse and to record nested keys.
+
+**Consequence for the post-mortem: the ledger still cannot say what any exit was
+done at.** `fills_report.py`'s symbol-plus-timestamp matching is the only
+source, and the entire loss attribution rests on it.
+
+---
+
+## Week 5 agenda — Phase I closes Fri 2026-08-21
+
+Five days. **No behavioural change ships in them** unless something breaks.
+
+1. **Write the Phase I post-mortem.** The deliverable that makes this record
+   mean something. It must state: backtest **0.36 net Sharpe OOS** on a 31-name
+   multi-pair engine versus a live deployment that ran **one pair at a time out
+   of 15 candidates** — the largest backtest-vs-live gap in the whole record,
+   and invisible until 2026-08-15; that the headline live Sharpe of 9.30 was
+   never real; that fees ran **366% of gross** in the final reconciled window;
+   that MDD was spent by two stops and never recovered; and that **the ledger
+   cannot say what any exit was done at.**
+2. **Archive everything that expires, before the 21st.** Fills snapshots at
+   ~7-day retention are the binding constraint. Whatever the post-mortem needs
+   must exist on disk by then.
+3. **The synthesis pass** over ~1,900 reviews — convergence, contradiction,
+   which claims survive. Discount the round-5 layer, which reasoned from an
+   understated headroom figure.
+4. **Phase II build list for the 17-day gap**, in priority order:
+   **(a) the universe question** — `universe_scan.py` re-run with 22 refits of
+   evidence rather than week 1's three; a single-pair book running eight weeks
+   is the central fragility. **(b)** the intra-bar monitor, two-tier at
+   4.0–4.5σ. **(c)** the news-gate refresh before a new pair's first entry.
+   **(d)** the nested close-price probe. **(e)** the refit cadence, if the
+   band/`mu` simulation supports it.
+
+### Standing items carried
+- **Rotate LTP + AI keys** before Phase II opens.
+- **Give the droplet a non-interactive git credential** — `ltp_state_history.jsonl`
+  still exists on one machine only.
+- **Report the header-only CSV exports** and ask whether the USD 1 floor is
+  daily or was one-off enforcement.
+- **Re-merge the fills snapshots** at each review.
+- **Check AI `spend` against both ends of the band** at each review.
+
+---
+
+## Week 4 agenda — review due Sun 2026-08-16 (COMPLETED — see the week 4 entry)
 
 **Phase I ends 2026-08-21.** The review on 08-16 is the last one inside the
 phase. (This line read "12 days" when written on 08-09; countdowns rot, so the

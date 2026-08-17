@@ -885,6 +885,48 @@ distinguished the two readings above.
 Recorded because the post-mortem must not be able to claim breadth as a
 strength: it was designed for, and it did not occur.
 
+## Addendum — nothing shipped in the final week, and that was the decision (2026-08-16)
+
+A pre-registration that records only changes makes a quiet week look like
+neglect. This one was a judgement, and the reasoning belongs on the record as
+much as any parameter change would.
+
+Three behavioural changes were queued and carried real evidence: the **intra-bar
+risk monitor** (roughly a third of all losses came from stops firing late, and a
+two-tier design at 4.0–4.5σ was measured rather than guessed), a **refit-cadence
+change** (its week-3 premise had inverted — median hold 2.0h → 23.0h,
+refit-drops ~10% → 60% of exits), and **refreshing the news sentinel before a
+newly selected pair's first entry** (`active_assets()` is computed before the
+refit that adds pairs, so a pair coming out of a drought is screened against
+verdicts that never covered it).
+
+**None shipped.** The deciding fact is structural rather than statistical:
+**Phase I closes 2026-08-21 and Phase II opens 2026-09-07, with all NAV reset to
+1,000 USDT and no score carried over** (organizer clarification, 2026-08-13).
+So the choice was never "ship or never" — it was *ship into five days of live
+risk, or into a seventeen-day window with time to test and no position at
+stake.* Compounding it: max drawdown is already banked at 3.7% so further
+drawdown below that level costs nothing scored; the book has held nothing for
+four days, so a risk control would likely never have fired; and advancement
+(top 30) is secure at 5th with a 35-point cushion. The monitor is the riskiest
+item on the list — a new loop that can close positions, inside a process whose
+only job is to stay up — and it would have bought nothing that survives the
+phase.
+
+The honest generalisation, since this repo's failure mode is over-shipping to
+improve a number: **a change that cannot be exercised before the measurement
+period ends is pure risk.** All three are scheduled for the gap window.
+
+One gap stays open into the post-mortem and must not be glossed: **the ledger
+still cannot say what any exit was done at.** `close_position` records
+`executed_price: null`, and the `response_keys` fallback added on 2026-08-02
+diagnosed why — the venue's close response is **nested**, so the probe was
+failing on depth rather than on field spelling. That fix also waits for the gap
+window, because `close_position` is trading-critical and an exception there
+means a position that will not close. Until then `fills_report.py`'s
+symbol-plus-timestamp matching is the sole source for realised exits, and every
+P&L attribution in this record depends on it.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;
