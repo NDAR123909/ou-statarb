@@ -26,6 +26,20 @@ choosing the tidiest one.
 **NDAR**. Phase I (Sandbox Elimination) **Jul 20 – Aug 21 2026**; Phase II
 (Live Finals) Sep 7 – Oct 31. **Top 30 teams advance.**
 
+**Phase I scoring stops at 23:59 GMT+8 on 2026-08-21 = 15:59 UTC** (organizer,
+Telegram 2026-08-16). Converted here once so nobody re-derives it under time
+pressure: that is **08:59 America/Denver**, i.e. Friday *morning* local, not
+Friday evening. Consequences: the 23:50 and 23:55 UTC crons on 08-21 both run
+**after** the bell, so their rows are post-phase readings and must be labelled
+as such; and the last budget period overlapping scoring is 16:00 UTC 08-20 →
+15:59 UTC 08-21, cleared by the 16:30 UTC 08-20 pass.
+
+**Phase I scores do NOT carry into Phase II** — every team resets to 1,000 USDT
+(organizer, 2026-08-13). Phase I is worth advancement and evidence, nothing
+else. **Eliminated teams leave the Z-score normalization pool**, so our score
+moves when other teams die; check whether the pool changed before reading a
+score move as signal.
+
 **Scoring.** `Score = 0.40×Z(Sharpe) + 0.25×Z(PnL) + 0.20×Z(ROI) + 0.15×Z(MDD)`
 Hard exit: **equity < 800 USDT** → forced liquidation and elimination.
 
@@ -1816,9 +1830,23 @@ Five days. **No behavioural change ships in them** unless something breaks.
    never real; that fees ran **366% of gross** in the final reconciled window;
    that MDD was spent by two stops and never recovered; and that **the ledger
    cannot say what any exit was done at.**
-2. **Archive everything that expires, before the 21st.** Fills snapshots at
-   ~7-day retention are the binding constraint. Whatever the post-mortem needs
-   must exist on disk by then.
+2. **Final capture at the bell: 15:59 UTC Fri 2026-08-21 (08:59 local).**
+   `status.py`, the leaderboard, and confirmation the last fills snapshot
+   wrote — taken in the ~15 minutes *before* the cutoff, not "sometime Friday".
+   Then a **second leaderboard grab a day later**, because scored figures have
+   settled T+1 before and the number at the bell may not be final.
+   Fills snapshots at ~7-day retention remain the binding archival constraint;
+   whatever the post-mortem needs must exist on disk by then.
+
+   **No intervention in the closing days.** Refits run ~19:00 UTC, so 08-20's
+   is the last that could open a position with room to work; if it does, let it
+   run — an open position at the bell is simply marked to market, since MDD is
+   computed on hourly NAV including unrealised. The banked metric is not
+   fragile either: **MDD 3.7% against the 1041.19 peak puts the recorded trough
+   at ~1002.67, so equity must fall 17.63 from 1020.30 before a new maximum is
+   set** — roughly three stops at recent sizing. Deliberately halting to
+   protect the score would be the discretionary intervention this project
+   refuses, and it would buy nothing.
 3. **The synthesis pass** over ~1,900 reviews — convergence, contradiction,
    which claims survive. Discount the round-5 layer, which reasoned from an
    understated headroom figure.
