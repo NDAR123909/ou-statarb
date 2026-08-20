@@ -15,9 +15,11 @@ and they are separate processes. That is pinned by
 `tests/test_ai_deep_review.py::test_it_places_no_orders_and_touches_no_agent_state`.
 
 So the split is by **role**, not by size. Submitting the advisory layer
-unlabelled inside the main file would inflate the apparent reasoning volume
-about twentyfold and misrepresent what actually drove trades — which, for a
-Reasoning Audit, is the same class of defect as an under-logged decision.
+unlabelled inside the main file would drown the decisions that drove trades in
+analysis that drove none of them — which, for a Reasoning Audit, is the same
+class of defect as an under-logged decision. The exact counts and sizes go in
+MANIFEST.txt rather than into prose here, because a ratio typed into a document
+goes stale the next time the script runs.
 
     reasoning.jsonl          every decision, operation and refit, plus the
                              hourly ai_spread_assessment / news_assessment /

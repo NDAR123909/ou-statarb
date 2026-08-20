@@ -120,19 +120,22 @@ written on every refresh *including when there is no relevant news*, because
 
 ### `ai_deep_review` is not in the decision path
 
-It ships in a separate file, `ai_deep_review.jsonl.gz`, and it is roughly 95%
-of the raw log by volume. It is a per-candidate and per-conclusion adversarial
-review, run daily, in which the model is instructed to attack our reasoning
-rather than agree with it.
+It ships in a separate file, `ai_deep_review.jsonl.gz`. It is a per-candidate
+and per-conclusion adversarial review, run daily, in which the model is
+instructed to attack our reasoning rather than agree with it.
+
+It dominates the raw log: **it is the majority of records and the large
+majority of bytes** — `MANIFEST.txt` carries the exact counts and sizes for
+this build, and they are the figures to quote rather than anything stated here.
 
 **It never touched a trade.** Nothing imports it; the agent never reads the
 ledger (append-only from its side); they are separate processes. This is
 asserted by source inspection in
 `tests/test_ai_deep_review.py::test_it_places_no_orders_and_touches_no_agent_state`.
 
-It is separated rather than merged because mixing it in would inflate the
-apparent decision reasoning about twentyfold and misrepresent what drove
-trades. Its volume also has a cause worth stating plainly: on 2026-08-12 the
+It is separated rather than merged because mixing it in would drown the
+decisions that actually drove trades in analysis that drove none of them.
+Its volume also has a cause worth stating plainly: on 2026-08-12 the
 organizer warned that AI spend below USD 1 is disqualifying, and this layer was
 built and scheduled in response. The analysis is real and was already on our
 review agenda, and roughly two-thirds of each run is per-candidate analysis on
