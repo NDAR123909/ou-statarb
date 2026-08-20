@@ -89,6 +89,10 @@ def split_ledger(ledger: Path, out_dir: Path) -> dict:
     advisory_path = out_dir / "ai_deep_review.jsonl.gz"
 
     tally: dict[str, int] = {}
+    # Which risk controls actually fired. "Five refusal paths exist" and "one
+    # of them has ever triggered" are very different claims, and an audit is
+    # entitled to the second rather than the first.
+    refusals: dict[str, int] = {}
     counts = {"reasoning": 0, "advisory": 0, "unparseable": 0}
     first_ts, last_ts = None, None
 
@@ -104,6 +108,9 @@ def split_ledger(ledger: Path, out_dir: Path) -> dict:
                 continue
             event = record.get("event", "?")
             tally[event] = tally.get(event, 0) + 1
+            if event in ("skip", "size_reduced"):
+                why = record.get("reason") or event
+                refusals[why] = refusals.get(why, 0) + 1
             stamp = record.get("ts")
             if stamp:
                 first_ts = stamp if first_ts is None else min(first_ts, stamp)
@@ -115,7 +122,7 @@ def split_ledger(ledger: Path, out_dir: Path) -> dict:
                 reasoning.write(line + "\n")
                 counts["reasoning"] += 1
 
-    return {"tally": tally, "counts": counts,
+    return {"tally": tally, "counts": counts, "refusals": refusals,
             "first_ts": first_ts, "last_ts": last_ts,
             "files": [reasoning_path, advisory_path]}
 
@@ -198,6 +205,17 @@ def write_manifest(out_dir: Path, split: dict, fills: list[Path]) -> Path:
     for event, n in sorted(tally.items(), key=lambda kv: (-kv[1], kv[0])):
         role = "advisory" if event in ADVISORY_EVENTS else "reasoning"
         lines.append(f"  {event:<28}{n:>7}   [{role}]")
+
+    lines += ["", "RISK CONTROLS THAT ACTUALLY FIRED",
+              "  (paths that never fired are listed too, at zero -- an audit",
+              "   should not have to infer a control's silence from absence)"]
+    for name in ("side_blocked", "news_veto", "anomaly_veto", "gross_cap",
+                 "min_notional", "size_reduced"):
+        lines.append(f"  {name:<28}{split['refusals'].get(name, 0):>7}")
+    for name, n in sorted(split["refusals"].items()):
+        if name not in ("side_blocked", "news_veto", "anomaly_veto",
+                        "gross_cap", "min_notional", "size_reduced"):
+            lines.append(f"  {name:<28}{n:>7}")
 
     lines += ["", "SHA-256"]
     for path in files:

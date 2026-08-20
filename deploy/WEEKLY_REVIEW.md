@@ -1818,6 +1818,48 @@ source, and the entire loss attribution rests on it.
 
 ---
 
+## Post-review addendum — 2026-08-20: only one risk control has ever fired
+
+Building the Reasoning Log package surfaced two facts no glance had shown.
+
+**`skip` is 10, and all ten are `side_blocked`.** So across the entire
+competition: the **news veto has never fired, the anomaly veto has never fired,
+gross-cap and min-notional have never fired.** The one-sided re-entry block is
+the only refusal path that has ever triggered, and it has declined **ten**
+entry signals.
+
+That reframes the week 2 finding. On 2026-08-02 we recorded *"there are no
+`skip` events of any kind"* and concluded the news gate's protective value was
+unproven; the `side_blocked` logging then shipped on 08-08 and was described as
+*"dormant until a block actually declines a signal."* It was not dormant — it
+fired five times within a day of shipping and five more since. **The
+last unverified item from the 08-02 logging work is closed, and it is the only
+control with a live track record.**
+
+**Why this matters and is not just bookkeeping:** the gate passes 0.91 pairs
+per refit, so entry signals are scarce. A control that refused ten of them is
+declining a material fraction of everything the strategy ever wanted to do.
+The block exists to stop re-entering a side that just broke — but on a spread
+that has genuinely re-anchored it refuses the *best* entries, which is exactly
+the objection the AI review raised against it. **Ten data points now exist to
+settle it**: measure z after each block and ask whether the refused entry would
+have paid. That is Phase II work and it is added to the build list.
+
+**Also open: enters (34) exceed closes (27) by seven.** Four are the known
+day-one `maxNotional` failures that never opened, and one is likely the
+manually-closed orphaned TAO/RENDER position from the week-1 incident. **That
+leaves two unexplained**, and the post-mortem must not claim a complete audit
+chain until they are.
+
+Both are recorded in the submission: `MANIFEST.txt` now prints a
+**RISK CONTROLS THAT ACTUALLY FIRED** block listing every path including the
+ones at zero, and `REASONING_LOG.md` states plainly that four of the five
+refusal paths have never triggered. Presenting an unexercised control as a
+working one is the kind of overclaim this project exists to avoid, and a
+submission document is the worst place to start.
+
+---
+
 ## Week 5 agenda — Phase I closes Fri 2026-08-21
 
 Five days. **No behavioural change ships in them** unless something breaks.

@@ -79,13 +79,26 @@ that *refuses* a trade writes a record:
 
 | event | meaning |
 |---|---|
+| `skip` `reason=side_blocked` | the one-sided re-entry block after a stop |
 | `skip` `reason=news_veto` | the news sentinel rated a leg critical |
 | `skip` `reason=anomaly_veto` | the analyst rated the regime broken |
-| `skip` `reason=side_blocked` | the one-sided re-entry block after a stop |
 | `skip` `reason=gross_cap` | the entry would breach gross exposure |
 | `skip` `reason=min_notional` | vol-targeted size below the venue minimum |
 | `size_reduced` | a control halved the position rather than refusing it |
 | `refit_drop` | a held pair failed re-selection and was closed |
+
+**Of those, exactly one has ever fired.** `MANIFEST.txt` reports the count for
+every path, including the ones that sat at zero, because "five refusal paths
+exist" and "one of them has ever triggered" are very different claims and an
+audit deserves the second. The one that fires is the **one-sided re-entry
+block** — after a z-stop, that side stays shut until the spread heals back
+inside the entry band. It has refused entries in double digits, which on a book
+this selective is a material fraction of the signals ever generated, and
+whether it protected us or cost us is an open question we are carrying into
+Phase II rather than one we claim to have answered.
+
+The news and anomaly vetoes have never triggered in live trading. We say so
+plainly rather than presenting an unexercised control as a working one.
 
 **The most important restraint is not a skip at all.** Across 22 scored refits
 the selection gate passed a mean of **0.91 pairs out of 15 candidates**, one
