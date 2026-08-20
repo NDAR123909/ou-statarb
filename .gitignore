@@ -15,3 +15,6 @@ venv/
 deploy/ltp_state.json
 deploy/ltp_hwm.json
 deploy/ltp_ledger.jsonl
+
+# derived: rebuild with deploy/reasoning_log.py --archive
+track_record/phase1_submission.tar.gz
