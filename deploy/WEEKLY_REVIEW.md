@@ -1860,6 +1860,39 @@ submission document is the worst place to start.
 
 ---
 
+## Organizer answers on the Reasoning Log — 2026-08-20
+
+Asked in the Q&A channel; answered the same day. Recorded because two of the
+three are still open and one sharpened a requirement.
+
+1. **Format: ANSWERED — JSONL plus a written architecture document is
+   acceptable.** But the official wording is more specific than the
+   announcement: the log must cover *"every order/trading operation … including
+   order placement, **cancellation**, opening, and closing — and attach the
+   Agent's complete reasoning process, decision basis, and **final result for
+   each operation**."* Two consequences: **cancellations must be present** if
+   any occurred (the `cancel_all` path exists for the kill switch and flatten
+   routine — verify before submitting), and **"final result for each
+   operation"** is precisely the close-price gap. `REASONING_LOG.md` §5 now
+   answers it head-on: closes carry `result: "closed"` but no price, because
+   the venue's response nests it; the execution price for every close lives in
+   `fills/`, reconciled by symbol and timestamp. **The chain completes across
+   two files rather than inside one record, and the document says so** rather
+   than leaving an auditor to find a null.
+2. **Delivery: NOT ANSWERED.** *"The specific submission format and submission
+   window will be announced later."* So the mechanism may still change. **Watch
+   for the announcement**; prepare both an archive (currently ~8.5 MB, well
+   inside email limits) and a repo link, and email by the stated 08-24 deadline
+   regardless.
+3. **Coverage: not specified, but safe.** Non-trading decisions are not
+   required, and *"including additional non-trading decision records will not
+   interfere with that correlation check."* So include everything. Also
+   confirmed: **the compliance review correlates AI decision logs against
+   executed orders**, which makes the `operation` records and their order IDs
+   the join key.
+
+---
+
 ## Week 5 agenda — Phase I closes Fri 2026-08-21
 
 Five days. **No behavioural change ships in them** unless something breaks.

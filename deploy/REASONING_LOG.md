@@ -158,7 +158,36 @@ which is which.
 
 ---
 
-## 5. Known gaps
+## 5. Where to find the final result of each operation
+
+The requirement asks for the **final result of every operation**. Every
+`operation` record carries its outcome — `result: "filled"` or
+`result: "closed"` — and placements additionally carry `executed_price`,
+`executed_qty` and the venue `order_id`.
+
+**Close operations are the exception, and the cause is the venue's API rather
+than our logging.** Its close response carries no `orderId` and no price at the
+top level. Every close record therefore also stores the response's own key
+names (`response_keys`), and those show the payload is **nested** — the probe
+was reading the wrong depth, not guessing the wrong field names. The fix was
+deliberately not shipped during the competition: `close_position` is the path
+that flattens live positions, and an exception there means a position that will
+not close.
+
+**So the execution price of every close is in `fills/`**, reconciled against
+the venue's own `transaction executions` endpoint and matched by symbol and
+timestamp. The chain completes across two files rather than inside one record:
+
+```
+reasoning.jsonl   decision (why)  ->  operation (what, and that it closed)
+fills/*.json      execution (at what price, what fee, against venue rpnl)
+```
+
+Each dated snapshot also carries the venue's own realised P&L beside ours, an
+independent check that agreed to within 0.11 USDT across the first eleven round
+trips.
+
+## 6. Known gaps
 
 Stated because an audit is entitled to them, and because a log that hides its
 limits is worth less than one that names them.
@@ -193,7 +222,7 @@ limits is worth less than one that names them.
 
 ---
 
-## 6. Honest performance framing
+## 7. Honest performance framing
 
 The reference backtest for this framework is **0.36 net Sharpe out-of-sample**
 on a 31-name equity universe (2006–2017), corrected down from a previously
@@ -212,7 +241,7 @@ on the day it happened.
 
 ---
 
-## 7. Verifying this
+## 8. Verifying this
 
 - **`MANIFEST.txt`** lists SHA-256 and byte size for every file.
 - **`reasoning.jsonl`** is one JSON object per line, chronological.
