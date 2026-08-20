@@ -187,7 +187,31 @@ Each dated snapshot also carries the venue's own realised P&L beside ours, an
 independent check that agreed to within 0.11 USDT across the first eleven round
 trips.
 
-## 6. Known gaps
+## 6. A gap on the final day, disclosed
+
+At **16:00:00 UTC on 2026-08-20** the organizer-issued gateway key reached a
+hard expiry — `401 Authentication Error - Expired Key. Key Expiry time
+2026-08-20 16:00:00+00:00` — a day before Phase I scoring ends. From that
+moment the agent could make no AI calls at all.
+
+What the log shows, and why we are pointing at it rather than hoping it is
+missed:
+
+- a single `sentinel_degraded` record at 16:00:08, logged **on transition** so
+  the outage is one loud event rather than a silent absence;
+- an `ai_assessment_unavailable` record on every bar since, naming the pair and
+  the z at that bar;
+- the entry at 17:00 carries `news_status` reflecting an unavailable gate, so
+  **that trade is recorded as unscreened.** It was not screened, and the record
+  says so.
+
+The design is **fail-open**: when the sentinel is dark the agent keeps trading
+at full size rather than halting, because the news veto is a secondary guard
+and the primary controls — the z-stop, volatility-targeted sizing, the gross
+cap and the drawdown kill switch — are entirely unaffected by it. That decision
+was taken and written down in week 1, long before it mattered here.
+
+## 7. Known gaps
 
 Stated because an audit is entitled to them, and because a log that hides its
 limits is worth less than one that names them.
@@ -222,7 +246,7 @@ limits is worth less than one that names them.
 
 ---
 
-## 7. Honest performance framing
+## 8. Honest performance framing
 
 The reference backtest for this framework is **0.36 net Sharpe out-of-sample**
 on a 31-name equity universe (2006–2017), corrected down from a previously
@@ -241,7 +265,7 @@ on the day it happened.
 
 ---
 
-## 8. Verifying this
+## 9. Verifying this
 
 - **`MANIFEST.txt`** lists SHA-256 and byte size for every file.
 - **`reasoning.jsonl`** is one JSON object per line, chronological.

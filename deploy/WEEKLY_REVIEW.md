@@ -1893,6 +1893,102 @@ three are still open and one sharpened a requirement.
 
 ---
 
+## 2026-08-20 — first place, an expired key, and a bug of mine
+
+Three things happened inside eight hours on the second-to-last day. Recorded
+now rather than at the bell, so tomorrow's capture is numbers on a finished
+narrative instead of the whole story at once.
+
+### The drought broke, and it broke well
+After **seven flat days**, KAS/ETC passed the gate and traded twice:
+
+```
+09:00  skip  KAS/ETC  side_blocked        10:00  skip  KAS/ETC  side_blocked
+11:00  enter KAS/ETC                      16:00  exit  KAS/ETC  reverted   ~+28.5
+17:00  enter KAS/ETC  (still open at 18:42, uPnL +2.66)
+```
+
+**Equity 1020.30 → 1051.44, a new all-time high** (old peak 1041.19). PnL
+**+20.30 → +50.42**, ROI to **+5.0%**.
+
+Note the two `side_blocked` refusals at 09:00 and 10:00, **immediately before
+the most profitable trade of the competition.** The block delayed entry by two
+hours on a spread that then reverted hard. That is the sharpest evidence yet
+that this control may cost more than it saves, and it makes the Phase II
+question concrete rather than theoretical: **ten blocks are now on record, and
+one of them sat directly in front of our best trade.**
+
+### #1 of 30 — and the Sharpe move is noise in our favour
+| | **NDAR #1** | X-Explore #2 | Little J #3 | T.Anh #4 | btcol #5 |
+|---|---|---|---|---|---|
+| Score | **86.1** | 85.8 | 85.6 | 85.4 | 82.1 |
+| Sharpe | **4.93** | 2.30 | 1.65 | 3.61 | 4.58 |
+| MDD | **3.7%** | 7.5% | 7.2% | 3.8% | 1.3% |
+| PnL | +50.42 | +97.19 | +141.33 | +58.71 | +31.33 |
+
+**Sharpe went 2.99 → 4.93 in a day.** That is the 9.30 → 5.66 collapse of
+2026-08-02 running in reverse — at ~30 completed days one +3% outlier lifts the
+mean far more than it inflates the deviation. **The standing rule holds in both
+directions: never read a live Sharpe move as evidence about the strategy.** It
+was worth stating when it hurt and it is worth stating now.
+
+What is real: we lead on risk-adjusted terms while carrying less risk than
+everyone near us. The three teams within 0.7 points made their PnL with MDD of
+7.5%, 7.2% and 15.5%.
+
+**Decision: no intervention before the bell.** The decisive argument is not
+about variance — it is that **Phase I scores do not carry over and advancement
+was already secure at #5.** The practical difference between finishing 1st and
+4th is a nicer sentence in the post-mortem. Flattening early to protect a
+position would spend real discretionary risk for nothing, which is the reflex
+this project exists to refuse. The new peak also raises the bar for a *new*
+maximum drawdown to roughly **1012.5** — a fall of ~39 rather than the ~18 it
+was on Sunday.
+
+### Incident — the organizer's AI key expired a day early
+```
+401 Authentication Error - Expired Key.
+Key Expiry time 2026-08-20 16:00:00+00:00
+```
+A hard expiry at **16:00 UTC on 08-20 = 00:00 GMT+8 on 08-21**, a full day
+before scoring ends at 23:59 GMT+8. Not something we did. `sentinel_degraded`
+fired once on transition at 16:00:08 and every assessment since is logged
+`ai_assessment_unavailable` — the week-1 machinery working exactly as designed.
+
+Consequences, in order:
+1. **The AI spend floor cannot be met for the final scored period**
+   (16:00 UTC 08-20 → 15:59 UTC 08-21) because we cannot authenticate at all.
+   Raised with the organizers in writing with the timestamp evidence, which is
+   the whole defence. We had cleared it every period since 08-13.
+2. **The news gate is dark and fails open** — the 17:00 entry was made
+   unscreened and **logged as such**, which is the honest-logging work from
+   last week doing its job on the last day. Practically this costs little: the
+   sentinel has never vetoed an entry in a month and is asset-specific, so it
+   would rate tomorrow's PMI release `none` regardless. The z-stop, gross cap
+   and kill switch are unaffected.
+3. The reasoning log will show the gap. Better disclosed than explained.
+
+### The bug that expiry exposed was mine
+The run that hit the dead key made **600 consecutive failing calls and lapped
+its material nineteen times.** The guard I wrote for exactly this case —
+*"a whole pass produced nothing, so stop"* — counted **failed** calls as
+progress: `calls += 1` runs before the failure check, so `calls != before`
+stayed true forever and it ran to the cap. The top-up cron would have repeated
+it two hours later.
+
+Fixed: `ok_calls` gates the per-pass guard, and `MAX_CONSECUTIVE_FAILURES = 5`
+ends the whole run with a message naming the likely cause. The script runs
+fresh from cron, so it took effect on the next firing with no restart.
+
+**The lesson is not the off-by-one.** I wrote a guard specifically for "the
+gateway is failing", shipped it, and never exercised it. It ran for the first
+time today and did the opposite of its purpose. Hundreds of rejected auth
+attempts against someone else's infrastructure is bad behaviour quite apart
+from the waste — **a safety valve that has never been opened is an assumption,
+not a valve.**
+
+---
+
 ## Week 5 agenda — Phase I closes Fri 2026-08-21
 
 Five days. **No behavioural change ships in them** unless something breaks.
