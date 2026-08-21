@@ -239,6 +239,14 @@ TOPUP_BELOW = 1.05          # the top-up run no-ops above this
 # 25-50x margin.
 SPEND_CEILING = 8.00        # of a 10.00/day budget; never crossed by this tool
 
+# Give up after this many calls in a row come back empty. On 2026-08-20 the
+# organizer's key expired mid-period and this script made 600 consecutive
+# failing requests, lapping its material nineteen times, because the
+# "a whole pass produced nothing" guard counted FAILED calls as progress.
+# Hammering someone else's gateway with hundreds of rejected auth attempts is
+# bad behaviour quite apart from the waste.
+MAX_CONSECUTIVE_FAILURES = 5
+
 
 # ---------------------------------------------------------- the risk facts --
 # Three different numbers, two of which the first review pass conflated. The
@@ -855,7 +863,9 @@ def main() -> int:
             equity=equity, facts=facts)
     print(f"{len(work)} topics, up to {args.rounds} rounds each")
 
-    calls = 0
+    calls = 0        # every attempt, successful or not
+    ok_calls = 0     # only those that came back with text
+    fails = 0        # consecutive failures; reset by any success
     pass_no = 0
     done = not work
     while not done:
@@ -867,7 +877,7 @@ def main() -> int:
             print(f"\n-- {len(work)} distinct topics exhausted below target; "
                   f"repeating as pass {pass_no}. Logged as pass_index={pass_no}: "
                   f"this is compliance volume, not new analysis.")
-        before = calls
+        before = ok_calls
         for topic, prompt in work:
             if calls >= args.max_calls:
                 done = True
@@ -889,7 +899,15 @@ def main() -> int:
                 text = ask(client, msgs, max_tokens=args.max_tokens)
                 calls += 1
                 if not text:
+                    fails += 1
+                    if fails >= MAX_CONSECUTIVE_FAILURES:
+                        print(f"** {fails} calls in a row failed — stopping. "
+                              f"The gateway is refusing us; check /key/info "
+                              f"and the key's expiry. **", file=sys.stderr)
+                        done = True
                     break
+                fails = 0
+                ok_calls += 1
                 msgs.append({"role": "assistant", "content": text})
                 ledger("ai_deep_review", topic=topic, round=rnd, review=text,
                        model=model_name(), pass_index=pass_no,
@@ -906,9 +924,10 @@ def main() -> int:
                                              and cur >= args.target):
                         done = True
                         break
-        if args.target is None or calls == before:
-            # No target to chase, or a whole pass produced nothing (the gateway
-            # is failing) -- either way, stop rather than spin.
+        if args.target is None or ok_calls == before:
+            # No target to chase, or a whole pass produced no USABLE output --
+            # either way, stop rather than spin. Counting successes rather than
+            # attempts is the point: failures used to read as progress here.
             done = True
 
     end = spend_now()

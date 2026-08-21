@@ -1818,7 +1818,348 @@ source, and the entire loss attribution rests on it.
 
 ---
 
-## Week 5 agenda — Phase I closes Fri 2026-08-21
+## Post-review addendum — 2026-08-20: only one risk control has ever fired
+
+Building the Reasoning Log package surfaced two facts no glance had shown.
+
+**`skip` is 10, and all ten are `side_blocked`.** So across the entire
+competition: the **news veto has never fired, the anomaly veto has never fired,
+gross-cap and min-notional have never fired.** The one-sided re-entry block is
+the only refusal path that has ever triggered, and it has declined **ten**
+entry signals.
+
+That reframes the week 2 finding. On 2026-08-02 we recorded *"there are no
+`skip` events of any kind"* and concluded the news gate's protective value was
+unproven; the `side_blocked` logging then shipped on 08-08 and was described as
+*"dormant until a block actually declines a signal."* It was not dormant — it
+fired five times within a day of shipping and five more since. **The
+last unverified item from the 08-02 logging work is closed, and it is the only
+control with a live track record.**
+
+**Why this matters and is not just bookkeeping:** the gate passes 0.91 pairs
+per refit, so entry signals are scarce. A control that refused ten of them is
+declining a material fraction of everything the strategy ever wanted to do.
+The block exists to stop re-entering a side that just broke — but on a spread
+that has genuinely re-anchored it refuses the *best* entries, which is exactly
+the objection the AI review raised against it. **Ten data points now exist to
+settle it**: measure z after each block and ask whether the refused entry would
+have paid. That is Phase II work and it is added to the build list.
+
+**Also open: enters (34) exceed closes (27) by seven.** Four are the known
+day-one `maxNotional` failures that never opened, and one is likely the
+manually-closed orphaned TAO/RENDER position from the week-1 incident. **That
+leaves two unexplained**, and the post-mortem must not claim a complete audit
+chain until they are.
+
+Both are recorded in the submission: `MANIFEST.txt` now prints a
+**RISK CONTROLS THAT ACTUALLY FIRED** block listing every path including the
+ones at zero, and `REASONING_LOG.md` states plainly that four of the five
+refusal paths have never triggered. Presenting an unexercised control as a
+working one is the kind of overclaim this project exists to avoid, and a
+submission document is the worst place to start.
+
+---
+
+## Organizer answers on the Reasoning Log — 2026-08-20
+
+Asked in the Q&A channel; answered the same day. Recorded because two of the
+three are still open and one sharpened a requirement.
+
+1. **Format: ANSWERED — JSONL plus a written architecture document is
+   acceptable.** But the official wording is more specific than the
+   announcement: the log must cover *"every order/trading operation … including
+   order placement, **cancellation**, opening, and closing — and attach the
+   Agent's complete reasoning process, decision basis, and **final result for
+   each operation**."* Two consequences: **cancellations must be present** if
+   any occurred (the `cancel_all` path exists for the kill switch and flatten
+   routine — verify before submitting), and **"final result for each
+   operation"** is precisely the close-price gap. `REASONING_LOG.md` §5 now
+   answers it head-on: closes carry `result: "closed"` but no price, because
+   the venue's response nests it; the execution price for every close lives in
+   `fills/`, reconciled by symbol and timestamp. **The chain completes across
+   two files rather than inside one record, and the document says so** rather
+   than leaving an auditor to find a null.
+2. **Delivery: NOT ANSWERED.** *"The specific submission format and submission
+   window will be announced later."* So the mechanism may still change. **Watch
+   for the announcement**; prepare both an archive (currently ~8.5 MB, well
+   inside email limits) and a repo link, and email by the stated 08-24 deadline
+   regardless.
+3. **Coverage: not specified, but safe.** Non-trading decisions are not
+   required, and *"including additional non-trading decision records will not
+   interfere with that correlation check."* So include everything. Also
+   confirmed: **the compliance review correlates AI decision logs against
+   executed orders**, which makes the `operation` records and their order IDs
+   the join key.
+
+---
+
+## 2026-08-20 — first place, an expired key, and a bug of mine
+
+Three things happened inside eight hours on the second-to-last day. Recorded
+now rather than at the bell, so tomorrow's capture is numbers on a finished
+narrative instead of the whole story at once.
+
+### The drought broke, and it broke well
+After **seven flat days**, KAS/ETC passed the gate and traded twice:
+
+```
+09:00  skip  KAS/ETC  side_blocked        10:00  skip  KAS/ETC  side_blocked
+11:00  enter KAS/ETC                      16:00  exit  KAS/ETC  reverted   ~+28.5
+17:00  enter KAS/ETC  (still open at 18:42, uPnL +2.66)
+```
+
+**Equity 1020.30 → 1051.44, a new all-time high** (old peak 1041.19). PnL
+**+20.30 → +50.42**, ROI to **+5.0%**.
+
+Note the two `side_blocked` refusals at 09:00 and 10:00, **immediately before
+the most profitable trade of the competition.** The block delayed entry by two
+hours on a spread that then reverted hard. That is the sharpest evidence yet
+that this control may cost more than it saves, and it makes the Phase II
+question concrete rather than theoretical: **ten blocks are now on record, and
+one of them sat directly in front of our best trade.**
+
+### #1 of 30 — and the Sharpe move is noise in our favour
+| | **NDAR #1** | X-Explore #2 | Little J #3 | T.Anh #4 | btcol #5 |
+|---|---|---|---|---|---|
+| Score | **86.1** | 85.8 | 85.6 | 85.4 | 82.1 |
+| Sharpe | **4.93** | 2.30 | 1.65 | 3.61 | 4.58 |
+| MDD | **3.7%** | 7.5% | 7.2% | 3.8% | 1.3% |
+| PnL | +50.42 | +97.19 | +141.33 | +58.71 | +31.33 |
+
+**Sharpe went 2.99 → 4.93 in a day.** That is the 9.30 → 5.66 collapse of
+2026-08-02 running in reverse — at ~30 completed days one +3% outlier lifts the
+mean far more than it inflates the deviation. **The standing rule holds in both
+directions: never read a live Sharpe move as evidence about the strategy.** It
+was worth stating when it hurt and it is worth stating now.
+
+What is real: we lead on risk-adjusted terms while carrying less risk than
+everyone near us. The three teams within 0.7 points made their PnL with MDD of
+7.5%, 7.2% and 15.5%.
+
+**Decision: no intervention before the bell.** The decisive argument is not
+about variance — it is that **Phase I scores do not carry over and advancement
+was already secure at #5.** The practical difference between finishing 1st and
+4th is a nicer sentence in the post-mortem. Flattening early to protect a
+position would spend real discretionary risk for nothing, which is the reflex
+this project exists to refuse. The new peak also raises the bar for a *new*
+maximum drawdown to roughly **1012.5** — a fall of ~39 rather than the ~18 it
+was on Sunday.
+
+### Incident — the organizer's AI key expired a day early
+```
+401 Authentication Error - Expired Key.
+Key Expiry time 2026-08-20 16:00:00+00:00
+```
+A hard expiry at **16:00 UTC on 08-20 = 00:00 GMT+8 on 08-21**, a full day
+before scoring ends at 23:59 GMT+8. Not something we did. `sentinel_degraded`
+fired once on transition at 16:00:08 and every assessment since is logged
+`ai_assessment_unavailable` — the week-1 machinery working exactly as designed.
+
+Consequences, in order:
+1. **The AI spend floor cannot be met for the final scored period**
+   (16:00 UTC 08-20 → 15:59 UTC 08-21) because we cannot authenticate at all.
+   Raised with the organizers in writing with the timestamp evidence, which is
+   the whole defence. We had cleared it every period since 08-13.
+2. **The news gate is dark and fails open** — the 17:00 entry was made
+   unscreened and **logged as such**, which is the honest-logging work from
+   last week doing its job on the last day. Practically this costs little: the
+   sentinel has never vetoed an entry in a month and is asset-specific, so it
+   would rate tomorrow's PMI release `none` regardless. The z-stop, gross cap
+   and kill switch are unaffected.
+3. The reasoning log will show the gap. Better disclosed than explained.
+
+### The bug that expiry exposed was mine
+The run that hit the dead key made **600 consecutive failing calls and lapped
+its material nineteen times.** The guard I wrote for exactly this case —
+*"a whole pass produced nothing, so stop"* — counted **failed** calls as
+progress: `calls += 1` runs before the failure check, so `calls != before`
+stayed true forever and it ran to the cap. The top-up cron would have repeated
+it two hours later.
+
+Fixed: `ok_calls` gates the per-pass guard, and `MAX_CONSECUTIVE_FAILURES = 5`
+ends the whole run with a message naming the likely cause. The script runs
+fresh from cron, so it took effect on the next firing with no restart.
+
+**The lesson is not the off-by-one.** I wrote a guard specifically for "the
+gateway is failing", shipped it, and never exercised it. It ran for the first
+time today and did the opposite of its purpose. Hundreds of rejected auth
+attempts against someone else's infrastructure is bad behaviour quite apart
+from the waste — **a safety valve that has never been opened is an assumption,
+not a valve.**
+
+---
+
+## PHASE I CLOSE-OUT — 2026-08-21 15:59 UTC
+
+Thirty-two days. 1,000 USDT seed. The bell rang at 15:59 UTC and we were flat.
+
+### Final
+| | |
+|---|---|
+| equity | **1037.96** (peak 1057.48) |
+| PnL / ROI | **+37.96 / +3.8%** (ann. +42.0%) |
+| Sharpe | **4.86** |
+| MDD | **3.7%**, banked 2026-08-02, never recovered |
+| trades | 140 |
+| **rank** | **#6 of 30 — ADVANCEMENT SECURED** |
+
+**We finished flat by design, not by luck.** The last active pair read
+`ETC/KAS FLAT z=+3.19 blocked=-1`: the spread was stretched into the short zone
+and the one-sided re-entry block refused it because that side had stopped out
+earlier. The last control standing did exactly what it was built to do on the
+final bar.
+
+### The scoreboard, read honestly
+**We had the highest Sharpe on the visible board** — 4.86, just above btcol's
+4.84 and clear of the three teams above us. We built for the 40% Sharpe term
+and won it outright.
+
+We lost the 45% made of PnL and ROI, decisively:
+
+| | ROI | MDD | ROI ÷ MDD |
+|---|---|---|---|
+| Little J #1 | +22.9% | 7.2% | 3.18 |
+| X-Explore #2 | +17.8% | 7.5% | 2.37 |
+| Quantech #3 | +31.4% | 15.5% | 2.03 |
+| **NDAR #6** | **+3.8%** | **3.7%** | **1.03** |
+
+**Do not tell the flattering version of this.** "We won risk-adjusted and lost
+on raw return" is the story that suggests itself, and the last column refutes
+it: on return per unit of drawdown we are **last of those four.** Our Sharpe is
+highest because our *daily* returns were consistent, not because we converted
+risk into return efficiently. We spent the drawdown early on two August stops
+and made the return in the final 48 hours — the worst possible ordering for
+that ratio.
+
+The accurate summary is narrower and less comfortable: **most consistent daily
+returns on the board, mid-pack on everything else, comfortably advancing.**
+
+### Backtest versus live — the gap that matters
+The reference run is **0.36 net Sharpe OOS**, on a 31-name universe, through a
+multi-pair portfolio engine, on US equities 2006–2017.
+
+The live Sharpe was 4.86 and **that comparison is meaningless**: n≈30 daily
+returns, and this record contains a Sharpe that went 9.30 → 5.66 → 2.99 → 4.93
+→ 4.86 without the strategy changing once. The standing rule holds in both
+directions.
+
+**The real gap is breadth, and it is the largest thing in this record:**
+
+> A framework built and validated as a **multi-pair portfolio engine over 31
+> names** was deployed as a **single-pair book over 15 candidates.** Across 22
+> scored refits the gate passed a mean of **0.91 pairs**, one pair 59% of the
+> time, **zero 27% of the time**, and **only 5 of the 15 candidates ever passed
+> at all.** Ten never cleared it once in a month.
+
+That was invisible until 2026-08-15, when the operator queried the `passed`
+column across every refit. No daily glance could have shown it. It is a bigger
+divergence than fees, slippage or funding — those were assumptions that turned
+out benign; this one falsifies a mechanism named in the pre-registration, and
+`LTP_STRATEGY.md` now retracts the breadth claim rather than letting the
+post-mortem call it a strength.
+
+### What was assumption at launch and is measurement now
+| | assumed | measured |
+|---|---|---|
+| taker fee | 5.0 bps/side | **1.75** — and irrelevant: `cost_z` 0.01–0.08 |
+| funding | unmodelled, feared material | **+0.385 received** over 66 settlements |
+| slippage | unknown | 0.57 → 0.91 bps mean |
+| pairs per refit | "breadth across 14 pairs" | **0.91** |
+| stop overshoot | assumed tight | median **0.2σ**, fat tail to 6.75σ |
+| refusal paths | five, all live | **one has ever fired** (`side_blocked`, ×10) |
+
+### What actually went wrong, and what caught it
+The single largest find was a **unit mismatch in `optimal_bands`** that made
+every pair report entry 3.0 / exit 1.5 with expected round trips of 83 days to
+3.7 years. The book was idle for a week because of arithmetic, not markets.
+Fixing it produced a 2-hour round trip on a level the old bands could never
+have traded — and exposed a second bug within the hour, because
+`exit_z = 0.0` was unreachable under `abs(z) < exit_z`.
+
+Latent failures caught by diagnostics *before* they cost money: the **nav-guard**
+(a failed equity read computed a 100% drawdown and would have self-eliminated
+us on any API hiccup), the **degeneracy guard** (a halted symbol's flat series
+crashed `adfuller` out of `refit` and into a systemd restart loop), and
+**position reconciliation**. Found the hard way: `maxNotionalPerOrder` silently
+blocking every entry on day one, and the orphaned position after a state wipe.
+
+### The honesty record
+Fifteen corrections were issued and recorded rather than quietly fixed. The
+instructive ones share a shape: **reaching for the tidiest available data point
+before checking whether the instrument still means what it says.**
+
+- `IMPROVEMENTS.md` **0.44 → 0.36** — the old figure came from the band bug
+  barely trading, which flattered Sharpe while forgoing the return.
+- The **knife-edge** story, retracted twice, because a sweep's column labels
+  were computed from a config value changed between runs.
+- **"~22 tokens per call"** — a rolling-window count divided by a lifetime count.
+- **"the news veto never fired"** — it had halved the worst trade of the month.
+- **Headroom "~100 USDT"** in an AI prompt — that was the distance to our own
+  kill switch, not the elimination floor, and it biased 19 answers per pass.
+- **"T.Anh at 0|0|0 proves engagement is unscored"** — that row was a display
+  artefact or a team pending elimination, and it was never evidence.
+
+And one that is still open: two independent review topics called our
+**−10.67 overshoot figure "mechanically inconsistent."** That number is the
+entire basis for *"roughly a third of losses came from stops firing late"* and
+therefore for the intra-bar monitor. **Check it before building the monitor.**
+
+### The last week, in one line
+Seven flat days with zero tradeable pairs, then the gate reopened and KAS/ETC
+made **+28.5 in five hours** — the most profitable trade of the competition,
+immediately preceded by two `side_blocked` refusals that delayed the entry by
+two hours. No gate was ever loosened to manufacture a trade, including through
+a three-day drought while the score was falling. That rule was tested and it
+held.
+
+### Loose ends carried into the post-mortem
+- **Enters (38) exceed closes (31) by seven.** Four are the day-one
+  `maxNotional` failures that never opened and one is the manually-closed
+  orphan. **Two remain unexplained** and the audit chain is not complete until
+  they are.
+- **The ledger still cannot say what any exit was done at.** `close_position`
+  logs `executed_price: null`; the `response_keys` fallback diagnosed why — the
+  venue's response is nested — but the fix waited for the gap window because an
+  exception there means a position that will not close. `fills_report.py`'s
+  timestamp matching is the sole source for realised exits.
+- **The organizer's gateway key expires daily at 16:00 UTC.** It fired on
+  08-20 (excused as platform-side) and again on 08-21 after the bell. It will
+  recur; raise it before Phase II opens.
+
+---
+
+## PHASE II agenda — opens 2026-09-07, everything resets to 1,000 USDT
+
+**The 17-day gap (08-21 → 09-07) is the build window.** Nothing was shipped in
+the final week deliberately: a change that cannot be exercised before the
+measurement period ends is pure risk. That constraint is now lifted, and there
+is no live position at stake.
+
+1. **Submit the Reasoning Log** by **2026-08-24 15:59 UTC** — built, committed
+   at `track_record/phase1_submission/`, archive 9.48 MB. **Eligibility depends
+   on it.**
+2. **The universe question — highest priority.** Re-run `universe_scan.py` with
+   22 refits of evidence rather than week 1's three. A single-pair book running
+   eight weeks is the central fragility, and the evidence cannot yet separate
+   "the gate is correctly rigorous and crypto rarely cointegrates" from "15
+   names is too thin for a multi-test pipeline." Both imply the same action:
+   **widen the universe, do not weaken the screen.**
+3. **Check the −10.67 overshoot arithmetic** before anything else touches the
+   stop. If it is wrong, the intra-bar monitor's case largely evaporates.
+4. **Then the intra-bar monitor**, two-tier at 4.0–4.5σ, read-only, may close
+   or stop but never open — *if* item 3 survives.
+5. **`side_blocked` earned-its-keep analysis.** Ten refusals on record, one of
+   them directly in front of the best trade of the phase. Measure z after each
+   block and ask whether the refused entry would have paid.
+6. **The nested close-price probe**, so the ledger can state its own exits.
+7. **The news-gate refresh** before a newly selected pair's first entry.
+8. **The synthesis pass** over ~3,400 advisory reviews.
+9. **Rotate LTP + AI keys**, and raise the daily key expiry with the organizers.
+10. **Refit cadence**, only if the band/`mu` simulation supports it.
+
+---
+
+## Week 5 agenda — Phase I closes Fri 2026-08-21 (COMPLETED — see the close-out)
 
 Five days. **No behavioural change ships in them** unless something breaks.
 

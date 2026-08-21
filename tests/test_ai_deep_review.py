@@ -23,6 +23,7 @@ from deploy.ai_deep_review import (AI_SPEND_FLOOR, ANGLES,  # noqa: E402
                                    EQUITY_AT_REVIEW, FOLLOWUPS, KILL_SWITCH,
                                    PHASE_I_END, SYSTEM, TOPUP_BELOW,
                                    FLOOR_GRACE_H, SPEND_CEILING,
+                                   MAX_CONSECUTIVE_FAILURES,
                                    _duration_hours, constraint_prompt,
                                    days_left, floor_state, followups,
                                    ledger_prompts, over_ceiling,
@@ -351,3 +352,23 @@ def test_it_places_no_orders_and_touches_no_agent_state():
         assert forbidden not in src, forbidden
     # The only write it is permitted is the ledger.
     assert src.count("open(") == 0, "writes a file directly"
+
+
+def test_a_failing_gateway_stops_the_run_instead_of_being_hammered():
+    """On 2026-08-20 the organizer's key expired mid-period and this script
+    made 600 consecutive failing calls, lapping its material nineteen times.
+    The guard counted FAILED calls as progress, so `calls != before` stayed
+    true forever. Hundreds of rejected auth attempts against someone else's
+    gateway is bad behaviour quite apart from the waste."""
+    import inspect
+    import deploy.ai_deep_review as m
+
+    assert 1 <= MAX_CONSECUTIVE_FAILURES <= 20
+    src = inspect.getsource(m.main)
+    # The per-pass guard must compare SUCCESSFUL calls, not attempts.
+    assert "ok_calls == before" in src
+    assert "before = ok_calls" in src
+    # ...and a run of failures must end the whole run, not just one topic.
+    assert "fails >= MAX_CONSECUTIVE_FAILURES" in src
+    i = src.index("fails >= MAX_CONSECUTIVE_FAILURES")
+    assert "done = True" in src[i:i + 400]
