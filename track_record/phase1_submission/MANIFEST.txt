@@ -1,0 +1,77 @@
+LTP Liquidity Arena 2026 — Track A Phase I Reasoning Log
+Team NDAR
+Generated 2026-08-21T16:13:20+00:00
+Ledger covers 2026-07-19T20:07:46+00:00 .. 2026-08-21T16:00:23+00:00
+
+CONTENTS
+  REASONING_LOG.md         how to read these records: architecture,
+                           the decision -> order -> execution chain,
+                           and a stated list of known gaps.
+  reasoning.jsonl          the audit chain: every decision, operation
+                           and refit, plus the hourly AI assessments
+                           the agent actually consulted.
+  ai_deep_review.jsonl.gz  ADVISORY analysis layer. Not in the
+                           decision path: nothing imports it, the
+                           agent never reads the ledger, and they run
+                           as separate processes. Included for
+                           completeness of AI usage, NOT presented as
+                           decision reasoning.
+  fills/                   dated execution snapshots reconciled
+                           against the venue -- the outcome half of
+                           the chain.
+
+  records in reasoning.jsonl        1271
+  records in ai_deep_review.jsonl   3424
+  unparseable lines skipped         0
+  fills snapshots                   19
+
+EVENT TALLY (whole ledger)
+  ai_deep_review                 3424   [advisory]
+  ai_spread_assessment            543   [reasoning]
+  news_assessment                 438   [reasoning]
+  operation                       132   [reasoning]
+  enter                            38   [reasoning]
+  refit                            35   [reasoning]
+  ai_refit_review                  26   [reasoning]
+  exit                             19   [reasoning]
+  ai_assessment_unavailable        14   [reasoning]
+  skip                             10   [reasoning]
+  stop                              8   [reasoning]
+  refit_drop                        4   [reasoning]
+  sentinel_degraded                 2   [reasoning]
+  reconcile                         1   [reasoning]
+  sentinel_restored                 1   [reasoning]
+
+RISK CONTROLS THAT ACTUALLY FIRED
+  (paths that never fired are listed too, at zero -- an audit
+   should not have to infer a control's silence from absence)
+  side_blocked                     10
+  news_veto                         0
+  anomaly_veto                      0
+  gross_cap                         0
+  min_notional                      0
+  size_reduced                      0
+
+SHA-256
+  bc6c3196a8a01f84d6a0c5512002e63a389d39b8cf57a2e3d288b8363f29115a       13877  REASONING_LOG.md
+  5052fc18480f52ea12bdf0909842e481da1c77c16b8c6e07de394e19104efbc0      741748  reasoning.jsonl
+  50774f1dc9711f20047dffd6f140c00e2e9e12b1913e36af0ecfe34d4f172579     9242526  ai_deep_review.jsonl.gz
+  493dc1e52f3f85fc6d37833a4052d83bde73db48bbf9d148b239efae64bd63e2       32139  fills/fills_2026-08-02.json
+  748b08841cb6f7538fbed689b66c99e79367ddb7ee7b1e27875072a30f28093b       33550  fills/fills_2026-08-03.json
+  dcefb6d1e8b906695d8d90b6223013ed77d26278b6aff22d11a598d0f6511d96       33413  fills/fills_2026-08-04.json
+  8b4a27155ec6b5746dc14967ac68eec85c5488f4082267b62acf041bfb842f40       33494  fills/fills_2026-08-05.json
+  60c8235fbcdd1f79d6d2ca8d9576fd95362f4561dd6a6f7a686490014c9eac20       33177  fills/fills_2026-08-06.json
+  68394f11d342e06d4b164dde78af45b8486a0b30471556e4d1c1e082a9a93a2d       34125  fills/fills_2026-08-07.json
+  e97c85712ee4314b129139b1f280e94931b917288e8b2189c953dca30a5cdc91       36342  fills/fills_2026-08-08.json
+  938aa7604d7e02d2e03c506e989ae521b8acd8f814764c79c182ed7a02f7e683       36221  fills/fills_2026-08-09.json
+  8e12a6b74690a25931b0553b473ca5eefde3f12e8aaa87204d1c1043eec2b65f       39261  fills/fills_2026-08-10.json
+  004f6d25b978743a8f399f92044a24317dbe66b4b78eca0e73d714838d6b478b       39595  fills/fills_2026-08-11.json
+  49955cff4a1cb0dfd20720241e952641d8704a39b19c03c2fe75286f89aa94f7       41023  fills/fills_2026-08-12.json
+  9ca4cc72af6481fff99789d6e98a4d6b5d6ac66f2a74809accef36ea54c3fa18       41221  fills/fills_2026-08-13.json
+  8c6dd81c24dccb693cb0456f6fef1810175627c4a051719b82120c1d628d9387       41219  fills/fills_2026-08-14.json
+  f49f18750adec9b9e2084f8047ae7759b421d00abad6bc2ff544613f7226f4a4       41109  fills/fills_2026-08-15.json
+  b50485f54ebe4bdf82fe9ed6392f910335c9973eb1044ff6efc692084bb5754b       40749  fills/fills_2026-08-16.json
+  0239bd956a334c1d1fc8cb5c5a9bc91cdb46de414d599504b985b96807c1e07d       41706  fills/fills_2026-08-17.json
+  af274dab38ecf345b690d8592997e83688189be4c1513c79834c728dfc0880a2       42160  fills/fills_2026-08-18.json
+  635c7c8aa6a9354799ee1bd29467d0f1b30a8d1611ca6278c555593b47e13b2e       46834  fills/fills_2026-08-19.json
+  d39e164e69bc7e1d14c62d0dd841ba77f13496ca173cc75b00c6a44738ece3e3       52938  fills/fills_2026-08-20.json
