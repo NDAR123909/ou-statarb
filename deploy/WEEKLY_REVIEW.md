@@ -1989,7 +1989,177 @@ not a valve.**
 
 ---
 
-## Week 5 agenda — Phase I closes Fri 2026-08-21
+## PHASE I CLOSE-OUT — 2026-08-21 15:59 UTC
+
+Thirty-two days. 1,000 USDT seed. The bell rang at 15:59 UTC and we were flat.
+
+### Final
+| | |
+|---|---|
+| equity | **1037.96** (peak 1057.48) |
+| PnL / ROI | **+37.96 / +3.8%** (ann. +42.0%) |
+| Sharpe | **4.86** |
+| MDD | **3.7%**, banked 2026-08-02, never recovered |
+| trades | 140 |
+| **rank** | **#6 of 30 — ADVANCEMENT SECURED** |
+
+**We finished flat by design, not by luck.** The last active pair read
+`ETC/KAS FLAT z=+3.19 blocked=-1`: the spread was stretched into the short zone
+and the one-sided re-entry block refused it because that side had stopped out
+earlier. The last control standing did exactly what it was built to do on the
+final bar.
+
+### The scoreboard, read honestly
+**We had the highest Sharpe on the visible board** — 4.86, just above btcol's
+4.84 and clear of the three teams above us. We built for the 40% Sharpe term
+and won it outright.
+
+We lost the 45% made of PnL and ROI, decisively:
+
+| | ROI | MDD | ROI ÷ MDD |
+|---|---|---|---|
+| Little J #1 | +22.9% | 7.2% | 3.18 |
+| X-Explore #2 | +17.8% | 7.5% | 2.37 |
+| Quantech #3 | +31.4% | 15.5% | 2.03 |
+| **NDAR #6** | **+3.8%** | **3.7%** | **1.03** |
+
+**Do not tell the flattering version of this.** "We won risk-adjusted and lost
+on raw return" is the story that suggests itself, and the last column refutes
+it: on return per unit of drawdown we are **last of those four.** Our Sharpe is
+highest because our *daily* returns were consistent, not because we converted
+risk into return efficiently. We spent the drawdown early on two August stops
+and made the return in the final 48 hours — the worst possible ordering for
+that ratio.
+
+The accurate summary is narrower and less comfortable: **most consistent daily
+returns on the board, mid-pack on everything else, comfortably advancing.**
+
+### Backtest versus live — the gap that matters
+The reference run is **0.36 net Sharpe OOS**, on a 31-name universe, through a
+multi-pair portfolio engine, on US equities 2006–2017.
+
+The live Sharpe was 4.86 and **that comparison is meaningless**: n≈30 daily
+returns, and this record contains a Sharpe that went 9.30 → 5.66 → 2.99 → 4.93
+→ 4.86 without the strategy changing once. The standing rule holds in both
+directions.
+
+**The real gap is breadth, and it is the largest thing in this record:**
+
+> A framework built and validated as a **multi-pair portfolio engine over 31
+> names** was deployed as a **single-pair book over 15 candidates.** Across 22
+> scored refits the gate passed a mean of **0.91 pairs**, one pair 59% of the
+> time, **zero 27% of the time**, and **only 5 of the 15 candidates ever passed
+> at all.** Ten never cleared it once in a month.
+
+That was invisible until 2026-08-15, when the operator queried the `passed`
+column across every refit. No daily glance could have shown it. It is a bigger
+divergence than fees, slippage or funding — those were assumptions that turned
+out benign; this one falsifies a mechanism named in the pre-registration, and
+`LTP_STRATEGY.md` now retracts the breadth claim rather than letting the
+post-mortem call it a strength.
+
+### What was assumption at launch and is measurement now
+| | assumed | measured |
+|---|---|---|
+| taker fee | 5.0 bps/side | **1.75** — and irrelevant: `cost_z` 0.01–0.08 |
+| funding | unmodelled, feared material | **+0.385 received** over 66 settlements |
+| slippage | unknown | 0.57 → 0.91 bps mean |
+| pairs per refit | "breadth across 14 pairs" | **0.91** |
+| stop overshoot | assumed tight | median **0.2σ**, fat tail to 6.75σ |
+| refusal paths | five, all live | **one has ever fired** (`side_blocked`, ×10) |
+
+### What actually went wrong, and what caught it
+The single largest find was a **unit mismatch in `optimal_bands`** that made
+every pair report entry 3.0 / exit 1.5 with expected round trips of 83 days to
+3.7 years. The book was idle for a week because of arithmetic, not markets.
+Fixing it produced a 2-hour round trip on a level the old bands could never
+have traded — and exposed a second bug within the hour, because
+`exit_z = 0.0` was unreachable under `abs(z) < exit_z`.
+
+Latent failures caught by diagnostics *before* they cost money: the **nav-guard**
+(a failed equity read computed a 100% drawdown and would have self-eliminated
+us on any API hiccup), the **degeneracy guard** (a halted symbol's flat series
+crashed `adfuller` out of `refit` and into a systemd restart loop), and
+**position reconciliation**. Found the hard way: `maxNotionalPerOrder` silently
+blocking every entry on day one, and the orphaned position after a state wipe.
+
+### The honesty record
+Fifteen corrections were issued and recorded rather than quietly fixed. The
+instructive ones share a shape: **reaching for the tidiest available data point
+before checking whether the instrument still means what it says.**
+
+- `IMPROVEMENTS.md` **0.44 → 0.36** — the old figure came from the band bug
+  barely trading, which flattered Sharpe while forgoing the return.
+- The **knife-edge** story, retracted twice, because a sweep's column labels
+  were computed from a config value changed between runs.
+- **"~22 tokens per call"** — a rolling-window count divided by a lifetime count.
+- **"the news veto never fired"** — it had halved the worst trade of the month.
+- **Headroom "~100 USDT"** in an AI prompt — that was the distance to our own
+  kill switch, not the elimination floor, and it biased 19 answers per pass.
+- **"T.Anh at 0|0|0 proves engagement is unscored"** — that row was a display
+  artefact or a team pending elimination, and it was never evidence.
+
+And one that is still open: two independent review topics called our
+**−10.67 overshoot figure "mechanically inconsistent."** That number is the
+entire basis for *"roughly a third of losses came from stops firing late"* and
+therefore for the intra-bar monitor. **Check it before building the monitor.**
+
+### The last week, in one line
+Seven flat days with zero tradeable pairs, then the gate reopened and KAS/ETC
+made **+28.5 in five hours** — the most profitable trade of the competition,
+immediately preceded by two `side_blocked` refusals that delayed the entry by
+two hours. No gate was ever loosened to manufacture a trade, including through
+a three-day drought while the score was falling. That rule was tested and it
+held.
+
+### Loose ends carried into the post-mortem
+- **Enters (38) exceed closes (31) by seven.** Four are the day-one
+  `maxNotional` failures that never opened and one is the manually-closed
+  orphan. **Two remain unexplained** and the audit chain is not complete until
+  they are.
+- **The ledger still cannot say what any exit was done at.** `close_position`
+  logs `executed_price: null`; the `response_keys` fallback diagnosed why — the
+  venue's response is nested — but the fix waited for the gap window because an
+  exception there means a position that will not close. `fills_report.py`'s
+  timestamp matching is the sole source for realised exits.
+- **The organizer's gateway key expires daily at 16:00 UTC.** It fired on
+  08-20 (excused as platform-side) and again on 08-21 after the bell. It will
+  recur; raise it before Phase II opens.
+
+---
+
+## PHASE II agenda — opens 2026-09-07, everything resets to 1,000 USDT
+
+**The 17-day gap (08-21 → 09-07) is the build window.** Nothing was shipped in
+the final week deliberately: a change that cannot be exercised before the
+measurement period ends is pure risk. That constraint is now lifted, and there
+is no live position at stake.
+
+1. **Submit the Reasoning Log** by **2026-08-24 15:59 UTC** — built, committed
+   at `track_record/phase1_submission/`, archive 9.48 MB. **Eligibility depends
+   on it.**
+2. **The universe question — highest priority.** Re-run `universe_scan.py` with
+   22 refits of evidence rather than week 1's three. A single-pair book running
+   eight weeks is the central fragility, and the evidence cannot yet separate
+   "the gate is correctly rigorous and crypto rarely cointegrates" from "15
+   names is too thin for a multi-test pipeline." Both imply the same action:
+   **widen the universe, do not weaken the screen.**
+3. **Check the −10.67 overshoot arithmetic** before anything else touches the
+   stop. If it is wrong, the intra-bar monitor's case largely evaporates.
+4. **Then the intra-bar monitor**, two-tier at 4.0–4.5σ, read-only, may close
+   or stop but never open — *if* item 3 survives.
+5. **`side_blocked` earned-its-keep analysis.** Ten refusals on record, one of
+   them directly in front of the best trade of the phase. Measure z after each
+   block and ask whether the refused entry would have paid.
+6. **The nested close-price probe**, so the ledger can state its own exits.
+7. **The news-gate refresh** before a newly selected pair's first entry.
+8. **The synthesis pass** over ~3,400 advisory reviews.
+9. **Rotate LTP + AI keys**, and raise the daily key expiry with the organizers.
+10. **Refit cadence**, only if the band/`mu` simulation supports it.
+
+---
+
+## Week 5 agenda — Phase I closes Fri 2026-08-21 (COMPLETED — see the close-out)
 
 Five days. **No behavioural change ships in them** unless something breaks.
 
