@@ -97,3 +97,19 @@ The book opened 0 trade(s) since 2026-08-03 and recorded 0 fill(s), with 0 stop-
 | Manual intervention | none detected |
 
 The book opened 0 trade(s) since 2026-08-10 and recorded 0 fill(s), with 0 stop-out(s). Equity is at $100,000.00: +0.00% on the week and +0.00% since inception. The deepest drawdown so far is +0.00%. Manual intervention: none detected.
+
+## Week of 2026-08-24 (Monday)
+
+| Metric | Value |
+| :----- | :---- |
+| Weekly return | +0.00% |
+| Cumulative return | +0.00% |
+| Trades opened | 0 |
+| Fills | 0 |
+| Stop-outs | 0 |
+| Max drawdown to date | +0.00% |
+| Current gross leverage | 0.00× |
+| Workflow health | 5 daily snapshot(s) recorded since 2026-08-17, latest 2026-08-24 |
+| Manual intervention | 4fbb301 Noah David Aguilar Riego; 3021ede NDAR123909 |
+
+The book opened 0 trade(s) since 2026-08-17 and recorded 0 fill(s), with 0 stop-out(s). Equity is at $100,000.00: +0.00% on the week and +0.00% since inception. The deepest drawdown so far is +0.00%. Manual intervention: 4fbb301 Noah David Aguilar Riego; 3021ede NDAR123909.
