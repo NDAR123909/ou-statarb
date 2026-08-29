@@ -23,8 +23,25 @@ choosing the tidiest one.
 ## Standing context (verify before relying on it — the organizer amends rules)
 
 **Competition.** LTP Liquidity Arena 2026, **Track A "Logic Frontier"**. Team
-**NDAR**. Phase I (Sandbox Elimination) **Jul 20 – Aug 21 2026**; Phase II
-(Live Finals) Sep 7 – Oct 31. **Top 30 teams advance.**
+**NDAR**. Phase I (Sandbox Elimination) **Jul 20 – Aug 21 2026** — CLOSED, we
+finished **#6 of 30 and advanced**.
+
+**Phase II (Mainnet Duel Finals) begins 2026-09-09.** ~~Sep 7~~ — corrected
+2026-08-27 from the organizer's advancement announcement; the Sep 7 date had
+been in this file since July and the Phase II agenda was written around a
+17-day gap that is really **19 days**.
+
+**Phase II is LIVE CAPITAL IN LIVE MARKETS**, not a sandbox: *"1,000 USDT in
+live trading capital from LTP … live markets under institutional-scale
+execution."* All scores reset to zero. This is not a continuation of Phase I
+with a bigger prize; it is a different risk regime, and every Phase I
+measurement taken in the sandbox is now a **prior, not a fact**:
+- slippage measured at 0.57–0.91 bps was a sandbox number. Expect worse.
+- funding and borrow become real costs rather than a rounding error.
+- **the intra-bar monitor's value rises**, because the losses it prevents are
+  now actual money — which raises the stakes on re-checking the −10.67
+  overshoot figure *before* building it.
+- risk appetite should go **down** on the first live days, not up.
 
 **Phase I scoring stops at 23:59 GMT+8 on 2026-08-21 = 15:59 UTC** (organizer,
 Telegram 2026-08-16). Converted here once so nobody re-derives it under time
@@ -2128,9 +2145,25 @@ held.
 
 ---
 
-## PHASE II agenda — opens 2026-09-07, everything resets to 1,000 USDT
+## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
 
-**The 17-day gap (08-21 → 09-07) is the build window.** Nothing was shipped in
+### Advancement confirmed 2026-08-27
+The organizer published the 30 advancing teams. **Team NDAR #6, score 78.4,
+ann. return +42.0%, Sharpe 4.86 — the highest Sharpe of all thirty.** btcol is
+second at 4.84, Krosus third at 4.52; the five teams *above* us on score ran
+3.20–3.76.
+
+**Ten of the thirty advanced with negative returns.** So advancement was never
+genuinely at risk, and the anxiety during the three-day drought — when the
+score was falling and we were flat — was unwarranted on the evidence available
+at the time. Worth remembering the next time a rank move feels urgent: the
+binding constraint was the 800 floor and the top-30 cut, and we were never near
+either.
+
+The Reasoning Log was emailed to `events@liquiditytech.com` and **receipt was
+confirmed by the organizers.** That eligibility item is closed.
+
+**The 19-day gap (08-21 → 09-09) is the build window.** Nothing was shipped in
 the final week deliberately: a change that cannot be exercised before the
 measurement period ends is pure risk. That constraint is now lifted, and there
 is no live position at stake.
@@ -2154,7 +2187,16 @@ is no live position at stake.
 6. **The nested close-price probe**, so the ledger can state its own exits.
 7. **The news-gate refresh** before a newly selected pair's first entry.
 8. **The synthesis pass** over ~3,400 advisory reviews.
-9. **Rotate LTP + AI keys**, and raise the daily key expiry with the organizers.
+9. **Credential housekeeping, all three in one sitting before 09-09:**
+   rotate the **LTP and AI keys** (pasted in chat back in July — that is why
+   this item exists); **regenerate the GitHub PAT**, which expired 2026-08-27
+   and is used only for manual pushes from the droplet, so nothing depends on
+   it today; and **raise the gateway key's daily expiry with the organizers**.
+   That last one is not a one-off: the key died at 16:00 UTC on 08-20, was
+   restored, and **expired again at the same boundary on 08-21**. Left alone it
+   will take the news gate dark on day one of live trading.
+   **Do not paste any new credential into chat** — the first two items on this
+   list exist precisely because that happened once.
 10. **Refit cadence**, only if the band/`mu` simulation supports it.
 
 ---
