@@ -1738,6 +1738,7 @@ section existed; that is what it is for.
 | ~~`dist-upgrade` + reboot~~ **DONE 2026-08-09 23:28** — kernel 6.8.0-136 → 137, zero updates pending, banner cleared. Second clean reboot: NRestarts=0, peak 1041.19 and the bar counter both survived | 2026-08-06 | closed |
 | **Re-merge the fills snapshots weekly** for the loss attribution — the live report only reaches back ~7 days | 2026-08-09 | each review, before writing the numbers down |
 | **Synthesise the 399 deep reviews** — where they converge, where they contradict each other, which claims survive contact with the others. Discount the round-5 layer, which reasoned from the understated headroom | 2026-08-12 | Sun 2026-08-16 review. Until it exists, no claim from that run has been acted on |
+| **Reply to LTP with the BSC USDT deposit address** — generated in LTP's own Asset Center → Deposit → Funding Account → USDT → BSC. This is where the Phase II 1,000 USDT is paid in | 2026-08-27 | **HARD DEADLINE 19:00 GMT+8 2026-09-02 = 11:00 UTC = 04:00 local.** Do it the evening before. A deposit address is receive-only and safe to share; verify the sender domain character by character first, and **if any follow-up ever asks us to SEND funds anywhere, stop** — that inversion is the attack shape, and this request is its opposite |
 | **Check AI `spend` against BOTH ends of the band** (min USD 1, max 10/day) at every review — the floor is what nearly disqualified us on 2026-08-12 | 2026-08-12 | every review, and before Phase II opens. Now also automated: `status.py` exits 1 below the floor |
 | **Verify the two spend crons actually fired** — 16:30 and 20:30 UTC, first live run 2026-08-13. Check `ltp_ai.log` and that the top-up no-opped rather than double-spending | 2026-08-12 | first daily glance after 2026-08-13 17:00 UTC |
 | **Ask the organizers whether the USD 1 floor is daily or was one-off enforcement, and whether they read a lifetime total or the per-period meter** — their 2026-08-12 Telegram reply says "zero **total** AI usage", which does not settle it. Clearing 1.00 every period is safe under either reading, but that is an assumption. Rides along with the header-only CSV report we already owe them | 2026-08-12 | next organizer contact; draft is written when the operator wants it |
@@ -2585,6 +2586,23 @@ Carried from week 1. Do these in order; the analysis gates the tuning.
   Do it when convenient: rotate in the LTP dashboard → update `/root/ltp.env`
   → `systemctl restart ltp-agent`.
 - **SoSoValue / AIVIX data**: access secured, deliberately **not integrated**.
+  **Re-declined 2026-08-27**, when AIVIX emailed a fresh API key to advancing
+  teams. The evidence trigger below is unchanged and has still never fired —
+  but a *new and more tempting* argument now exists and is recorded so it can
+  be recognised when it resurfaces: the Phase II rules require the AI agent be
+  incorporated into *"**data processing**, algorithm training, or trading
+  inference and decision-making"*, and agenda item 2b concedes our
+  decision-path evidence is thin. Piping an alternative-data feed through the
+  sentinel would appear to satisfy both at once.
+  **That is precisely why to refuse it.** It would mean adding an unvalidated
+  third-party dependency, weeks before live capital, to improve how an audit
+  reads rather than how the strategy trades — and this project does not add
+  code to flatter a metric. It also does not touch the real constraint: only
+  **5 of 15 candidates have ever cointegrated**, and community sentiment does
+  not make pairs cointegrate. The levers are a wider symbol universe and the
+  Binance/OKX choice.
+  (The key arrived in plaintext to a group and was pasted into chat. Treat it
+  as compromised by default; it must not go into `/root/ltp.env`.)
   The trigger to reconsider is evidence-based and specific: a pair stops out on
   a structural event that the news sentinel rated `none`, *and* their data
   flagged it earlier. Until that pattern appears in the ledger, leave it alone.
