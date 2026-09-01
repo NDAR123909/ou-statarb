@@ -26,10 +26,34 @@ choosing the tidiest one.
 **NDAR**. Phase I (Sandbox Elimination) **Jul 20 – Aug 21 2026** — CLOSED, we
 finished **#6 of 30 and advanced**.
 
-**Phase II (Mainnet Duel Finals) begins 2026-09-09.** ~~Sep 7~~ — corrected
-2026-08-27 from the organizer's advancement announcement; the Sep 7 date had
-been in this file since July and the Phase II agenda was written around a
-17-day gap that is really **19 days**.
+**Phase II (Mainnet Duel Finals) runs 2026-09-09 → 2026-11-04.** ~~Sep 7 –
+Oct 31~~ — **both** dates were wrong in this file since July; corrected from
+the organizer's advancement announcement (start) and the Phase II welcome email
+(end). The build window is **19 days**, not the 17 the agenda was written for.
+
+**Phase II rules, from the organizer's welcome email 2026-08-27:**
+- Scoring **unchanged**: ROI 20% + PnL 25% + Sharpe 40% + MDD 15%.
+- Elimination **unchanged**: equity < 800 USDT / NAV < 0.8.
+- **Maximum leverage 5× (was 2×). Violating it is DISQUALIFICATION.**
+- **AI spend of at least USD 1 per day is now a formal written rule**, not an
+  emailed warning. The daily pass built in August is exactly what this needs.
+- **An AI agent is mandatory** and must be incorporated into *"data processing,
+  algorithm training, or trading inference and decision-making."*
+- **Choose Binance OR OKX perpetuals.** New — Phase I was Binance only.
+- **One primary account.** No sub-accounts; ranking is that account alone.
+- No deposits or withdrawals. AI tokens distributed "gradually starting this
+  week", so new keys are imminent.
+
+**DECISION: leave every symbol at 2× leverage despite the 5× allowance.**
+Sharpe is scale-invariant, so leverage does nothing for the 40% term; it scales
+PnL, ROI and MDD together. Phase I's lesson was **not** that we were
+under-levered — it was that our **return per unit of drawdown was the worst of
+the top four** (1.03 against 3.18 / 2.37 / 2.03). Levering a thin edge
+amplifies both sides of it; at 2× sizing Phase I would have finished with
+X-Explore's drawdown and half their return. Staying at 2× is also a hard rail
+against an accidental DQ on live capital, for headroom we never used — peak
+gross was ~1.06×. **If the platform resets symbol leverage for Phase II,
+re-run `set_leverage.py` at 2×, not 5×.**
 
 **Phase II is LIVE CAPITAL IN LIVE MARKETS**, not a sandbox: *"1,000 USDT in
 live trading capital from LTP … live markets under institutional-scale
@@ -2177,6 +2201,30 @@ is no live position at stake.
    "the gate is correctly rigorous and crypto rarely cointegrates" from "15
    names is too thin for a multi-test pipeline." Both imply the same action:
    **widen the universe, do not weaken the screen.**
+
+   **New lever, from the Phase II rules: we may trade Binance OR OKX perps.**
+   Phase I was Binance only. If OKX's whitelist is larger or differently
+   composed, that is breadth at zero statistical cost — the one way to get more
+   opportunities without touching a gate. **Pull both symbol lists and compare
+   before committing to a venue**, because the choice is made once and the
+   universe question is the thing most likely to decide Phase II.
+
+2b. **Make the AI's role in decisions demonstrable** (added 2026-08-27). The
+   rules now require an AI agent *"incorporated into data processing, algorithm
+   training, or trading inference and decision-making."* We satisfy this
+   architecturally — the sentinel can veto or halve an entry and the regime
+   gate is enum-validated — but **empirically the AI has changed a trading
+   decision exactly once in five weeks**: the `size_mult` halving on
+   2026-08-01. News veto: never. Anomaly veto: never. The only refusal path
+   that ever fired was `side_blocked`, which is pure arithmetic with no model
+   in it.
+
+   That is disclosed honestly in the Reasoning Log and it is defensible. But if
+   Phase II audits whether the AI is *actually* in the decision path, one
+   halved position is thin evidence. **The design question is how to make the
+   role more demonstrable without making it more discretionary** — the whole
+   architecture rests on the maths deciding and the model only refusing, and
+   that must not be traded away for a better-looking audit trail.
 3. **Check the −10.67 overshoot arithmetic** before anything else touches the
    stop. If it is wrong, the intra-bar monitor's case largely evaporates.
 4. **Then the intra-bar monitor**, two-tier at 4.0–4.5σ, read-only, may close
