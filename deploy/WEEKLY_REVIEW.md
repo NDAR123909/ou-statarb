@@ -23,8 +23,49 @@ choosing the tidiest one.
 ## Standing context (verify before relying on it — the organizer amends rules)
 
 **Competition.** LTP Liquidity Arena 2026, **Track A "Logic Frontier"**. Team
-**NDAR**. Phase I (Sandbox Elimination) **Jul 20 – Aug 21 2026**; Phase II
-(Live Finals) Sep 7 – Oct 31. **Top 30 teams advance.**
+**NDAR**. Phase I (Sandbox Elimination) **Jul 20 – Aug 21 2026** — CLOSED, we
+finished **#6 of 30 and advanced**.
+
+**Phase II (Mainnet Duel Finals) runs 2026-09-09 → 2026-11-04.** ~~Sep 7 –
+Oct 31~~ — **both** dates were wrong in this file since July; corrected from
+the organizer's advancement announcement (start) and the Phase II welcome email
+(end). The build window is **19 days**, not the 17 the agenda was written for.
+
+**Phase II rules, from the organizer's welcome email 2026-08-27:**
+- Scoring **unchanged**: ROI 20% + PnL 25% + Sharpe 40% + MDD 15%.
+- Elimination **unchanged**: equity < 800 USDT / NAV < 0.8.
+- **Maximum leverage 5× (was 2×). Violating it is DISQUALIFICATION.**
+- **AI spend of at least USD 1 per day is now a formal written rule**, not an
+  emailed warning. The daily pass built in August is exactly what this needs.
+- **An AI agent is mandatory** and must be incorporated into *"data processing,
+  algorithm training, or trading inference and decision-making."*
+- **Choose Binance OR OKX perpetuals.** New — Phase I was Binance only.
+- **One primary account.** No sub-accounts; ranking is that account alone.
+- No deposits or withdrawals. AI tokens distributed "gradually starting this
+  week", so new keys are imminent.
+
+**DECISION: leave every symbol at 2× leverage despite the 5× allowance.**
+Sharpe is scale-invariant, so leverage does nothing for the 40% term; it scales
+PnL, ROI and MDD together. Phase I's lesson was **not** that we were
+under-levered — it was that our **return per unit of drawdown was the worst of
+the top four** (1.03 against 3.18 / 2.37 / 2.03). Levering a thin edge
+amplifies both sides of it; at 2× sizing Phase I would have finished with
+X-Explore's drawdown and half their return. Staying at 2× is also a hard rail
+against an accidental DQ on live capital, for headroom we never used — peak
+gross was ~1.06×. **If the platform resets symbol leverage for Phase II,
+re-run `set_leverage.py` at 2×, not 5×.**
+
+**Phase II is LIVE CAPITAL IN LIVE MARKETS**, not a sandbox: *"1,000 USDT in
+live trading capital from LTP … live markets under institutional-scale
+execution."* All scores reset to zero. This is not a continuation of Phase I
+with a bigger prize; it is a different risk regime, and every Phase I
+measurement taken in the sandbox is now a **prior, not a fact**:
+- slippage measured at 0.57–0.91 bps was a sandbox number. Expect worse.
+- funding and borrow become real costs rather than a rounding error.
+- **the intra-bar monitor's value rises**, because the losses it prevents are
+  now actual money — which raises the stakes on re-checking the −10.67
+  overshoot figure *before* building it.
+- risk appetite should go **down** on the first live days, not up.
 
 **Phase I scoring stops at 23:59 GMT+8 on 2026-08-21 = 15:59 UTC** (organizer,
 Telegram 2026-08-16). Converted here once so nobody re-derives it under time
@@ -1697,6 +1738,8 @@ section existed; that is what it is for.
 | ~~`dist-upgrade` + reboot~~ **DONE 2026-08-09 23:28** — kernel 6.8.0-136 → 137, zero updates pending, banner cleared. Second clean reboot: NRestarts=0, peak 1041.19 and the bar counter both survived | 2026-08-06 | closed |
 | **Re-merge the fills snapshots weekly** for the loss attribution — the live report only reaches back ~7 days | 2026-08-09 | each review, before writing the numbers down |
 | **Synthesise the 399 deep reviews** — where they converge, where they contradict each other, which claims survive contact with the others. Discount the round-5 layer, which reasoned from the understated headroom | 2026-08-12 | Sun 2026-08-16 review. Until it exists, no claim from that run has been acted on |
+| ~~Reply to LTP with the BSC USDT deposit address~~ **SENT 2026-09-02, ~5 hours late.** Deadline was 19:00 GMT+8 = 11:00 UTC = 04:00 local; sent ~16:00 UTC. Low consequence — it was administrative batching for account setup, not an eligibility condition like the Reasoning Log, and Phase II does not open until 09-09. **UI note for next time: the button is "Top up", not "Deposit"** (Asset Center → Funds account → Top up → USDT → BSC/BEP20); generating the address sends nothing | 2026-08-27 | closed |
+| **Surface dated commitments in `status.py`** — this deadline was written down, with the local-time conversion done in advance precisely so it could not be misread, **and it was still missed, because the record is passive and never alerts.** Show any commitment falling due inside 72h in the daily glance the operator already runs | 2026-09-02 | build window, before 09-09. It would have caught this one |
 | **Check AI `spend` against BOTH ends of the band** (min USD 1, max 10/day) at every review — the floor is what nearly disqualified us on 2026-08-12 | 2026-08-12 | every review, and before Phase II opens. Now also automated: `status.py` exits 1 below the floor |
 | **Verify the two spend crons actually fired** — 16:30 and 20:30 UTC, first live run 2026-08-13. Check `ltp_ai.log` and that the top-up no-opped rather than double-spending | 2026-08-12 | first daily glance after 2026-08-13 17:00 UTC |
 | **Ask the organizers whether the USD 1 floor is daily or was one-off enforcement, and whether they read a lifetime total or the per-period meter** — their 2026-08-12 Telegram reply says "zero **total** AI usage", which does not settle it. Clearing 1.00 every period is safe under either reading, but that is an assumption. Rides along with the header-only CSV report we already owe them | 2026-08-12 | next organizer contact; draft is written when the operator wants it |
@@ -2128,9 +2171,25 @@ held.
 
 ---
 
-## PHASE II agenda — opens 2026-09-07, everything resets to 1,000 USDT
+## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
 
-**The 17-day gap (08-21 → 09-07) is the build window.** Nothing was shipped in
+### Advancement confirmed 2026-08-27
+The organizer published the 30 advancing teams. **Team NDAR #6, score 78.4,
+ann. return +42.0%, Sharpe 4.86 — the highest Sharpe of all thirty.** btcol is
+second at 4.84, Krosus third at 4.52; the five teams *above* us on score ran
+3.20–3.76.
+
+**Ten of the thirty advanced with negative returns.** So advancement was never
+genuinely at risk, and the anxiety during the three-day drought — when the
+score was falling and we were flat — was unwarranted on the evidence available
+at the time. Worth remembering the next time a rank move feels urgent: the
+binding constraint was the 800 floor and the top-30 cut, and we were never near
+either.
+
+The Reasoning Log was emailed to `events@liquiditytech.com` and **receipt was
+confirmed by the organizers.** That eligibility item is closed.
+
+**The 19-day gap (08-21 → 09-09) is the build window.** Nothing was shipped in
 the final week deliberately: a change that cannot be exercised before the
 measurement period ends is pure risk. That constraint is now lifted, and there
 is no live position at stake.
@@ -2144,6 +2203,30 @@ is no live position at stake.
    "the gate is correctly rigorous and crypto rarely cointegrates" from "15
    names is too thin for a multi-test pipeline." Both imply the same action:
    **widen the universe, do not weaken the screen.**
+
+   **New lever, from the Phase II rules: we may trade Binance OR OKX perps.**
+   Phase I was Binance only. If OKX's whitelist is larger or differently
+   composed, that is breadth at zero statistical cost — the one way to get more
+   opportunities without touching a gate. **Pull both symbol lists and compare
+   before committing to a venue**, because the choice is made once and the
+   universe question is the thing most likely to decide Phase II.
+
+2b. **Make the AI's role in decisions demonstrable** (added 2026-08-27). The
+   rules now require an AI agent *"incorporated into data processing, algorithm
+   training, or trading inference and decision-making."* We satisfy this
+   architecturally — the sentinel can veto or halve an entry and the regime
+   gate is enum-validated — but **empirically the AI has changed a trading
+   decision exactly once in five weeks**: the `size_mult` halving on
+   2026-08-01. News veto: never. Anomaly veto: never. The only refusal path
+   that ever fired was `side_blocked`, which is pure arithmetic with no model
+   in it.
+
+   That is disclosed honestly in the Reasoning Log and it is defensible. But if
+   Phase II audits whether the AI is *actually* in the decision path, one
+   halved position is thin evidence. **The design question is how to make the
+   role more demonstrable without making it more discretionary** — the whole
+   architecture rests on the maths deciding and the model only refusing, and
+   that must not be traded away for a better-looking audit trail.
 3. **Check the −10.67 overshoot arithmetic** before anything else touches the
    stop. If it is wrong, the intra-bar monitor's case largely evaporates.
 4. **Then the intra-bar monitor**, two-tier at 4.0–4.5σ, read-only, may close
@@ -2154,7 +2237,16 @@ is no live position at stake.
 6. **The nested close-price probe**, so the ledger can state its own exits.
 7. **The news-gate refresh** before a newly selected pair's first entry.
 8. **The synthesis pass** over ~3,400 advisory reviews.
-9. **Rotate LTP + AI keys**, and raise the daily key expiry with the organizers.
+9. **Credential housekeeping, all three in one sitting before 09-09:**
+   rotate the **LTP and AI keys** (pasted in chat back in July — that is why
+   this item exists); **regenerate the GitHub PAT**, which expired 2026-08-27
+   and is used only for manual pushes from the droplet, so nothing depends on
+   it today; and **raise the gateway key's daily expiry with the organizers**.
+   That last one is not a one-off: the key died at 16:00 UTC on 08-20, was
+   restored, and **expired again at the same boundary on 08-21**. Left alone it
+   will take the news gate dark on day one of live trading.
+   **Do not paste any new credential into chat** — the first two items on this
+   list exist precisely because that happened once.
 10. **Refit cadence**, only if the band/`mu` simulation supports it.
 
 ---
@@ -2495,6 +2587,23 @@ Carried from week 1. Do these in order; the analysis gates the tuning.
   Do it when convenient: rotate in the LTP dashboard → update `/root/ltp.env`
   → `systemctl restart ltp-agent`.
 - **SoSoValue / AIVIX data**: access secured, deliberately **not integrated**.
+  **Re-declined 2026-08-27**, when AIVIX emailed a fresh API key to advancing
+  teams. The evidence trigger below is unchanged and has still never fired —
+  but a *new and more tempting* argument now exists and is recorded so it can
+  be recognised when it resurfaces: the Phase II rules require the AI agent be
+  incorporated into *"**data processing**, algorithm training, or trading
+  inference and decision-making"*, and agenda item 2b concedes our
+  decision-path evidence is thin. Piping an alternative-data feed through the
+  sentinel would appear to satisfy both at once.
+  **That is precisely why to refuse it.** It would mean adding an unvalidated
+  third-party dependency, weeks before live capital, to improve how an audit
+  reads rather than how the strategy trades — and this project does not add
+  code to flatter a metric. It also does not touch the real constraint: only
+  **5 of 15 candidates have ever cointegrated**, and community sentiment does
+  not make pairs cointegrate. The levers are a wider symbol universe and the
+  Binance/OKX choice.
+  (The key arrived in plaintext to a group and was pasted into chat. Treat it
+  as compromised by default; it must not go into `/root/ltp.env`.)
   The trigger to reconsider is evidence-based and specific: a pair stops out on
   a structural event that the news sentinel rated `none`, *and* their data
   flagged it earlier. Until that pattern appears in the ledger, leave it alone.
