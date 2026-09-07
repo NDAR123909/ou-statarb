@@ -2171,6 +2171,103 @@ held.
 
 ---
 
+## PHASE II CUTOVER RUNBOOK — written 2026-09-07, execute 2026-09-08
+
+**GO-LIVE: 2026-09-09 00:00 GMT+8 = 2026-09-08 16:00 UTC = 2026-09-08 09:00
+America/Denver.** Converted here once. This is the **third** time this
+competition has hidden a day in a timezone: it is *Tuesday morning* local, not
+Wednesday. Read that twice before planning around it.
+
+### Where we are starting from (droplet, 2026-09-07 17:44 UTC)
+The agent has been failing every bar since the Phase I settlement:
+
+```
+equity UNAVAILABLE — RapidX upstream business error 100018: API not exist
+news gate DEGRADED (api_error) — 401 Authentication Error
+ai spend UNREADABLE (no meter)
+bar 1007, pid 51261, up since 2026-08-14, NRestarts=0
+```
+
+**Both Phase I credentials are dead**, and this is universal — NeuPortal, SUPES
+K and Stream4AI reported the identical `100018` in #TechnicalSupport, and Elaine
+confirmed new keys for everyone. **No funds have been distributed to any team
+yet.** Nothing here is our fault and nothing needed chasing.
+
+Note what still works: **refits run normally** (2026-09-06 19:00 passed 1/15,
+`ADA|DOT`). Market data is unauthenticated or separately authed; only account
+endpoints are dead. So a key swap should restore everything.
+
+### The thing most likely to break day one
+**`ltp_hwm.json` carries `peak_equity: 1057.48` and the kill switch sits at
+930.58.** Phase II starts at **1,000 USDT**. Booted unchanged, the agent
+believes it is **already 5.4% in drawdown**, with its kill switch only **7%
+below the opening equity** — one ordinary early loss halts us on day one of a
+56-day phase.
+
+It will not self-correct. `reconcile_peak` takes
+`max(state, hwm file, live)` and **`ltp_hwm.json` was deliberately built to
+survive a state wipe** — that was the week-1 fix for the kill switch
+re-anchoring downward after `rm ltp_state.json`. It does exactly its job here,
+in the wrong direction. **Both files must be deleted explicitly.**
+
+### The second thing: the API host is contest infrastructure
+```
+LTP_API_HOST=https://api.ltp-contest.com
+LTP_AI_BASE_URL=https://ai.ltp-contest.com
+```
+The Phase II production key was created on **`liquiditytech.com`** — a
+different domain. The organizers warned twice, in two separate messages, to
+create keys *"in the production environment, rather than the UAT
+environment."* Phase I was the **Sandbox** tournament. **A production key very
+likely will not authenticate against `api.ltp-contest.com`**, and nobody in the
+Telegram thread has raised it. Asked of @LTP_Tracey; answer pending.
+
+### The key we created (2026-09-07 10:55, `NDAR-PhaseII`)
+Read on all accounts · **Trade on RapidX Main Portfolio only** · **Transfer OFF
+· Withdraw OFF** · IP-bound to `68.183.209.2`. Withdraw is the only
+irreversible permission and it is off; sharing a *trading* key with the
+platform operator is required and normal. Two follow-ups pending with Tracey:
+whether their setup needs an IP whitelisted, and **whether the competition
+account is provisioned as a Sub Portfolio** — if so the key can read but not
+trade it, and `Edit API` fixes that in one click.
+
+### Cutover, in order
+```bash
+systemctl stop ltp-agent
+cp deploy/ltp_state.json /root/phase1_state.bak
+cp deploy/ltp_hwm.json  /root/phase1_hwm.bak
+rm deploy/ltp_state.json deploy/ltp_hwm.json
+# edit /root/ltp.env:
+#   LTP_ACCESS_KEY   = new production key
+#   LTP_SECRET_KEY   = new production secret
+#   LTP_API_HOST     = PRODUCTION host (ask Tracey; NOT api.ltp-contest.com)
+#   LTP_AI_API_KEY   = new gateway key
+#   LTP_AI_BASE_URL  = confirm with Tracey
+#   LTP_PORTFOLIO_ID = leave UNSET (broker defaults to the CLI's portfolio)
+#   LTP_COMPETITION_MODE = 1  (unchanged)
+set -a; source /root/ltp.env; set +a
+.venv/bin/python deploy/set_leverage.py     # 2x — see the standing decision
+systemctl start ltp-agent
+.venv/bin/python deploy/status.py
+```
+
+**Success criteria:** `equity 1000.00` · `peak 1000.00` · `dd 0.00%` ·
+**kill switch 880.00** · news gate live · spend meter readable.
+
+**Diagnostic split if it fails:** `100018 API not exist` after a key swap means
+the **host** is wrong, not the key. `401` on the AI side means the gateway key
+or base URL.
+
+**Do NOT reboot before go-live.** 21 updates and a restart banner are pending;
+they wait until the book is flat and the phase is running.
+
+**Check the new AI key's expiry.** The Phase I gateway key expired at 16:00 UTC
+on 08-20 *and again* at the same boundary on 08-21. If Phase II keys carry the
+same daily expiry it will take the news gate dark on day one — raise it with
+the organizers the moment the key arrives, not after.
+
+---
+
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
 
 ### Advancement confirmed 2026-08-27
