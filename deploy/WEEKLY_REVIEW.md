@@ -126,18 +126,30 @@ Hard exit: **equity < 800 USDT** → forced liquidation and elimination.
   ceiling, blind to the floor. **Check `spend` against BOTH ends at every
   review**: `GET https://ai.ltp-contest.com/key/info`. A frugal agent is not
   automatically a compliant one.
-- **Leverage**: max 2× opening leverage. All 28 whitelist symbols were set to
-  2× on 2026-07-20 via `deploy/set_leverage.py` (re-run it if symbols reset).
+- **Leverage**: Phase II permits **5×**; we run **2×** by the standing decision
+  above, which is *ours*, not the venue's cap. Re-applied to **30** symbols at
+  the 2026-09-08 cutover via `deploy/set_leverage.py`, 0 failed. (The whitelist
+  was 28 on 2026-07-20 and has grown since — trust the script's count over any
+  number written here.)
 - **Never place manual orders through the LTP web UI** — an unlogged order
   breaks the reasoning audit.
 - Data partners (SoSoValue, AIVIX) are *market data*, not AI models, so they are
   compliant — but we deliberately do **not** use them (see Deferred).
 
-**Useful endpoints.**
-- Self ranking: `GET https://api.ltp-contest.com/api/v1/tracka/ranking/self?phase=PHASE_I`
+**Useful endpoints. THE TRADING HOST CHANGED AT THE PHASE II CUTOVER.**
+- **Trading / account: `https://api.liquiditytech.com`** (production), set as
+  `LTP_API_HOST`. Phase I ran on `https://api.ltp-contest.com`, which is the
+  **sandbox/contest** domain and answers a production key with
+  `100018 API not exist`.
+- **AI gateway: `https://ai.ltp-contest.com` — did NOT move**, and still
+  authenticates. The two domains have **diverged**; do not "tidy" one to match
+  the other.
+- Self ranking: `GET {LTP_API_HOST}/api/v1/tracka/ranking/self?phase=PHASE_II`
   (V2 signature: `X-MBX-APIKEY`, `nonce`, `signature`; portfolioId derives from
   the key). Error 30016 = wrong key or T+1 data not ready.
-- AI spend: `GET https://ai.ltp-contest.com/key/info` → `spend` field.
+- AI spend: `GET https://ai.ltp-contest.com/key/info` → `spend` field. The
+  budget period rolls at **00:00 GMT+8 = 16:00 UTC** — the competition day, not
+  the UTC day. Confirmed by direct observation across the boundary 2026-09-08.
 
 **Deployment.** DigitalOcean droplet `68.183.209.2`, systemd unit `ltp-agent`,
 repo at `~/ou-statarb`, venv `.venv`, env `/root/ltp.env` (shell-format, so
@@ -1726,7 +1738,7 @@ section existed; that is what it is for.
 | Decide whether the sentinel should gain **macro-event awareness** (Fed/CPI/GDP are market-wide; our prompt is asset-specific and would rate them `none`) | 2026-07-28 | Sunday review; design question is whether market-wide risk should shrink size across all pairs, or whether the hedge already handles it |
 | ~~**Sample the AI rationales for genuine depth**~~ **CLOSED 2026-08-04, nothing to fix** — `ai_spread_assessment` n=300, median 54 words, `max_tokens` never binding; the sampled rationales cite the z path, half-life and band. The "~22 tokens per call" that raised this divided a rolling-window count by a lifetime count | 2026-07-27 | closed |
 | ~~Reboot the droplet~~ **DONE 2026-08-06** — 19s down, hwm/bar counter/crontab all survived, first ever test. Kernel packages were kept back; `dist-upgrade` + the second reboot completed 2026-08-09 | 2026-07-28 | closed |
-| **Rotate LTP + AI keys** (pasted in chat; mitigated by IP allowlist) | 2026-07-20 | when convenient before Phase II |
+| **Rotate credentials — now four, not two.** (1) the July LTP + AI keys pasted in chat; (2) **the Phase II production key AND secret**, pasted in chat at the 2026-09-08 cutover — the same mistake, made again, by the session that was reading the rule; (3) the GitHub PAT, expired 2026-08-27. Mitigated but not fixed by the IP allowlist (`68.183.209.2`) and by Withdraw/Transfer being OFF on the production key | 2026-07-20, re-opened 2026-09-08 | **the "before Phase II" trigger has passed.** Next window the operator is at the droplet with time; the trading key is the urgent one because it can trade |
 | **Give the droplet a non-interactive git credential** (deploy key or stored PAT), then extend the 23:50 UTC cron to `git add track_record/ && git commit && git push` | 2026-07-30 | next time the operator is at the droplet terminal — until then `ltp_state_history.jsonl` exists only on that machine |
 | ~~Re-check rank~~ **DONE 2026-08-02**: #2 of 29, score 94.4 | 2026-07-30 | closed |
 | ~~Restore `risk_per_pair` 0.002 → 0.004~~ **APPROVED 2026-08-02, HELD the same evening, and DECIDED AGAINST at the 2026-08-09 review** | 2026-07-30 | **closed.** Sizing is scale-invariant in Sharpe, so a restore buys the 45% of the score made of PnL and ROI while doing nothing for the 40% made of Sharpe, and roughly doubles the MDD we still lead on. The organizer's 2026-08-04 Quant Tip reaches the same place from the scoring side. Re-opening this needs a new argument, not the old one |
@@ -1741,8 +1753,13 @@ section existed; that is what it is for.
 | ~~Reply to LTP with the BSC USDT deposit address~~ **SENT 2026-09-02, ~5 hours late.** Deadline was 19:00 GMT+8 = 11:00 UTC = 04:00 local; sent ~16:00 UTC. Low consequence — it was administrative batching for account setup, not an eligibility condition like the Reasoning Log, and Phase II does not open until 09-09. **UI note for next time: the button is "Top up", not "Deposit"** (Asset Center → Funds account → Top up → USDT → BSC/BEP20); generating the address sends nothing | 2026-08-27 | closed |
 | **Surface dated commitments in `status.py`** — this deadline was written down, with the local-time conversion done in advance precisely so it could not be misread, **and it was still missed, because the record is passive and never alerts.** Show any commitment falling due inside 72h in the daily glance the operator already runs | 2026-09-02 | build window, before 09-09. It would have caught this one |
 | **Check AI `spend` against BOTH ends of the band** (min USD 1, max 10/day) at every review — the floor is what nearly disqualified us on 2026-08-12 | 2026-08-12 | every review, and before Phase II opens. Now also automated: `status.py` exits 1 below the floor |
-| **Verify the two spend crons actually fired** — 16:30 and 20:30 UTC, first live run 2026-08-13. Check `ltp_ai.log` and that the top-up no-opped rather than double-spending | 2026-08-12 | first daily glance after 2026-08-13 17:00 UTC |
+| **Verify the two spend crons actually fired** — 16:30 and 20:30 UTC. Check `ltp_ai.log` and that the second pass **no-opped rather than double-spending** | 2026-08-12 | **still never confirmed, ~4 weeks on.** 2026-09-08 is the cleanest chance we will get: fresh period, known start, meter observed at exactly $0.00. Operator back 19:00 UTC — `tail -40 /root/ltp_ai.log` shows whether 16:30 fired; the 20:30 pass is the no-op half |
 | **Ask the organizers whether the USD 1 floor is daily or was one-off enforcement, and whether they read a lifetime total or the per-period meter** — their 2026-08-12 Telegram reply says "zero **total** AI usage", which does not settle it. Clearing 1.00 every period is safe under either reading, but that is an assumption. Rides along with the header-only CSV report we already owe them | 2026-08-12 | next organizer contact; draft is written when the operator wants it |
+| **`ltp_stream.py:31` hardcodes `wss://feeds.ltp-contest.com`** — the contest domain, which the cutover moved *away* from everywhere else. No env change reaches it; if that domain is retired now production is live, `NewsStream` goes silent and only a code edit fixes it. Proposed change: an env lookup mirroring `ltp_news.py:50` | 2026-09-08 | needs the operator's go. Wait for one live news-gate reading first — if the gate is healthy, this is precautionary rather than urgent |
+| **Verify `ltp_news.py`'s `FEEDS_BASE` against the production host** — it follows `LTP_API_HOST` so it moved with the cutover, but nothing has confirmed `api.liquiditytech.com` serves the feeds path at all | 2026-09-08 | first hourly tick after 2026-09-08 15:37 UTC. `status.py`'s news-gate line answers it |
+| **`deploy/README_ltp.md:20` still documents `LTP_API_HOST=https://api.ltp-contest.com`** — the sandbox host. A future session following the setup block would rebuild the exact failure we just spent a day diagnosing | 2026-09-08 | next doc pass; trivial, but it is a trap laid for a cold reader |
+| **Watch `bad_read`** — stood at 307 after the dead-credential window. Frozen means the new host is genuinely healthy; still climbing means one successful equity read flattered us | 2026-09-08 | every daily glance this week |
+| **Ask the organizers whether the Binance-vs-OKX venue choice is still open** now that Phase II has started, and whether the primary account is provisioned as a **Sub Portfolio** (if so the key can read but not trade it — `Edit API` fixes it in one click), and whether their side needs an IP whitelisted. The last two were asked of @LTP_Tracey on 2026-09-07 and **never answered** | 2026-09-07 / 2026-09-08 | next organizer contact — bundle with the CSV-export and AI-floor questions already owed |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
 > *below* the closing horizontal rule since 2026-08-09 — outside the table, where
@@ -2171,7 +2188,13 @@ held.
 
 ---
 
-## PHASE II CUTOVER RUNBOOK — written 2026-09-07, execute 2026-09-08
+## PHASE II CUTOVER RUNBOOK — written 2026-09-07, **EXECUTED 2026-09-08 15:37 UTC**
+
+> **This section is now history.** It is kept unedited, in its original future
+> tense, because what it predicted correctly and what it got wrong are both
+> worth having. The outcome is the section immediately below it. Two of its
+> open questions are now answered: the production host, and the gateway key's
+> daily expiry.
 
 **GO-LIVE: 2026-09-09 00:00 GMT+8 = 2026-09-08 16:00 UTC = 2026-09-08 09:00
 America/Denver.** Converted here once. This is the **third** time this
@@ -2268,7 +2291,153 @@ the organizers the moment the key arrives, not after.
 
 ---
 
+## PHASE II CUTOVER — EXECUTED 2026-09-08
+
+Ran at **15:37 UTC**, ~22 minutes before the bell. Sequence as written in the
+runbook above: stop, back up `/root/ltp.env` + `ltp_state.json` + `ltp_hwm.json`
+to `/root/*.bak`, delete both state files, three `sed` edits to the env (host,
+access key, secret), source, `set_leverage.py`, start.
+
+### Result, against the runbook's success criteria
+
+| criterion | outcome |
+|---|---|
+| `equity 1000.00` | ✅ |
+| peak reset | ✅ `peak not set yet` — the 1057.48 carry-over is gone |
+| `dd 0.00%` | ✅ |
+| kill switch 880.00 | **not yet observable** — it anchors on the first peak reading, not at boot. The runbook expected it at boot and was wrong about that |
+| news gate live | **unverified** — see the open question below |
+| spend meter readable | ✅ |
+| service | ✅ active/running, pid 487387, **NRestarts 0**, since 15:37:50 UTC |
+| leverage | ✅ 30 symbols → 2×, 0 failed |
+
+Capture at 15:38 UTC: **flat, 0 active pairs, 0 open positions, bar 0**, refit
+due next bar.
+
+### The hwm reset was the whole point, and it worked
+
+The runbook called this "the thing most likely to break day one" and it was
+right. Booted unchanged, `reconcile_peak`'s `max(state, hwm file, live)` would
+have carried `peak_equity: 1057.48` into a 1,000 USDT phase — **5.4% in
+drawdown before the first trade, with the kill switch at 930.58, i.e. seven
+percent below opening equity.** One ordinary early loss halts us on day one of
+56. Deleting *both* files was necessary precisely because `ltp_hwm.json` was
+built in week 1 to survive a state wipe; it did its job here in the wrong
+direction. It did not self-correct and it would not have.
+
+### The production host — found by testing, not by being told
+
+**`https://api.liquiditytech.com`.** The runbook flagged that a production key
+"very likely will not authenticate against `api.ltp-contest.com`" and asked
+@LTP_Tracey. **Tracey never replied.** The host was found by trying it, and the
+runbook's own diagnostic split is what made that cheap: `100018 API not exist`
+after a key swap means the host is wrong, `401` means the AI side. That split
+was written the day before and is the reason this took minutes rather than the
+afternoon.
+
+Three other teams — NeuPortal, SUPES K, Stream4AI — reported the identical
+`100018` in #TechnicalSupport with nobody answering. **We posted the host
+there** on 2026-09-08.
+
+**Phase I was the sandbox tournament in a more literal sense than we read it at
+the time.** `ltp-contest.com` is the contest/UAT domain; `liquiditytech.com` is
+production. The organizers warned twice, in two separate messages, to create
+keys "in the production environment rather than the UAT environment" — and
+nobody, us included, connected that to the *API host* rather than just the key.
+
+### The gateway key resurrected without being touched — and the daily expiry is gone
+
+`LTP_AI_API_KEY` was **not** among the three values changed. The same string
+that returned `401 Authentication Error - Expired Key` before the cutover
+returned `200` after it. The organizers evidently re-provisioned it server-side
+when Phase II credentials went out, and told nobody.
+
+**The daily expiry did not recur.** Checked deliberately either side of the
+16:00 UTC boundary — the exact boundary at which the key died on 08-20 *and
+again* on 08-21:
+
+```
+15:5x UTC  spend 0.00181176   reset_at 2026-09-09T00:00+08:00
+16:05 UTC  spend 0.0          reset_at 2026-09-10T00:00+08:00   ← 200, not 401
+```
+
+So Phase II agenda item 9's third clause — "left alone it will take the news
+gate dark on day one" — was a correct worry, now answered by observation rather
+than by an organizer reply. **Closed.** Note the method: `key/info` has never
+reported an expiry field, so the only way to learn this was to call across the
+boundary and see what came back.
+
+That reading also pins the budget period to the **competition day** (00:00
+GMT+8 = 16:00 UTC), which means our two spend crons at 16:30 and 20:30 UTC sit
+at hours 0.5 and 4.5 of the window. That is luck, not design — they were set in
+August against a boundary we had not confirmed — but it leaves ~19 hours of
+retry room after a failed pass instead of minutes. **Do not move them later
+without re-deriving this.**
+
+### The open question the cutover created: three host paths, one of them hardcoded
+
+The cutover changed one environment variable. **Three code paths resolve a host,
+and they do not agree:**
+
+| path | how it resolves | state after cutover |
+|---|---|---|
+| `deploy/ltp_broker.py` (rapidx CLI) | `LTP_API_HOST` | ✅ moved, confirmed working — equity read succeeded |
+| `deploy/ltp_news.py:50` `FEEDS_BASE` | `LTP_API_HOST`, default `api.ltp-contest.com` | ⚠️ **moved, unverified** — does the production host serve the feeds path at all? |
+| `deploy/ltp_stream.py:31` `FEEDS_WS` | **hardcoded** `wss://feeds.ltp-contest.com/feeds/v2/public` | ⚠️ **could not have moved.** No env change reaches it |
+
+Both `NewsSentinel` and `NewsStream` are imported by `ltp_agent.py`, so both are
+in the live path. If the contest domain is decommissioned now that production is
+live, the stream stops delivering and **no configuration change fixes it** —
+it needs a code edit. This was found by grep during a cold start, not by a
+failure, which is the good version of finding it.
+
+`deploy/README_ltp.md:20` also still documents the old host in its setup block.
+
+**Nothing here has been changed.** The fix is a one-line env lookup for
+`FEEDS_WS` and a README correction, and it waits for the operator's go and for
+evidence from a live news-gate reading.
+
+### What was unverifiable at write time
+
+The 15:38 capture read `news gate unknown (no reading yet)` — expected at bar 0,
+not a fault, but it means **the news path has not been exercised against the new
+host at all.** The first hourly tick settles it. Until then, treat the news gate
+as unproven rather than working.
+
+Also carried forward: **`bad_read: 307`** in the ledger totals, the NAV guard
+firing every bar through the dead-credential window. It did the right thing —
+refused to act on an unreadable account. It should now be frozen; if it climbs
+on the new host, the trading key is less healthy than one successful equity read
+suggests.
+
+### Day 1 is running unattended
+
+The operator is in class until **19:00 UTC**. The 16:30 pass fires with nobody
+watching. This is fine and was chosen deliberately over a hand-run at 16:05: a
+manual pass would likely still have been in flight when the cron fired, and two
+concurrent passes is the exact double-spend the 08-12 commitment exists to rule
+out. With the period running to 16:00 UTC on 09-09 there are ~21 hours left at
+19:00 — ample to recover by hand if the cron did nothing.
+
+**The current period is Phase II day 1 and it is the first one under the
+formal written ≥USD 1/day rule.** It opened at $0.00.
+
+---
+
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
+
+> **STATUS 2026-09-08, read this before the list.** The build window closed and
+> **items 2 through 10 did not ship.** Item 1 (the Reasoning Log) is done and
+> receipt-confirmed; item 9's expiry clause is closed; everything else is
+> untouched. Phase II is therefore live on **Phase I's code, unchanged**, with
+> the single-pair fragility unaddressed, the −10.67 overshoot figure still
+> unverified, and — the one with a hard edge — **the Binance-vs-OKX venue
+> choice apparently defaulted to Binance without the comparison this list calls
+> "the thing most likely to decide Phase II."** Whether that choice is still
+> open is itself unknown and worth asking the organizers.
+>
+> Stating it plainly rather than letting a future session infer it from an
+> unstruck list: nineteen days were available and the build did not happen.
 
 ### Advancement confirmed 2026-08-27
 The organizer published the 30 advancing teams. **Team NDAR #6, score 78.4,
@@ -2344,6 +2513,15 @@ is no live position at stake.
    will take the news gate dark on day one of live trading.
    **Do not paste any new credential into chat** — the first two items on this
    list exist precisely because that happened once.
+
+   **STATUS 2026-09-08.** The daily-expiry clause is **CLOSED** — verified by
+   calling `key/info` either side of the 16:00 UTC boundary; the key survived,
+   so the expiry did not carry into Phase II and there is nothing to raise.
+   The rotation clause is **worse than when it was written**: the Phase II
+   production key *and secret* went through chat during the cutover, so the
+   instruction one line above was broken again by the very work this item was
+   meant to precede. The PAT is still expired. Nothing was rotated before 09-09
+   and the deadline in this item's own heading has passed.
 10. **Refit cadence**, only if the band/`mu` simulation supports it.
 
 ---
