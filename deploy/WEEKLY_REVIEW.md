@@ -1753,12 +1753,15 @@ section existed; that is what it is for.
 | ~~Reply to LTP with the BSC USDT deposit address~~ **SENT 2026-09-02, ~5 hours late.** Deadline was 19:00 GMT+8 = 11:00 UTC = 04:00 local; sent ~16:00 UTC. Low consequence — it was administrative batching for account setup, not an eligibility condition like the Reasoning Log, and Phase II does not open until 09-09. **UI note for next time: the button is "Top up", not "Deposit"** (Asset Center → Funds account → Top up → USDT → BSC/BEP20); generating the address sends nothing | 2026-08-27 | closed |
 | **Surface dated commitments in `status.py`** — this deadline was written down, with the local-time conversion done in advance precisely so it could not be misread, **and it was still missed, because the record is passive and never alerts.** Show any commitment falling due inside 72h in the daily glance the operator already runs | 2026-09-02 | build window, before 09-09. It would have caught this one |
 | **Check AI `spend` against BOTH ends of the band** (min USD 1, max 10/day) at every review — the floor is what nearly disqualified us on 2026-08-12 | 2026-08-12 | every review, and before Phase II opens. Now also automated: `status.py` exits 1 below the floor |
-| **Verify the two spend crons actually fired** — 16:30 and 20:30 UTC. Check `ltp_ai.log` and that the second pass **no-opped rather than double-spending** | 2026-08-12 | **still never confirmed, ~4 weeks on.** 2026-09-08 is the cleanest chance we will get: fresh period, known start, meter observed at exactly $0.00. Operator back 19:00 UTC — `tail -40 /root/ltp_ai.log` shows whether 16:30 fired; the 20:30 pass is the no-op half |
+| ~~**Verify the two spend crons actually fired** and that the second no-ops rather than double-spending~~ **CLOSED 2026-09-08.** Both fired; spend landed at **$1.1553** against `DAILY_TARGET` 1.15, so the 20:30 pass (invoked `--floor 1.05`) did nothing. A double-spend would read ≈$2.30. Log is `/var/log/ltp_ai.log` | 2026-08-12 | closed — see the Day 1 close-out |
 | **Ask the organizers whether the USD 1 floor is daily or was one-off enforcement, and whether they read a lifetime total or the per-period meter** — their 2026-08-12 Telegram reply says "zero **total** AI usage", which does not settle it. Clearing 1.00 every period is safe under either reading, but that is an assumption. Rides along with the header-only CSV report we already owe them | 2026-08-12 | next organizer contact; draft is written when the operator wants it |
 | **`ltp_stream.py:31` hardcodes `wss://feeds.ltp-contest.com`** — the contest domain, which the cutover moved *away* from everywhere else. No env change reaches it; if that domain is retired now production is live, `NewsStream` goes silent and only a code edit fixes it. Proposed change: an env lookup mirroring `ltp_news.py:50` | 2026-09-08 | needs the operator's go. Wait for one live news-gate reading first — if the gate is healthy, this is precautionary rather than urgent |
 | **Verify `ltp_news.py`'s `FEEDS_BASE` against the production host** — it follows `LTP_API_HOST` so it moved with the cutover, but nothing has confirmed `api.liquiditytech.com` serves the feeds path at all | 2026-09-08 | first hourly tick after 2026-09-08 15:37 UTC. `status.py`'s news-gate line answers it |
 | **`deploy/README_ltp.md:20` still documents `LTP_API_HOST=https://api.ltp-contest.com`** — the sandbox host. A future session following the setup block would rebuild the exact failure we just spent a day diagnosing | 2026-09-08 | next doc pass; trivial, but it is a trap laid for a cold reader |
-| **Watch `bad_read`** — stood at 307 after the dead-credential window. Frozen means the new host is genuinely healthy; still climbing means one successful equity read flattered us | 2026-09-08 | every daily glance this week |
+| ~~**Watch `bad_read`**~~ **CLOSED 2026-09-08** — frozen at 307 across seven hours on the production host. The guard fired every bar through the dead-credential window and has not fired since | 2026-09-08 | closed |
+| **`status.py` prints times with no date** in the `recent` list, so five refits on five different days render as five identical `19:00 refit` lines. This misled the 2026-09-08 session into chasing a discrepancy that did not exist — the **fifth** cosmetic defect in this file to cost a real inference. Show the date, or a relative age | 2026-09-08 | build window. The glance is the instrument we steer by |
+| **Probe the news/feeds path against `api.liquiditytech.com`** with a hardcoded asset list, so `ltp_news.py`'s `FEEDS_BASE` and `ltp_stream.py`'s hardcoded `wss://feeds.ltp-contest.com` are tested **before** a live entry is the first thing to depend on them. With zero active pairs the sentinel is silent by design, so waiting does not answer it | 2026-09-08 | before the next pair passes the gate. Needs the operator's go |
+| **Decide on the pending reboot** — 21 updates + 3 ESM, restart banner up. The book is flat and the next refit is ~15:38 on 09-09, which is the widest safe window this phase is likely to give. Note it re-phases the refit clock to the restart time | 2026-09-08 | operator's call, while flat |
 | **Ask the organizers whether the Binance-vs-OKX venue choice is still open** now that Phase II has started, and whether the primary account is provisioned as a **Sub Portfolio** (if so the key can read but not trade it — `Edit API` fixes it in one click), and whether their side needs an IP whitelisted. The last two were asked of @LTP_Tracey on 2026-09-07 and **never answered** | 2026-09-07 / 2026-09-08 | next organizer contact — bundle with the CSV-export and AI-floor questions already owed |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
@@ -2421,6 +2424,157 @@ out. With the period running to 16:00 UTC on 09-09 there are ~21 hours left at
 
 **The current period is Phase II day 1 and it is the first one under the
 formal written ≥USD 1/day rule.** It opened at $0.00.
+
+---
+
+## PHASE II DAY 1 — closed 2026-09-08
+
+Reading at **22:26 UTC**, ~7 hours after the cutover restart.
+
+```
+service      active/running (pid 487387, restarts 0) since 15:37:50 UTC
+equity       1000.00 USDT   peak 1000.00, dd 0.00%
+kill switch  880.00  |  headroom 120.00 to kill, 200.00 to the 800 floor
+halted       no
+news gate    unknown (no reading yet)
+ai spend     $1.1553 — clears the $1.00 floor
+bar          8   (refit every 24; next in 16 bars)
+active pairs 0 · open positions 0 (flat)
+bad_read     307
+```
+
+**Day 1 closed flat.** Zero pairs, zero positions, zero trades. That is a
+zero-return day, which drags the Sharpe mean — and the standing rule applies at
+full force: at n=1 this says nothing about the strategy.
+
+### CLOSED: the spend crons work, and the second one no-ops
+
+Open since 2026-08-12 and never once confirmed. Settled tonight **by arithmetic
+rather than by the log**, which is the more durable evidence anyway.
+
+`crontab -l` confirms two entries, and note the second one's flag:
+
+```
+30 16 * * *  ... ai_deep_review.py --daily              >> /var/log/ltp_ai.log
+30 20 * * *  ... ai_deep_review.py --daily --floor 1.05 >> /var/log/ltp_ai.log
+```
+
+`DAILY_TARGET` is 1.15; the 20:30 pass is invoked with an explicit floor of
+1.05. Both had fired by the 22:26 reading and spend stands at **$1.1553** — one
+pass to target and no more. A double-spend would read ≈$2.30. **The second pass
+found spend above its floor and did nothing, exactly as designed.**
+`ai_deep_review` moved ~3400 → 3796, one pass's worth. Commitment struck.
+
+Log path for the record: **`/var/log/ltp_ai.log`**, not `/root/ltp_ai.log`.
+`README_ltp.md`'s cron block was already correct; the wrong path came from this
+session's memory, and cost one wasted check.
+
+### CONFIRMED: `bad_read` frozen at 307
+
+Unchanged across seven hours on the production host. The NAV guard fired every
+bar through the dead-credential window and has not fired since. The new host is
+healthy, not merely lucky on one equity read.
+
+### CONFIRMED: the kill switch anchored at 880.00
+
+Peak set to 1000.00 on the first live reading and the switch followed. The
+runbook expected this at boot and was wrong about the timing, not the value.
+
+### A display defect that misled this session
+
+`status.py`'s `recent` list showed five lines reading `19:00  refit`, against a
+`refit` total that had moved by only one. I raised it as a discrepancy. **There
+was no discrepancy.** The list prints **time-of-day with no date**, so five
+refits on five *different days* render as five identical lines:
+
+```
+2026-09-01T19:01  passed 1/15   ETH|BTC
+2026-09-02T19:00  passed 2/15   ETH|BTC, PAXG|XAUT
+2026-09-03T19:00  passed 2/15   ETH|BTC, PAXG|XAUT
+2026-09-04T19:00  passed 3/15   ADA|DOT, ETH|BTC, PAXG|XAUT
+2026-09-05T19:00  passed 2/15   ADA|DOT, ETH|BTC
+2026-09-06T19:00  passed 1/15   ADA|DOT
+2026-09-07T19:00  passed 1/15   ETH|BTC
+2026-09-08T15:38  passed 0/15   (none)
+```
+
+The `refit` count of 54 was right all along: exactly one refit since the
+cutover. This is the **fifth** display defect in `status.py` to briefly mislead
+a reading, after the refit countdown, the news-gate age, the spend states and
+the `nxt or every` zero. Every one of them was cosmetic and every one of them
+cost a real inference. The glance is the instrument we actually steer by; it
+deserves the same standard as the trading path.
+
+### The state wipe re-phased the refit clock — an unplanned side effect
+
+`ltp_agent.py:94` sets `refit_every_bars = 24` and line 1143 gates on
+`state["bar"] % 24 == 0`. **Refit cadence is driven by the bar counter, not by
+the clock.** Deleting `ltp_state.json` reset `bar` to 0, which forced a refit at
+15:38 and re-anchored every future refit to that offset.
+
+Consequence, visible in the table above: refits ran at **19:00 UTC daily from
+09-01 to 09-07**, and there was **no 19:00 refit on 09-08**. The next one falls
+at ~15:38 on 09-09. The daily refit has permanently moved from 19:00 to 15:38.
+
+Nothing is broken and no gate changed. But it is worth knowing for two reasons.
+A normal restart preserves the counter — Phase I proved that twice across clean
+reboots — so this re-phasing is specific to **wiping state**, and any future
+wipe will move the refit clock again to whenever it happens. And because the
+15:38 refit passed **0 of 15**, the book is **guaranteed flat until ~15:38 on
+09-09**: day 1's zero-return day was locked in by the cutover's timing, not by
+the market.
+
+### Refit pass rates improved in the gap window — read carefully
+
+Over the eight refits above: **mean 1.5 pairs passed of 15**, against the
+**0.91** measured across Phase I's 22 scored refits. Same 15-candidate universe,
+same gates, same sandbox host.
+
+That is 65% better and it is **not** a reason to relax about agenda item 2. A
+mean of 1.5 out of 15 is still a ~10% pass rate, n=8 is small, and the
+concentration is unchanged — three names carry all of it (ETH|BTC in six of
+eight, PAXG|XAUT and ADA|DOT in three each).
+
+One of those deserves a caveat we should not let ourselves forget:
+**PAXG|XAUT is two gold-backed tokens.** Cointegration there is close to
+mechanical — it is a redundant-asset pair, the crypto equivalent of two share
+classes of one company, not a statistical discovery. Counting it as evidence of
+*breadth* would be flattering ourselves. The universe question stands exactly
+where the Phase I close-out left it.
+
+### Still unresolved: the news gate cannot be verified yet
+
+`news gate unknown` at bar 8, and `news_assessment` stands at **577 — the same
+count as before the cutover.** Zero refreshes in seven hours.
+
+**This is the known defect, not a new one.** The sentinel refreshes for the
+assets of already-selected pairs, and `if assets: sentinel.refresh(assets)`
+never fires with zero pairs (Reasoning Log gap #3). With no pair active it is
+supposed to be silent.
+
+Which means **we still cannot distinguish** "the feeds path works fine on
+`api.liquiditytech.com`, nothing has asked it to run" from "it would fail if it
+ran." Both look identical from here. `ltp_news.py`'s `FEEDS_BASE` and
+`ltp_stream.py`'s hardcoded `wss://feeds.ltp-contest.com` are **both** untested
+against Phase II, and they will stay untested until a pair passes the gate — at
+which point the first thing to depend on them will be a live entry.
+
+That ordering is bad and it is worth fixing before it bites: a one-off manual
+probe against the production host with a hardcoded asset list would settle it
+without touching the agent.
+
+### The reboot window is open now
+
+`*** System restart required ***`, 21 updates pending, 3 more under ESM. The
+runbook deferred this past go-live; we are past it, **the book is completely
+flat, and the next refit is not until ~15:38 on 09-09.** This is the widest
+safe window a 56-day phase is likely to offer. Precedent from Phase I is good —
+two clean reboots, `NRestarts=0` both times.
+
+One caveat now that did not apply then: a reboot resets nothing we care about
+*provided `ltp_state.json` is left alone*, but it will restart the agent and
+therefore re-phase the refit clock again to the restart time. Cheap either way;
+worth being deliberate about rather than surprised by.
 
 ---
 
