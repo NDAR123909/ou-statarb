@@ -132,6 +132,14 @@ ledger as a `maintenance` event with its reasoning, so a gap in trading is
 explained rather than unexplained. Nothing configured means always-clear, and a
 malformed value is ignored with a log line rather than stopping the agent.
 
+**Where the notices come from (2026-09-08).** RapidX posts API updates,
+maintenance windows and releases to its own Telegram channel, separate from the
+competition channels: <https://t.me/+R03rVVS0JF45ZTVl>. Subscribe — this is the
+upstream source for the variable above, and a window that lands mid-entry
+leaves a directional leg the agent cannot close. The GMT+8 conversion has now
+caught this competition out three separate times in the review log, so do it
+when the notice arrives rather than when the window opens.
+
 This is deliberately not market discretion: "do not hold positions you cannot
 exit during an announced order-API blackout" is an operational fact. Cutting
 risk because a macro event is scheduled would be a price prediction, and this
