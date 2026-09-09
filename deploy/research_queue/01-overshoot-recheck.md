@@ -15,7 +15,16 @@ went unchecked for a month, and steered ~45% of reviews.
 
 **The claim under test:** *"Measured cost of not having a sub-hourly risk
 check: −10.67 USDT across five stops, roughly a third of all losses"* — of
-which **−8.31 is attributed to a single trade**.
+which **−8.31 comes from two events**, the stops that fired at 1.08σ and 6.75σ
+past the band.
+
+> **Correction, 2026-09-09.** This file originally said −8.31 came from *a
+> single trade*. It does not, and no source said it did — `WEEKLY_REVIEW.md`
+> line 821 and `ai_deep_review.py` line 798 both say two events, and the "one
+> trade" was invented while writing this task. Left visible rather than quietly
+> edited: a task file whose entire purpose is to check somebody else's numbers
+> introduced a wrong one of its own, which is the exact failure it was auditing.
+> Cowork caught it from the primary records.
 
 **Two doubts already on record:**
 1. The ledger totals report **`stop: 8`**, not five. Either three stops are
