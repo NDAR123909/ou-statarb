@@ -44,40 +44,43 @@ z, so the frame moved the other way. Both `mu` and `sigma` are re-estimated, so
 either can dominate. Treat this as **frame drift**, not as a one-directional μ
 bias, and let the data say which way it actually runs.
 
-## The convention, and a solved worked example — do not re-derive these
+## The convention, and a worked example — CHECK IT, do not trust it
 
-Task 01 reported the `z_in_entry_coords` convention as undocumented and its
-sign inconsistent on the KAS/ETC stop. It is neither, and the resolution is
-your anchor case. `ltp_agent.py:355–383`:
+> **This section originally contained a wrong derivation under the heading "do
+> not re-derive these."** Cowork re-derived it anyway and falsified it, which is
+> the only reason the real bug was found. Corrected below and kept as the
+> standing instruction: **an anchor case in a brief is a hypothesis, not a
+> given.** Verify it against primary data before building on it.
 
-```python
-z_entry_frame = (spread - mu0) / sig0     # current spread, ENTRY frame
-mu_shift      = (live_mu - mu0) / sig0    # equilibrium move, in ENTRY sigmas
+`ltp_agent.py` defines the field as `(spread − mu₀)/σ₀`, unadjusted for
+position side. **But until 2026-09-09 the `spread` it received was computed
+with the LIVE beta, while `mu₀`/`σ₀` were fitted on the ENTRY beta** — a hybrid
+coordinate belonging to no series. It only bit when a refit moved β during a
+hold, which is why most closes look clean.
+
+The 2026-08-20 KAS/ETC stop is the case where it bit:
+
+```
+entry beta   0.97212 → spread −5.46357 → z_in_entry_coords = −3.2833  (truth)
+refitted beta 0.93266 → spread −5.38887 → z_in_entry_coords = +3.5970  (logged)
 ```
 
-Unadjusted for position side. Solving KAS/ETC 2026-08-20 from its three logged
-numbers:
+The true frame was recovered from the five in-epoch price prints: all ten
+point-pairs give σ₀ = 0.01085687, μ₀ = −5.42792565, reproducing all five logged
+z readings to six decimals. σ_live/σ₀ = **2.047** — σ roughly doubled. μ moved
+away, tripling the raw deviation; σ doubling damped it back.
 
-```
-(s − mu₀)/σ₀        = +3.597     (logged z_in_entry_coords)
-(mu_live − mu₀)/σ₀  = +6.443     (logged mu_shift_sigma)
-  ⟹ (s − mu_live)/σ₀ = −2.846
-(s − mu_live)/σ_live = −4.752    (logged z)
-  ⟹ σ_live/σ₀ = 0.599
-```
+**Fixed in the agent on 2026-09-09** (`entry_beta` snapshotted and carried;
+`entry_frame` rebuilds the spread from the legs and returns `{}` when it
+cannot). So closes from that date forward are trustworthy and **everything
+before it is not** — which is the single most important thing to know before
+reading any `z_in_entry_coords` value in the archive.
 
-**Fully consistent. σ collapsed 40% during the hold**, and the sign flip is the
-equilibrium *overtaking* the spread — mu moving up past where the price sat.
-Both effects ran at once and the σ tightening is what amplified a −2.846σ₀
-residual into a −4.75σ reading. In entry coordinates the stop overshot the 3.5
-band by **0.097σ**; in refitted coordinates it reads 1.25σ past.
-
-Two things follow for your work. **σ drift matters as much as μ drift** and the
-`mu_shift_sigma` field alone will not capture it — you will have to infer
-σ_live/σ₀ from the two z readings, as above, wherever both are logged. And **a
-sign flip between the two frames is a signal, not a data error**: it means the
-equilibrium crossed the price during the hold, which is the strongest form of
-the effect being measured.
+Two things follow for your work. **σ drift matters as much as μ drift** and has
+no logged field of its own — recover σ_live/σ₀ from the two z readings wherever
+both exist. And **a sign flip between frames is not automatically a data
+error**: it can mean the equilibrium crossed the price mid-hold. On this stop
+it meant the bug. Distinguish them by rebuilding from prices.
 
 ---
 

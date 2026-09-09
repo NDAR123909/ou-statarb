@@ -2787,26 +2787,61 @@ The audit found the 2026-08-20 KAS/ETC stop reading **3.597σ in entry
 coordinates against 4.752σ refitted**, `mu_shift_sigma` 6.443, and reported the
 `z_in_entry_coords` convention as undocumented with an inconsistent sign.
 
-**It is neither.** `ltp_agent.py:355–383` defines
-`z_entry_frame = (spread − mu₀)/σ₀`, unadjusted for side. Solving the three
-logged numbers:
+> ### ⚠ THE PARAGRAPH THAT WAS HERE WAS WRONG. Corrected 2026-09-09 (later).
+>
+> It read: *"Fully consistent. σ collapsed 40% during the hold ... σ_live/σ₀ =
+> 0.599."* **Task 03 falsified it and the correction is verified below.** The
+> error was method, not arithmetic: I checked three logged fields against *each
+> other*, found them self-consistent, and called it solved. Self-consistency
+> among fields produced by one computation says nothing about whether that
+> computation was right. Task 03 went to the price prints. Worse, I wrote the
+> bad derivation into task 03's brief under the heading *"do not re-derive
+> these"* — Cowork re-derived it anyway, which is the only reason it was
+> caught.
+
+**The convention is real** — `ltp_agent.py` defines
+`z_entry_frame = (spread − mu₀)/σ₀`, unadjusted for side. **The logged value
+is not.**
+
+Reconstructing the frame from the five in-epoch price prints between the 08-18
+and 08-19 refits: **all ten point-pairs return σ₀ = 0.01085687 and
+μ₀ = −5.42792565 to eight decimals**, and those reproduce all five logged z
+readings to six. At the stop the log-spread is −5.46357, *below* μ₀, so
+`z_in_entry_coords` must be **negative**:
 
 ```
-(s − mu₀)/σ₀       = +3.597
-(mu_live − mu₀)/σ₀ = +6.443   →  (s − mu_live)/σ₀ = −2.846
-(s − mu_live)/σ_live = −4.752 →  σ_live/σ₀ = 0.599
+true  z_in_entry_coords = −3.2833
+logged                  = +3.5970      ← wrong in sign AND magnitude
+σ₀ implied by +3.597    = −0.0099      ← negative. impossible.
+σ_live/σ₀               =  2.047       ← σ roughly DOUBLED; it did not collapse
 ```
 
-Fully consistent. **σ collapsed 40% during the hold**, and the sign flip is the
-equilibrium *overtaking* the spread — mu moving up past where the price sat.
-That is the 2026-08-06 addendum's mechanism in its purest observed form, and it
-is **both** effects at once: mu drifted 6.44σ₀ toward and past the position
-while the refit tightened σ by 40%, and the tightening is what amplified a
-−2.846σ₀ residual into a −4.75σ reading.
+So the mechanism runs the **opposite** way to what I published: μ moved *away*,
+tripling the raw deviation, and σ doubling damped it back — net ~1.45×
+inflation, not a 40% collapse.
 
-So the entry-frame overshoot really was **0.097σ** — the band was honoured
-almost exactly — and the "1.25σ overshoot" is entirely frame artefact. Row 7's
-−3.52 is an upper bound with a floor near zero.
+**The operational conclusion is unchanged.** −3.28 is inside ±3.5, so the stop
+does not fire in the entry frame either way, the entry-frame overshoot is 0.097σ
+only under the bad number and simply *does not overshoot* under the right one,
+and task 01's row 7 remains an upper bound with a floor near zero.
+
+### Root cause, found afterwards: a beta mismatch
+
+Neither analysis had this. `entry_frame(pair, spread)` was handed a spread
+computed with the **live** beta and divided it into `entry_mu`/`entry_sigma`,
+which were fitted on the **entry** beta. A hybrid coordinate belonging to no
+series — μ₀ and σ₀ only mean anything for the spread they were fitted on, and
+the refit changes β. Verified exactly:
+
+```
+entry beta   0.97212 → spread −5.46357 → z = −3.2833   ← the truth
+refitted beta 0.93266 → spread −5.38887 → z = +3.5970   ← what was logged
+```
+
+Reproduces to four decimals. `entry_beta` was never snapshotted at open and
+never carried across the refit, so the correct spread could not be rebuilt.
+That is why **7 of 9** instrumented closes look fine: the bug only bites when β
+moves across a refit *during* a hold.
 
 **It does not touch the −10.67.** Zero refits fired during any of those five
 holds, checked against all 35 `refit` events.

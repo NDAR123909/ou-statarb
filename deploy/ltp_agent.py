@@ -307,9 +307,14 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict,
             "notional": old.get(k, {}).get("notional"),
             # The entry coordinates must survive the refit that replaces `mu`
             # and `sigma`, or an open position loses all record of the
-            # equilibrium it was actually opened against.
+            # equilibrium it was actually opened against. `entry_beta` belongs
+            # here for the same reason and was missing until 2026-09-09: mu and
+            # sigma are fitted ON a spread series, and the refit changes beta,
+            # so carrying them without it produced a hybrid coordinate that
+            # meant nothing. See `entry_frame`.
             "entry_mu": old.get(k, {}).get("entry_mu"),
-            "entry_sigma": old.get(k, {}).get("entry_sigma")}
+            "entry_sigma": old.get(k, {}).get("entry_sigma"),
+            "entry_beta": old.get(k, {}).get("entry_beta")}
         for k in keep_keys
     }
     # anything dropped by the refit gets flattened by the trade step
@@ -354,7 +359,9 @@ def leg_close(broker: RapidXBroker, pair: dict, nav: float,
     pair["side"], pair["hold"] = 0, 0
 
 
-def entry_frame(pair: dict, spread: float) -> dict:
+def entry_frame(pair: dict, spread: float,
+                log_a: float | None = None,
+                log_b: float | None = None) -> dict:
     """Where the spread sits against the equilibrium the position was OPENED
     on, versus the re-estimated one it is being judged by now.
 
@@ -365,13 +372,33 @@ def entry_frame(pair: dict, spread: float) -> dict:
     spread ROSE 0.0101, closing -4.11 under a reasoning line that claimed the
     mean-reversion cycle had completed. It had not; the mean had moved.
 
-    Returns {} when there is nothing to compare -- a position opened before
-    this was recorded, or a degenerate sigma -- so callers can treat absence as
-    "unknown" rather than as agreement.
+    **The spread must be rebuilt on the ENTRY beta.** Until 2026-09-09 this
+    took the caller's `spread`, which is computed with the LIVE beta, and
+    divided it into `entry_mu`/`entry_sigma`, which were fitted on the entry
+    beta -- a hybrid coordinate belonging to no series. It only bit when a
+    refit moved beta during a hold, which is why it went unnoticed: on the
+    2026-08-20 KAS/ETC stop it logged `z_in_entry_coords = +3.597` where the
+    truth was **-3.283**, wrong in sign and magnitude. Reconstructing the frame
+    from the five in-epoch price prints gives sigma0 = 0.01085687 and
+    mu0 = -5.42792565 from every pair of points, and making +3.597 true would
+    require sigma0 = -0.0099. That value is quoted in the Reasoning Log as
+    evidence of honest frame accounting.
+
+    Returns {} when it cannot be computed correctly -- a position opened before
+    these were recorded, a degenerate sigma, or leg prices not supplied -- so
+    callers treat absence as "unknown". Logging nothing beats logging a number
+    that means nothing, which is the lesson the fabricated 2.0h median hold and
+    this bug teach from opposite directions.
     """
     mu0, sig0 = pair.get("entry_mu"), pair.get("entry_sigma")
     if mu0 is None or not sig0 or sig0 <= 0:
         return {}
+    beta0 = pair.get("entry_beta")
+    if beta0 is None or log_a is None or log_b is None:
+        # Refuse rather than fall back to the live-beta spread: that fallback
+        # IS the bug, and it fails silently and plausibly.
+        return {}
+    spread = log_a - beta0 * log_b
     z_entry_frame = (spread - mu0) / sig0
     live_mu = pair.get("mu")
     mu_shift = None if live_mu is None else (live_mu - mu0) / sig0
@@ -385,19 +412,31 @@ def entry_frame(pair: dict, spread: float) -> dict:
     }
 
 
-def reversion_note(frame: dict, exit_z: float) -> str:
-    """One sentence for the reasoning log, honest about which happened."""
-    if not frame:
+def reversion_note(frame: dict, exit_z: float, side: int) -> str:
+    """One sentence for the reasoning log, honest about which happened.
+
+    Only fires when the exit would NOT have fired in the entry's own frame --
+    that is what "the target moved" means. Until 2026-09-09 it fired on any
+    material `mu_shift_sigma` and asserted the spread was "not inside
+    ±exit_z", borrowing the symmetric `abs(z) < exit_z` form that the exit rule
+    itself had already abandoned as unable to express `exit_z = 0`. It
+    therefore never tested its own claim, and the record's single confession of
+    frame drift (FIL/AR) was a false alarm on a +6.03 winner.
+    """
+    if not frame or not frame.get("equilibrium_reestimated"):
         return ""
-    if not frame.get("equilibrium_reestimated"):
+    ze = frame.get("z_in_entry_coords")
+    if ze is None:
         return ""
+    # The same directional test the exit rule uses, applied to the entry frame.
+    if (side > 0 and ze >= -exit_z) or (side < 0 and ze <= exit_z):
+        return ""            # it had genuinely reverted either way -- no claim
     return (f" NOTE: the equilibrium was re-estimated by "
             f"{frame['mu_shift_sigma']:+.2f} sigma during this hold, so the "
             f"exit is measured against a different mean than the entry — in "
-            f"the entry's own coordinates the spread is at "
-            f"z={frame['z_in_entry_coords']:+.2f}, not inside ±{exit_z:.2f}. "
-            f"The reversion is partly the target moving, not only the spread "
-            f"returning.")
+            f"the entry's own coordinates the spread is at z={ze:+.2f}, which "
+            f"would NOT have triggered this exit. The reversion is partly the "
+            f"target moving, not only the spread returning.")
 
 
 def flatten_everything(broker: RapidXBroker, state: dict, nav: float,
@@ -998,6 +1037,9 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
             # coordinates lets the exit say which of the two actually happened.
             pair["entry_mu"] = pair["mu"]
             pair["entry_sigma"] = pair["sigma"]
+            # ...and the beta they were fitted against. Without it the exit can
+            # only measure a NEW-beta spread against OLD-beta mu and sigma.
+            pair["entry_beta"] = pair["beta"]
             gross += add
         else:
             pair["hold"] = pair.get("hold", 0) + 1
@@ -1014,7 +1056,8 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
             # reachable only via the stop or the max-hold clock.
             exit_z = pair["exit_z"]
             reverted = (side > 0 and z >= -exit_z) or (side < 0 and z <= exit_z)
-            frame = entry_frame(pair, spread)
+            frame = entry_frame(pair, spread,
+                                np.log(prices[a]), np.log(prices[b]))
             if stopped:
                 log(f"  {short_name}: Z-STOP z={z:+.2f}, closing + blocking side")
                 ledger("stop", pair=short_name, side=side, z=z,
@@ -1034,7 +1077,7 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                 reason_text = (
                     f"Spread reverted inside the exit band (z={z:+.2f} < "
                     f"{pair['exit_z']:.2f}); the mean-reversion cycle completed."
-                    + reversion_note(frame, exit_z)
+                    + reversion_note(frame, exit_z, side)
                     if reverted else
                     f"Held {pair['hold']} bars, {cfg.max_hold_mult:.0f}x the "
                     f"fitted half-life of {pair['half_life']:.0f}h, without "
