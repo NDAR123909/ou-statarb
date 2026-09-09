@@ -1766,7 +1766,7 @@ section existed; that is what it is for.
 | ~~**Watch `bad_read`**~~ **CLOSED 2026-09-08** — frozen at 307 across seven hours on the production host. The guard fired every bar through the dead-credential window and has not fired since | 2026-09-08 | closed |
 | **`status.py` prints times with no date** in the `recent` list, so five refits on five different days render as five identical `19:00 refit` lines. This misled the 2026-09-08 session into chasing a discrepancy that did not exist — the **fifth** cosmetic defect in this file to cost a real inference. Show the date, or a relative age | 2026-09-08 | build window. The glance is the instrument we steer by |
 | **Probe the news/feeds path against `api.liquiditytech.com`** with a hardcoded asset list, so `ltp_news.py`'s `FEEDS_BASE` and `ltp_stream.py`'s hardcoded `wss://feeds.ltp-contest.com` are tested **before** a live entry is the first thing to depend on them. With zero active pairs the sentinel is silent by design, so waiting does not answer it | 2026-09-08 | before the next pair passes the gate. Needs the operator's go |
-| **Decide on the pending reboot** — 21 updates + 3 ESM, restart banner up. The book is flat and the next refit is ~15:38 on 09-09, which is the widest safe window this phase is likely to give. Note it re-phases the refit clock to the restart time | 2026-09-08 | operator's call, while flat |
+| ~~**Decide on the pending reboot**~~ **DONE 2026-09-09 16:22 UTC** — kernel 6.8.0-137 → 139, 0 updates pending, banner cleared, ~5 min downtime on a flat book. `NRestarts=0`; equity, peak, `bad_read` and **the bar counter** all survived, so the refit clock did not move. The "it re-phases the clock" note in this row was wrong and is corrected in the day-1 entry | 2026-09-08 | closed |
 | **Ask the organizers whether the Binance-vs-OKX venue choice is still open** now that Phase II has started, and whether the primary account is provisioned as a **Sub Portfolio** (if so the key can read but not trade it — `Edit API` fixes it in one click), and whether their side needs an IP whitelisted. The last two were asked of @LTP_Tracey on 2026-09-07 and **never answered** | 2026-09-07 / 2026-09-08 | next organizer contact — bundle with the CSV-export and AI-floor questions already owed |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
@@ -2576,10 +2576,23 @@ flat, and the next refit is not until ~15:38 on 09-09.** This is the widest
 safe window a 56-day phase is likely to offer. Precedent from Phase I is good —
 two clean reboots, `NRestarts=0` both times.
 
-One caveat now that did not apply then: a reboot resets nothing we care about
+~~One caveat now that did not apply then: a reboot resets nothing we care about
 *provided `ltp_state.json` is left alone*, but it will restart the agent and
-therefore re-phase the refit clock again to the restart time. Cheap either way;
-worth being deliberate about rather than surprised by.
+therefore re-phase the refit clock again to the restart time.~~
+
+**WRONG, corrected 2026-09-09 by doing it.** A reboot does **not** re-phase the
+refit clock. `state["bar"]` persists in `ltp_state.json`, so the counter
+continues across a restart — it read 26 before the reboot and 27 after, with
+the next refit still at bar 48. The 09-08 re-phasing was caused by **deleting**
+that file at the cutover, not by the process restarting, and the Phase I record
+already said the bar counter survived two reboots. The caveat was reasoning
+from the wrong cause. **A reboot on a flat book costs a few minutes of uptime
+and nothing else.**
+
+**Executed 2026-09-09 16:22–16:28 UTC.** Kernel 6.8.0-137 → 6.8.0-139, 23
+packages, 0 updates pending afterwards, banner cleared. Third clean reboot,
+`NRestarts=0` every time; equity 1000.00, peak 1000.00 and `bad_read` 307 all
+survived. ~5 minutes of downtime on a flat book.
 
 ---
 
