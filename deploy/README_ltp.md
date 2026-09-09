@@ -176,7 +176,7 @@ reconstructed from memory.
 |---|---|---|
 | **Daily** (~2 min) | `status.py` glance | only if a flag below fires |
 | **Weekly** (Sundays, ~45 min) | review — **research decision FIRST, operational recap second** | yes |
-| **Research lane** (async, unscheduled) | hand Cowork a corpus task on a local branch; commit what it writes | when it produces something |
+| **Research lane** (Wednesdays, ~20 min) | run the lowest-numbered open task in `deploy/research_queue/` through Cowork; skip if the queue is empty | when it produces something |
 | **Event-driven** (immediately) | organizer comms, kill-switch, halt, repeated errors, **the first entry of Phase II** | now |
 
 Sundays: **Sep 13, 20, 27 · Oct 4, 11, 18, 25 · Nov 1.** Phase closes Nov 4.
@@ -234,6 +234,16 @@ and the only one of the three lanes that runs while the operator is unavailable.
 Scope it to the repo folder, work on a throwaway branch, and instruct it
 explicitly never to modify `WEEKLY_REVIEW.md` or `LTP_STRATEGY.md` — those are
 append-only and rewriting them destroys the project's memory.
+
+**The queue lives in `deploy/research_queue/`**, one ready-to-paste task file
+each, dispatched on Wednesdays by the operator without needing to ask. The
+first version of this lane was "hand Cowork something whenever it is idle",
+which is a rule for someone who already has a feel for the tool and useless to
+someone who does not — it also quietly re-gated the lane on *Claude* being in
+session to hand out work, which is the same bottleneck the lane was built to
+remove. A fixed day and a numbered queue fix both. Tasks marked **GATE** block
+a decision the next review must make and are run on sight rather than on
+Wednesday.
 
 ## Scheduled jobs (droplet crontab)
 

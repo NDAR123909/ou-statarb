@@ -15,10 +15,26 @@ session with someone who had time.
 A queue that lives in a chat window has the same problem: it needs whoever
 wrote it to be present. A queue that lives in the repo does not.
 
-## How to use it
+## When to run one
 
-**The operator dispatches. Nobody needs to be asked.** When Cowork is idle and
-this directory is non-empty, take the lowest-numbered open task and run it.
+**Wednesdays, ~20 minutes. Take the lowest-numbered open task. If the queue is
+empty, skip it — there is no make-work here.**
+
+Wednesday because it sits midway between Sunday reviews and leaves the result
+committed with days to spare, so Sunday can *act* on a finding rather than
+commission one. One task a week also matches the rate the queue refills at:
+reviews generate roughly one or two research questions, not ten.
+
+The exception is a task marked **GATE**. Those block a decision the next review
+is meant to make, so run them as soon as the queue has one rather than waiting
+for Wednesday.
+
+Of your ~20 minutes, maybe five are yours: branch, paste the prompt, commit
+what comes back. The rest is the tool working.
+
+## How to run one
+
+**The operator dispatches. Nobody needs to be asked.**
 
 1. `git checkout -b research/<task-name>` in the local clone.
 2. Point Cowork at the repo folder and paste the task file's **PROMPT** block
@@ -50,5 +66,5 @@ eventually be dispatched without being read.
 
 | # | task | status |
 |---|---|---|
-| 01 | `01-overshoot-recheck.md` — **GATE** on the intra-bar monitor decision | open |
-| 02 | `02-side-blocked-earned-its-keep.md` | not yet written |
+| 01 | `01-overshoot-recheck.md` — **GATE** on the intra-bar monitor decision | open · run before Sunday 2026-09-13 |
+| 02 | `02-side-blocked-earned-its-keep.md` — nothing waits on it | open · next Wednesday |
