@@ -145,16 +145,95 @@ agent does not make those.
 - ~~**Fees are assumed 5 bps taker per leg**~~ **Measured 2026-08-02 at 1.75
   bps/side**, exact to five significant figures across 22 fills (`fee ==
   tradingFee`, zero rebate, `execType` TAKER throughout). `taker_fee` is now
-  `2e-4`, a small margin over the measurement. `portfolio user-fee-rate` returns
-  upstream 2002 "API Invalid Authorization" — there is no real exchange account
-  behind a simulated portfolio to have a fee tier, so the fills are the source.
-  The optimal-bands step still refuses pairs whose edge can't pay the toll.
+  `2e-4`, a small margin over the measurement. The optimal-bands step still
+  refuses pairs whose edge can't pay the toll.
+  **Phase II changed this and the config has NOT caught up.** The sandbox
+  reasoning above — "no real exchange account behind a simulated portfolio to
+  have a fee tier" — stopped being true when Phase II moved to live capital.
+  `GET /api/v1/trading/userFeeRate` reported `level=1`, taker `0.00035`
+  (3.5 bps) on 2026-09-08, and LTP applied **VIP 5 to all accounts** the same
+  evening. So `cfg.taker_fee = 2e-4` (`ltp_agent.py:114`) is now **overstated**,
+  which is the safe direction: `roundtrip = 2 × taker_fee × (1 + |β|)` feeds
+  `optimal_bands`, so an overstated fee refuses marginal pairs rather than
+  taking bad ones. **Set it from the next measured round trip, not from the
+  quoted tier** — the quoted rate and the fills have already disagreed by 2×
+  once. `fills_report.py` emits `measured_fee_bps_per_side`; changing
+  `taker_fee` needs a restart.
 - **1,000 USDT is small.** Some symbols' `minNotional` may exceed what the
   vol-targeted sizing wants to trade; the agent skips those entries and says
   so in the log, rather than oversizing to clear the floor.
 - The hourly refit/selection cadence, half-life band (6h to 1 week), and risk
   budget are set from reasoning, not from a tuned crypto backtest. Phase 1 is
   itself the out-of-sample test; expectations should be set accordingly.
+
+## Operating routine — Phase II (2026-09-09 → 2026-11-04)
+
+Written down because a routine that exists only in a conversation is one
+compaction away from gone. Phase I's version lived in chat and had to be
+reconstructed from memory.
+
+| cadence | what the operator does | escalate? |
+|---|---|---|
+| **Daily** (~2 min) | `status.py` glance | only if a flag below fires |
+| **Weekly** (Sundays, ~45 min) | review — **research decision FIRST, operational recap second** | yes |
+| **Research lane** (async, unscheduled) | hand Cowork a corpus task on a local branch; commit what it writes | when it produces something |
+| **Event-driven** (immediately) | organizer comms, kill-switch, halt, repeated errors, **the first entry of Phase II** | now |
+
+Sundays: **Sep 13, 20, 27 · Oct 4, 11, 18, 25 · Nov 1.** Phase closes Nov 4.
+
+**Why research goes first.** Phase I ran five reviews and the universe question
+— its own stated highest priority — was never touched, because the operational
+recap expanded to fill every session. Nothing was forgotten; the agenda
+survived intact and legible. It simply never got done. If a review runs short,
+cut the numbers recap the operator already saw daily, not the decision that
+moves the score.
+
+### Daily glance signals
+
+| escalate | normal, ignore |
+|---|---|
+| `halted YES` | **flat for days or weeks** |
+| `service` not `active/running`, or `restarts` climbing | **refit passing 0 of 15** |
+| equity down >~5% in a day, or **headroom-to-kill under ~40** | **`news gate unknown` while flat** |
+| `equity UNAVAILABLE`, or **`bad_read` above its frozen baseline (307)** | stop-outs |
+| **`ai spend` short of the USD 1 floor** — `status.py` exits 1 | small drawdowns, equity drifting ±1–2% |
+| **`news gate` degraded *once a pair is active*** | pairs cycling flat ↔ open, uPnL wiggling |
+| a position open for days that will not close | the daily refit changing the pair list |
+| **any organizer Telegram or email** | `ai_deep_review` volume in the ledger totals |
+
+**The first row of the right column is the one that changed.** In Phase I a
+quiet book caused real anxiety during the three-day drought, and the close-out
+concluded that anxiety was unwarranted. There is now hard evidence rather than
+reassurance: the 2026-09-09 scan passed **0 of 55** sector pairs, the failure
+profile is regime-shaped (split-half + crossings = 40 of 55), and the decline
+began 09-05, *before* the host cutover. A flat book is the pipeline working.
+It is not an argument for loosening a gate — see invariant 3 in `CLAUDE.md`.
+
+**Two signals are conditional, which is new.** `news gate unknown` is expected
+while flat (the sentinel refreshes for the assets of selected pairs, so with
+zero pairs it is silent by design) and becomes a flag the moment a pair goes
+active. `bad_read` has a frozen baseline of 307 from the dead-credential
+window; the number matters less than whether it moves.
+
+**The first entry of Phase II is an event, not routine.** It exercises four
+untested paths at once: order placement on the production host, the news gate,
+the feeds socket (`ltp_stream.py` still points at `feeds.ltp-contest.com`), and
+`optimal_bands` against a `taker_fee` that predates VIP 5.
+
+### Who does what
+
+| lane | work | tool |
+|---|---|---|
+| research | corpus synthesis, ledger pattern analysis, backtest-vs-live writeups | **Cowork**, local clone, own branch |
+| engineering | code, tests, the record, anything under `deploy/`, droplet runbooks | **Claude Code** |
+| execution | the go signal, droplet commands, organizer comms | **operator** |
+
+Cowork cannot reach the droplet or make live API calls, so it gets committed
+data and written questions. That is precisely the work that starved in Phase I,
+and the only one of the three lanes that runs while the operator is unavailable.
+Scope it to the repo folder, work on a throwaway branch, and instruct it
+explicitly never to modify `WEEKLY_REVIEW.md` or `LTP_STRATEGY.md` — those are
+append-only and rewriting them destroys the project's memory.
 
 ## Scheduled jobs (droplet crontab)
 
