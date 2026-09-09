@@ -1758,6 +1758,11 @@ section existed; that is what it is for.
 | **`ltp_stream.py:31` hardcodes `wss://feeds.ltp-contest.com`** — the contest domain, which the cutover moved *away* from everywhere else. No env change reaches it; if that domain is retired now production is live, `NewsStream` goes silent and only a code edit fixes it. Proposed change: an env lookup mirroring `ltp_news.py:50` | 2026-09-08 | needs the operator's go. Wait for one live news-gate reading first — if the gate is healthy, this is precautionary rather than urgent |
 | **Verify `ltp_news.py`'s `FEEDS_BASE` against the production host** — it follows `LTP_API_HOST` so it moved with the cutover, but nothing has confirmed `api.liquiditytech.com` serves the feeds path at all | 2026-09-08 | first hourly tick after 2026-09-08 15:37 UTC. `status.py`'s news-gate line answers it |
 | **`deploy/README_ltp.md:20` still documents `LTP_API_HOST=https://api.ltp-contest.com`** — the sandbox host. A future session following the setup block would rebuild the exact failure we just spent a day diagnosing | 2026-09-08 | next doc pass; trivial, but it is a trap laid for a cold reader |
+| **Re-run `universe_scan.py`** now that ETH/BTC is actually fetched. The 2026-09-09 run's CURRENT line (`0/14`) excluded the pair carrying the book and cannot be quoted until this is done | 2026-09-09 | next droplet session, avoiding ~15:38 UTC (refit) |
+| **Rule out a data cause for the 0/54**, before "regime" is written down as fact. ETH\|BTC passed 09-07, then 0/15 and 0/54 within 36h — coinciding exactly with the host change. Compare klines from `api.liquiditytech.com` against a known 09-07 fit | 2026-09-09 | before any decision rests on the regime verdict |
+| **Scan the full Phase II universe.** The top-50 Binance whitelist is gone — all perps on Binance *or* OKX are permitted. Pull both symbol lists, extend `SECTOR_GROUPS`, and re-measure. This is the venue decision and it is made once | 2026-09-09 | highest-priority research item; supersedes the old "widen the universe" framing |
+| **Resolve the taker-fee discrepancy** — API reports `level=1`, taker 3.5 bps; this record has it *measured* at 1.75 bps/side. VIP 5 is "being applied" per LTP. Re-measure once it lands; `optimal_bands` consumes it, so it decides which passing pairs are tradeable | 2026-09-09 | when LTP confirms VIP 5, and at the next review regardless |
+| ~~**Synthesise the ~3,400 deep reviews**~~ **DONE 2026-09-09** via Claude Cowork — `deploy/DEEP_REVIEW_SYNTHESIS.md` on branch `research/deep-review-synthesis`. Found the corpus's most convergent claim to be a prompt artefact of our own making; that bug is now fixed and pinned | 2026-08-12 | closed — but the surviving claims still need reading before Sunday |
 | ~~**Watch `bad_read`**~~ **CLOSED 2026-09-08** — frozen at 307 across seven hours on the production host. The guard fired every bar through the dead-credential window and has not fired since | 2026-09-08 | closed |
 | **`status.py` prints times with no date** in the `recent` list, so five refits on five different days render as five identical `19:00 refit` lines. This misled the 2026-09-08 session into chasing a discrepancy that did not exist — the **fifth** cosmetic defect in this file to cost a real inference. Show the date, or a relative age | 2026-09-08 | build window. The glance is the instrument we steer by |
 | **Probe the news/feeds path against `api.liquiditytech.com`** with a hardcoded asset list, so `ltp_news.py`'s `FEEDS_BASE` and `ltp_stream.py`'s hardcoded `wss://feeds.ltp-contest.com` are tested **before** a live entry is the first thing to depend on them. With zero active pairs the sentinel is silent by design, so waiting does not answer it | 2026-09-08 | before the next pair passes the gate. Needs the operator's go |
@@ -2575,6 +2580,156 @@ One caveat now that did not apply then: a reboot resets nothing we care about
 *provided `ltp_state.json` is left alone*, but it will restart the agent and
 therefore re-phase the refit clock again to the restart time. Cheap either way;
 worth being deliberate about rather than surprised by.
+
+---
+
+## 2026-09-09 — the breadth question, answered and then re-opened
+
+Three things landed on one day and they interact. Read all three before acting
+on any of them.
+
+### 1. The universe scan ran for the first time since 2026-08-09
+
+```
+EXPANDED universe (54 sector pairs, FDR across all):  0/54 pass
+CURRENT  universe (14 pairs):                         0/14 pass
+orientation: alpha 0 · vol-rule 0 · both directions (108 tests) 0
+VERDICT: regime
+```
+
+Rejects on the expanded set: **20 "too few mean crossings" + 19 "fails
+split-half cointegration" = 72%**, then Hurst 6, unstable beta 4, half-life 2,
+degenerate series 2, beta range 1.
+
+**The EXPANDED result stands.** The verdict fires on that number alone
+(`n_expanded <= 1`) and the failure profile is regime-shaped, not
+breadth-shaped: widening *within sectors* found nothing, and it found nothing
+in a way that says the market is trending rather than that our net is small.
+
+**The CURRENT result does not stand, and the reason is a bug in the scan.**
+`BTC` and `ETH` were in `CANDIDATES` and absent from `SECTOR_GROUPS`, so they
+were never fetched, so **ETH/BTC was silently excluded** — the pair that passed
+the gate on **six of the eight refits** from 09-01 to 09-07. That is why the
+header read `14 pairs` against a live book of 15, and nothing said why. So
+"0/14" means fourteen of fifteen failed with the load-bearing pair untested. It
+is not evidence that today's book is dead.
+
+**Fixed, and fixed twice over so it cannot rot again** (`deploy/universe_scan.py`):
+a `majors` sector group so ETH/BTC is scored, *and* the fetch set is now the
+**union** of `SECTOR_GROUPS` and `CANDIDATES`, so a symbol the book trades is
+always fetched whether or not anyone remembers to list it. Any candidate pair
+still excluded for missing data is now **named in the output** rather than
+subtracted from a count. Pinned by `tests/test_universe_scan.py`.
+
+**The scan needs re-running before its verdict is quoted anywhere.**
+
+### 2. Two hypotheses the scan cannot yet separate
+
+**The discontinuity is suspicious.** 09-07 19:00: ETH|BTC passes. 09-08 15:38:
+0 of 15. 09-09 03:10: 0 of 54 across the whole sector universe. That is a very
+sharp transition in ~36 hours and **it coincides exactly with the host change
+to `api.liquiditytech.com`**. `degenerate price series: 2` among the rejects is
+a data smell. Before "the market changed" is written down as fact, confirm the
+production host serves the same klines the sandbox host did — otherwise we are
+reading a data artefact as a regime.
+
+### 3. The deep-review corpus contained a fabrication, and it was ours
+
+The synthesis pass (run in Claude Cowork, the first use of it on this project)
+found that the corpus's **most convergent claim was a prompt artefact**, and
+the finding verifies:
+
+> `ai_deep_review.py` asserted to every reviewer that the agent *"holds a
+> median of 2.0 hours against fitted half-lives of 17-26 hours"* and asked what
+> the mismatch meant.
+
+Against the 19 fills snapshots in the repo:
+
+| | |
+|---|---|
+| lowest median hold ever recorded | **2.5h** |
+| the **2026-08-09** snapshot the briefing named as its source | **25.98h** |
+| 2026-08-20, the last | **8.0h** |
+
+**No snapshot has ever reported 2.0h**, and the one explicitly cited says
+thirteen times that. The likely mechanism is transposition: the realised hold
+was genuinely 17–26h that week, so the *hold* was relabelled as the
+*half-life* and 2.0h invented as the hold. Reviewers were handed a
+contradiction that did not exist and asked to explain it; per the synthesis,
+~45% of strategy reviews did, and three widely-repeated downstream claims
+collapse with it.
+
+**Four instances of the same rot, in one function.** The comment at
+`RECORD_FALLBACK` already said this was the *third* case after `days_left()`
+and `EQUITY_AT_REVIEW` — and the fix had been applied to the derived path while
+leaving three more untouched:
+
+1. `RECORD_FALLBACK` — the false 2.0h, misquoting its own cited snapshot;
+2. `_record_block` — interpolated a *measured* hold into a **hardcoded**
+   "against fitted half-lives of 17-26h", so even the live path shipped a
+   frozen range;
+3. `ANGLES[1]` — a hardcoded "sharp sell-off around 2026-07-31/08-01", six
+   weeks stale and about to fall out of the 40-day window entirely;
+4. `candidate_prompts` — "At the 2026-08-09 refit only 1 of 15 candidates
+   passed", a month stale, and false for two days by then.
+
+**All four now derive.** `hold_clause()` builds the question from the measured
+median, `last_refit()` reads the newest ledger refit, the estimation window
+comes from `cfg.lookback_bars`. `ANGLES` are templates; nothing dated is typed
+into them.
+
+**And `RECORD_FALLBACK` no longer quotes any figure at all.** A plausible
+stand-in is indistinguishable downstream from a measurement — which is exactly
+how a fabricated 2.0h survived a month of daily runs — so the unreadable case
+says so and reasons from the fitted numbers instead. This also removes the
+1.75 bps fee from the fallback, which matters: see the VIP 5 item below.
+
+**Two tests were holding the fabrication in place.**
+`test_prompts_carry_the_real_measured_numbers` asserted `"median hold 2.0h" in
+p`, and the angles test asserted `"median of 2.0 hours" in a2`. A test that
+pins a number nobody measured is worse than no test, because it makes the
+fiction look load-bearing. Both rewritten to pin the *source* of a figure
+rather than its value. Suite 203 → **216**.
+
+**On Cowork.** It stated its method, disclosed that its prevalence percentages
+were regex-derived and indicative, checked the corpus against ground truth
+instead of summarising it, and corrected the round-5 quarantine *upward* —
+noting that rounds 6–7 inherit context and quarantining 114 further records
+nobody had thought of. Working corpus 2,824 of 3,424. It earned the role.
+`deploy/DEEP_REVIEW_SYNTHESIS.md` is on branch `research/deep-review-synthesis`.
+
+### 4. Three organizer items from #TechnicalSupport (2026-09-08)
+
+**a. Phase II permits ALL perpetuals on Binance or OKX.** Phase I was
+*"strictly limited to the top 50 Binance USDT-margined perpetuals"* — a fixed
+whitelist. That constraint is gone. Our scan tested a hand-built **52-symbol**
+sector list; the permitted universe is now in the **hundreds**. The breadth
+lever is far larger than the agenda assumed. Temper it: under FDR more tests
+raise the bar for everyone, and crossings/split-half failures are regime
+symptoms that more symbols do not cure.
+
+**b. `mds.ltp-contest.com` is live and documented**, endpoint
+`wss://mds.ltp-contest.com/marketdata/v2/public`. So **`ltp-contest.com` is not
+being decommissioned** — which materially downgrades the 09-08 worry about
+`ltp_stream.py`'s hardcoded host. Note ours is a *news* socket
+(`feeds.ltp-contest.com/feeds/v2/public`), a different service from the market
+data one, and still untested.
+
+**c. VIP 5 fee rates are pending.** The account currently reads `level=1`,
+taker `0.00035` = **3.5 bps** — but this record has taker *measured* at
+**1.75 bps/side**. That 2× gap is unresolved. Important: **fees do not affect
+the scan.** `select_pairs` is pure statistics; costs enter later at
+`optimal_bands`. Cheaper fees make more *passing* pairs tradeable; they cannot
+turn 0/54 into anything.
+
+### Shipped
+
+`deploy/universe_scan.py` (majors group, union fetch, loud exclusions),
+`deploy/ai_deep_review.py` (`hold_clause()`, `last_refit()`, templated
+`ANGLES`, figure-free fallback), `tests/test_universe_scan.py` (new),
+`tests/test_ai_deep_review.py` (+8). **216 tests pass.** No trading behaviour
+changed: both files are diagnostics and the advisory layer, neither in the
+decision path.
 
 ---
 

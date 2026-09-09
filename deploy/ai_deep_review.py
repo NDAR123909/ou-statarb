@@ -376,12 +376,17 @@ def followups(equity: float | None = None,
 # rather than merged because a reviewer asked both at once answers the easier
 # one -- and because the daily pass needs breadth from real material, not the
 # same question asked twice.
+#
+# Both angles are TEMPLATES. Every dated or measured quantity in them is
+# interpolated at build time; nothing about the live record is typed in. The
+# reason is in `hold_clause()` below and it is not a hypothetical.
 ANGLES = {
     1: ("For THIS pair specifically:\n"
         "1. Do the split-half statistics above indicate a genuine loss of "
-        "cointegration, or an artefact of a one-off market-wide shock "
-        "sitting inside the estimation window (a sharp sell-off occurred "
-        "around 2026-07-31/08-01)? Those imply opposite responses.\n"
+        "cointegration, or an artefact of a one-off shock sitting inside the "
+        "{window_days:.0f}-day estimation window? Those imply opposite "
+        "responses. Identify any such shock from the z path above rather "
+        "than assuming one occurred.\n"
         "2. Is the fitted half-life credible given the z path, or does the "
         "path look like drift rather than oscillation?\n"
         "3. Would you trade this pair at the stated bands with a "
@@ -393,14 +398,76 @@ ANGLES = {
         "1. At the stated entry band, what fraction of round trips would you "
         "expect to reach the exit before the 3.5 sigma stop, given this "
         "half-life and this sigma_eq? Show the reasoning.\n"
-        "2. The agent sizes each leg to a fixed fraction of NAV and holds a "
-        "median of 2.0 hours against fitted half-lives of 17-26 hours. Is a "
-        "hold that short evidence the band is too tight, evidence the "
-        "half-life is over-estimated, or neither?\n"
+        "{hold_clause}"
         "3. Where in this pair's numbers is the estimate you would trust "
         "least, and what does the strategy do that is most sensitive to it?\n"
         "Cite the numbers rather than describing them."),
 }
+
+
+def hold_clause(facts: dict | None) -> str:
+    """Item 2 of the execution angle: built from the record, or left open.
+
+    This used to read "the agent ... holds a median of 2.0 hours against
+    fitted half-lives of 17-26 hours. Is a hold that short evidence the band
+    is too tight ...". Both numbers were wrong and the question was leading.
+
+    No fills snapshot has ever recorded a median hold below 2.5h; the
+    2026-08-09 snapshot the briefing cited as its source records **25.98h**,
+    and the lifetime median across the closed round trips is 8.0h. The likely
+    mechanism is transposition -- the realised hold (genuinely 17-26h that
+    week) was relabelled as the half-life, and 2.0h invented as the hold. So
+    reviewers were handed a contradiction that did not exist and asked to
+    explain it, and roughly 45% of strategy reviews duly explained it.
+
+    Two changes, and the second matters as much as the first: the number is
+    measured, and the question no longer presupposes that hold and half-life
+    ought to agree. A prompt that asserts a mismatch will be sold one back.
+    """
+    hold = (facts or {}).get("summary", {}).get("median_hold_h")
+    if hold is None:
+        return ("2. The agent sizes each leg to a fixed fraction of NAV. The "
+                "realised hold time could not be read for this run -- do not "
+                "assume one. From this pair's fitted half-life and bands "
+                "alone, how long should a completed round trip take, and what "
+                "would make a real one much shorter?\n")
+    return ("2. The agent sizes each leg to a fixed fraction of NAV. In the "
+            "most recent reconciled window (snapshot {d}) the median hold was "
+            "{h:.1f}h; this pair's fitted half-life is stated above. What, if "
+            "anything, does the relationship between those two numbers tell "
+            "you? Do not assume they ought to match.\n").format(
+                h=float(hold), d=(facts or {}).get("as_of", "?"))
+
+
+def last_refit(path=None) -> dict | None:
+    """The newest `refit` ledger record: how many candidates passed, and when.
+
+    Hardcoded as "At the 2026-08-09 refit only 1 of 15 candidates passed" until
+    2026-09-09 -- by which point the live figure had been 0 of 15 for two days
+    and a full universe scan had returned 0 of 54. Fourth instance of the rot
+    that produced `days_left()` and `live_equity()`, so it is derived too.
+
+    Read with `Path.read_text` rather than `open`, like `recent_events`, so
+    this module keeps its property of writing exactly one file and opening
+    none. That costs holding a tens-of-MB ledger in memory briefly; the
+    alternative was weakening the invariant that is the whole safety argument
+    for running this against a live account, which is not a trade worth making
+    for a script that is about to spend minutes on API calls anyway.
+    """
+    p = Path(path) if path else LEDGER_PATH
+    if not p.exists():
+        return None
+    found = None
+    for line in p.read_text(errors="ignore").splitlines():
+        if '"refit"' not in line:
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if record.get("event") == "refit":
+            found = record
+    return found
 
 
 def fetch_candidate_panel(cfg: AgentConfig):
@@ -416,20 +483,35 @@ def fetch_candidate_panel(cfg: AgentConfig):
 
 
 def candidate_prompts(cfg: AgentConfig, angle: int = 1,
-                      logp=None) -> list[tuple[str, str]]:
+                      logp=None, facts: dict | None = None
+                      ) -> list[tuple[str, str]]:
     """One deep review per candidate pair, with its real fitted numbers.
 
-    The live agent only ever assesses pairs it holds. Fourteen candidates were
-    rejected at the last refit with no individual analysis, which is the gap
-    this closes. Re-run daily these are not the same prompts twice: the panel
-    is re-fetched and every pair re-fitted, so the half-lives, bands, cost_z
-    and z paths below are that day's numbers.
+    The live agent only ever assesses pairs it holds, so the candidates it
+    rejects at each refit get no individual analysis. That is the gap this
+    closes. Re-run daily these are not the same prompts twice: the panel is
+    re-fetched and every pair re-fitted, so the half-lives, bands, cost_z and
+    z paths below are that day's numbers.
+
+    `facts` is the newest fills snapshot (see `record_facts`). It is passed in
+    rather than read here so the caller pays for it once, and so a test can
+    hand in a known record. Absent it, the prompt says the record is
+    unreadable instead of assuming figures for it.
     """
     if logp is None:
         logp = fetch_candidate_panel(cfg)
     if logp.empty:
         print("no data panel; skipping per-candidate review", file=sys.stderr)
         return []
+
+    rf = last_refit()
+    if rf:
+        refit_line = (f"At the most recent refit ({str(rf.get('ts'))[:16]}) "
+                      f"{rf.get('passed')} of {rf.get('tested')} candidates "
+                      f"passed the gate.\n\n")
+    else:
+        refit_line = ("The most recent refit result could not be read; do not "
+                      "assume how many candidates passed.\n\n")
 
     out = []
     for a, b in CANDIDATES:
@@ -473,12 +555,10 @@ def candidate_prompts(cfg: AgentConfig, angle: int = 1,
             f"  optimal bands         entry {bands.entry_z:.2f} / exit "
             f"{bands.exit_z:.2f}, tradeable={bands.tradeable}\n"
             f"  last 48 hourly z      {path}\n\n"
-            "At the 2026-08-09 refit only 1 of 15 candidates passed the gate. "
-            "Rejections were spread across split-half cointegration, "
-            "hedge-ratio stability across halves, mean-crossing density, Hurst, "
-            "beta range and the half-life band -- broad and shallow rather than "
-            "concentrated.\n\n"
-            + ANGLES.get(angle, ANGLES[1]))
+            + refit_line
+            + ANGLES.get(angle, ANGLES[1]).format(
+                window_days=cfg.lookback_bars / 24.0,
+                hold_clause=hold_clause(facts)))
         out.append((f"{name}" if angle == 1 else f"{name}#{angle}", prompt))
     return out
 
@@ -624,15 +704,23 @@ FILLS_GLOB = "track_record/fills_*.json"
 # stopped behaving that way a week earlier -- and its answers about hold times
 # and band geometry were worth less than they looked. Third instance of the
 # same rot after `days_left()` and `EQUITY_AT_REVIEW`, so it is derived now.
+#
+# 2026-09-09: the derived path was fixed and the FALLBACK was not, and the
+# fallback turned out to misquote the very snapshot it cited -- it claimed
+# "median hold 2.0h ... the 2026-08-09 reading" while that snapshot records
+# **25.98h**. No snapshot in the record has ever reported a median below 2.5h.
+# A synthesis over the corpus found that figure reasoned from in ~45% of
+# strategy reviews, ranked top-two by confidence, and treated as measured.
+#
+# So the fallback no longer supplies numbers at all. A plausible-looking
+# stand-in is indistinguishable downstream from a measurement, which is exactly
+# how a fabricated 2.0h survived a month of daily runs; "unknown" is not.
 RECORD_FALLBACK = (
-    "  13 completed round trips: 10 reverted (9 wins, +27.79 gross), "
-    "2 stops (0 wins, -15.89), 1 refit-drop (-2.49). Total +9.41.\n"
-    "  median hold 2.0h against fitted half-lives of 17-26h; ZERO trades "
-    "have ever hit the 3x-half-life max-hold clock.\n"
-    "  taker fee measured at 1.75 bps/side (was assumed 5.0); slippage "
-    "0.57 bps mean; funding +0.385 net received.\n"
-    "  [the four lines above are the 2026-08-09 reading; the live snapshot "
-    "could not be read, so treat them as dated]\n")
+    "  The live trade record could NOT be read for this run, so no realised\n"
+    "  figures are quoted here. Do not assume values for hold time, win rate,\n"
+    "  fees or P&L, and do not treat their absence as evidence either way --\n"
+    "  reason from the fitted numbers stated above and say plainly where an\n"
+    "  answer would need the realised record.\n")
 
 
 def record_facts(root: Path | str | None = None) -> dict | None:
@@ -674,7 +762,8 @@ def _record_block(facts: dict | None) -> str:
         "exits {mix}.\n"
         "  gross {gross:+.2f}, fees {fees:.2f}, NET {net:+.2f}. win rate "
         "{wr:.0%}, worst {worst:+.2f}.\n"
-        "  median hold {hold:.1f}h against fitted half-lives of 17-26h.\n"
+        "  median hold {hold:.1f}h. (Fitted half-lives vary by pair and are "
+        "stated per candidate -- do not assume a range.)\n"
         "  taker fee measured {fee:.2f} bps/side; slippage {slip:.2f} bps "
         "mean{fundtxt}.\n"
     ).format(
@@ -780,8 +869,8 @@ def daily_work(cfg: AgentConfig, equity: float | None = None,
     which makes them the smallest share rather than the whole pass.
     """
     logp = fetch_candidate_panel(cfg)
-    return (candidate_prompts(cfg, angle=1, logp=logp)
-            + candidate_prompts(cfg, angle=2, logp=logp)
+    return (candidate_prompts(cfg, angle=1, logp=logp, facts=facts)
+            + candidate_prompts(cfg, angle=2, logp=logp, facts=facts)
             + ledger_prompts()
             + strategy_prompts(equity=equity, facts=facts))
 
@@ -845,8 +934,8 @@ def main() -> int:
                              f"{equity - ELIMINATION_FLOOR:.2f} above the "
                              f"{ELIMINATION_FLOOR:.0f} floor"))
     facts = record_facts()
-    print("record: " + ("no fills snapshot found -- the strategy briefing "
-                        "falls back to the 2026-08-09 numbers, labelled dated"
+    print("record: " + ("no fills snapshot found -- the briefing will state "
+                        "the record as unreadable and quote NO figures"
                         if facts is None else
                         "snapshot {}, {} round trips, median hold {}h".format(
                             facts["as_of"], facts["summary"].get("round_trips"),
@@ -859,7 +948,7 @@ def main() -> int:
     elif args.daily:
         work = daily_work(cfg, equity=equity, facts=facts)
     else:
-        work = candidate_prompts(cfg) + strategy_prompts(
+        work = candidate_prompts(cfg, facts=facts) + strategy_prompts(
             equity=equity, facts=facts)
     print(f"{len(work)} topics, up to {args.rounds} rounds each")
 
