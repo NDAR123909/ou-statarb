@@ -44,6 +44,41 @@ z, so the frame moved the other way. Both `mu` and `sigma` are re-estimated, so
 either can dominate. Treat this as **frame drift**, not as a one-directional μ
 bias, and let the data say which way it actually runs.
 
+## The convention, and a solved worked example — do not re-derive these
+
+Task 01 reported the `z_in_entry_coords` convention as undocumented and its
+sign inconsistent on the KAS/ETC stop. It is neither, and the resolution is
+your anchor case. `ltp_agent.py:355–383`:
+
+```python
+z_entry_frame = (spread - mu0) / sig0     # current spread, ENTRY frame
+mu_shift      = (live_mu - mu0) / sig0    # equilibrium move, in ENTRY sigmas
+```
+
+Unadjusted for position side. Solving KAS/ETC 2026-08-20 from its three logged
+numbers:
+
+```
+(s − mu₀)/σ₀        = +3.597     (logged z_in_entry_coords)
+(mu_live − mu₀)/σ₀  = +6.443     (logged mu_shift_sigma)
+  ⟹ (s − mu_live)/σ₀ = −2.846
+(s − mu_live)/σ_live = −4.752    (logged z)
+  ⟹ σ_live/σ₀ = 0.599
+```
+
+**Fully consistent. σ collapsed 40% during the hold**, and the sign flip is the
+equilibrium *overtaking* the spread — mu moving up past where the price sat.
+Both effects ran at once and the σ tightening is what amplified a −2.846σ₀
+residual into a −4.75σ reading. In entry coordinates the stop overshot the 3.5
+band by **0.097σ**; in refitted coordinates it reads 1.25σ past.
+
+Two things follow for your work. **σ drift matters as much as μ drift** and the
+`mu_shift_sigma` field alone will not capture it — you will have to infer
+σ_live/σ₀ from the two z readings, as above, wherever both are logged. And **a
+sign flip between the two frames is a signal, not a data error**: it means the
+equilibrium crossed the price during the hold, which is the strongest form of
+the effect being measured.
+
 ---
 
 ## PROMPT
@@ -79,11 +114,19 @@ bias, and let the data say which way it actually runs.
 >    Every later figure is over the instrumented subset only — say so plainly
 >    and give its size before quoting anything from it.
 >
-> 2. **How far does the frame move?** Distribution of `mu_shift_sigma` across
->    the instrumented closes. How often does it exceed the 0.10σ materiality
->    threshold, and what is the tail? Does it move **toward** open positions
->    (shrinking |z|, flattering exits and delaying stops) or **away**, or
->    neither systematically? A systematic direction is a bias; noise is not.
+> 2. **How far does the frame move, in BOTH parameters?** Distribution of
+>    `mu_shift_sigma` across the instrumented closes: how often does it exceed
+>    the 0.10σ materiality threshold, and what is the tail? Does it move
+>    **toward** open positions (shrinking |z|, flattering exits and delaying
+>    stops) or **away**, or neither systematically? A systematic direction is a
+>    bias; noise is not.
+>
+>    **Then do the same for sigma**, which has no logged field of its own.
+>    Where both `z` and `z_in_entry_coords` are present, recover the ratio the
+>    way the worked example in this file does — a σ that tightens amplifies the
+>    residual and can dominate the μ term entirely. Report the two effects
+>    separately; a conclusion that attributes σ tightening to μ drift would be
+>    wrong about the mechanism even with the right total.
 >
 > 3. **Re-label the exits.** For each instrumented `exit` tagged as a reversion,
 >    compare z at decision against `z_in_entry_coords`. **How many exits would
