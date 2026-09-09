@@ -31,7 +31,8 @@ from deploy.ai_deep_review import (AI_SPEND_FLOOR, ANGLES,  # noqa: E402
                                    period_age_hours, record_facts,
                                    recent_events, strategy_prompts,
                                    RECORD_FALLBACK, hold_clause, last_refit,
-                                   _record_block)
+                                   _record_block, live_peak, stop_facts,
+                                   phase_days, PHASE_II_START)
 
 
 def test_the_reviewer_is_told_to_attack_not_approve():
@@ -52,8 +53,9 @@ def test_every_strategy_prompt_states_a_conclusion_and_asks_for_attack():
     assert set(prompts) == {"stop_geometry", "entry_band", "regime", "mu_drift"}
     for topic, p in prompts.items():
         assert "CONCLUSION UNDER REVIEW" in p, topic
-        assert any(k in p for k in ("Attack this", "Is that right",
-                                    "Which effect dominates", "Is waiting right")), topic
+        assert any(k in p for k in ("Attack this", "Attack what remains",
+                                    "Is that right", "Which effect dominates",
+                                    "Is waiting right")), topic
 
 
 def test_prompts_carry_the_real_measured_numbers():
@@ -68,9 +70,9 @@ def test_prompts_carry_the_real_measured_numbers():
     numbers come from the snapshot, and the unreadable case quotes none.
     """
     p = strategy_prompts()[0][1]
-    for fact in ("3.7%",              # banked max drawdown
-                 "9.30 to 5.66",      # the Sharpe collapse
-                 "-10.67"):           # total overshoot cost
+    for fact in ("9.30 to 5.66",      # the Phase I Sharpe collapse, dated
+                 "-10.67",            # the audited overshoot figure, dated
+                 "-6.30"):            # the recovery ceiling the audit found
         assert fact in p, fact
     # With no snapshot the briefing must say so and quote nothing, rather than
     # presenting a stale copy as if it were the reading.
@@ -143,11 +145,24 @@ def test_the_review_layer_cannot_starve_the_layers_that_gate_trades():
 
 def test_the_stop_prompt_supplies_the_evidence_against_our_own_position():
     """We concluded the intra-bar monitor is worth building. The prompt has to
-    hand over the strongest counter-arguments, or the review is theatre."""
+    hand over the strongest counter-arguments, or the review is theatre.
+
+    Strengthened 2026-09-09. It used to check for "4 of 5 stops were followed
+    by full reversion" and "already banked at 3.7%" -- both frozen Phase I
+    figures. The prompt now carries the audit that actually tested the
+    conclusion, so the reviewer attacks the live question rather than
+    re-deriving what has already been settled.
+    """
     p = dict(strategy_prompts())["stop_geometry"]
-    assert "4 of 5 stops were followed" in p       # stopping cost the recovery
     assert "noise filter" in p                     # monitoring adds stop-outs
-    assert "already banked at 3.7%" in p           # MDD protection is spent
+    assert "already-banked maximum" in p           # MDD protection is spent
+    # The audit's three findings that bear on the decision.
+    assert "-18.71" in p                           # the frozen five became eight
+    assert "16%" in p                              # not "roughly a third"
+    assert "-6.30" in p                            # the recovery CEILING
+    # The asymmetry that decides it: bounded benefit, unmeasured cost.
+    assert "no false-positive cost" in p
+    assert "CLOSES live positions" in p
 
 
 def test_reviews_are_written_to_the_ledger_with_their_full_text():
@@ -480,3 +495,109 @@ def test_last_refit_returns_the_newest_refit_record(tmp_path):
 
 def test_last_refit_is_none_rather_than_stale_when_unreadable(tmp_path):
     assert last_refit(tmp_path / "nope.jsonl") is None
+
+
+# --------------------------------------------------------------------------
+# The strategy briefing must describe THIS phase, not the last one.
+#
+# Until 2026-09-09 it opened with "peak 1041.19, max drawdown 3.7%" and
+# "5 lifetime stops ... -10.67 total overshoot cost". Phase II reset the book
+# to 1,000 USDT and deleted the high-water mark; the stop record had reached
+# eight and -18.71, and the same tool run on the complete record printed the
+# OPPOSITE verdict. Every review generated after the phase opened was briefed
+# on a position that no longer existed.
+# --------------------------------------------------------------------------
+
+def _briefing(prompt: str) -> str:
+    """The current-state half, before any dated historical quote."""
+    return prompt.split("CONCLUSION UNDER REVIEW")[0]
+
+
+def test_the_briefing_hardcodes_no_position_or_stop_figures():
+    brief = _briefing(strategy_prompts()[0][1])
+    for stale in ("1041.19",          # the Phase I peak
+                  "3.7%",             # the Phase I banked MDD
+                  "5 lifetime stops",
+                  "-10.67",           # the frozen overshoot total
+                  "-8.31",
+                  "~29 teams",
+                  "~20 daily"):
+        assert stale not in brief, stale
+
+
+def test_the_briefing_says_unreadable_rather_than_substituting():
+    """The rule the 2.0h median hold taught us, applied to peak and stops."""
+    brief = _briefing(strategy_prompts(peak=None, stops=None)[0][1])
+    assert "drawdown peak could not be read" in brief
+    assert "stop record could not be read" in brief
+    assert "do not assume" in brief.lower()
+
+
+def test_the_briefing_uses_measured_stop_facts_when_it_has_them():
+    brief = _briefing(strategy_prompts(equity=1000.0, peak=1057.48, stops={
+        "stops": 8, "median_overshoot_sigma": 0.4, "max_overshoot_sigma": 6.75,
+        "total_overshoot_cost": -18.71, "reverted_within_watch": "5/8",
+        "verdict_hint": "the stop is doing its job; leave it alone",
+    })[0][1])
+    assert "8 lifetime stops" in brief
+    assert "-18.71" in brief
+    assert "leave it alone" in brief
+    assert "peak 1057.48" in brief
+    # 1000 against a 1057.48 peak is 5.44% down -- the exact trap the cutover
+    # avoided by deleting the hwm.
+    assert "5.44%" in brief
+
+
+def test_the_briefing_does_not_call_current_drawdown_the_scored_metric():
+    """MDD is the venue's running maximum. What we can compute locally is the
+    drawdown right now, which is a lower bound on it, and conflating the two
+    would overstate how much room is already spent."""
+    brief = _briefing(strategy_prompts(equity=1000.0, peak=1057.48)[0][1])
+    assert "current drawdown" in brief
+    assert "at least this" in brief
+
+
+def test_live_peak_reads_the_state_file(tmp_path):
+    (tmp_path / "ltp_state.json").write_text(
+        json.dumps({"peak_equity": 1041.19}), encoding="utf-8")
+    assert live_peak(tmp_path) == 1041.19
+
+
+def test_live_peak_is_none_rather_than_stale_when_unreadable(tmp_path):
+    assert live_peak(tmp_path) is None
+    (tmp_path / "ltp_state.json").write_text("{not json", encoding="utf-8")
+    assert live_peak(tmp_path) is None
+    (tmp_path / "ltp_state.json").write_text(
+        json.dumps({"peak_equity": 0}), encoding="utf-8")
+    assert live_peak(tmp_path) is None
+
+
+def test_stop_facts_is_none_rather_than_stale_when_unreadable(tmp_path):
+    assert stop_facts(tmp_path / "nope.jsonl") is None
+
+
+def test_stop_facts_delegates_to_the_tool_that_made_the_original_figure(tmp_path):
+    """Reimplementing the definition would let the briefing and the analysis
+    drift apart, which is how -10.67 outlived its own record."""
+    led = tmp_path / "ltp_ledger.jsonl"
+    led.write_text("\n".join([
+        json.dumps({"ts": "2026-09-01T00:00:00+00:00", "event": "enter",
+                    "pair": "A|B", "z": -3.0, "side": -1,
+                    "qty_a": 1.0, "qty_b": 1.0,
+                    "price_a": 100.0, "price_b": 100.0}),
+        json.dumps({"ts": "2026-09-01T05:00:00+00:00", "event": "stop",
+                    "pair": "A|B", "z": -4.6, "side": -1,
+                    "qty_a": 1.0, "qty_b": 1.0,
+                    "price_a": 99.0, "price_b": 100.0}),
+    ]) + "\n", encoding="utf-8")
+    got = stop_facts(led, band=3.5)
+    assert got is not None and got["stops"] == 1
+    assert "verdict_hint" in got
+
+
+def test_phase_days_counts_from_the_phase_ii_open():
+    from datetime import timedelta
+    assert phase_days(PHASE_II_START) == 0
+    assert phase_days(PHASE_II_START + timedelta(days=17)) == 17
+    # never negative -- a clock skew before the open must not read as history
+    assert phase_days(PHASE_II_START - timedelta(days=3)) == 0

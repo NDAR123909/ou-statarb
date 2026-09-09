@@ -64,6 +64,7 @@ from deploy.ltp_agent import (AgentConfig, CANDIDATES, fetch_panel,  # noqa: E40
                               base_asset, ledger)
 from deploy.ltp_broker import RapidXBroker               # noqa: E402
 from deploy.ltp_news import organizer_client, model_name  # noqa: E402
+from deploy.stop_analysis import stop_cases, summarise    # noqa: E402
 from statarb.ou import fit_spread_model                  # noqa: E402
 from statarb.thresholds import optimal_bands             # noqa: E402
 
@@ -262,6 +263,8 @@ MAX_CONSECUTIVE_FAILURES = 5
 # a number written out by hand goes stale in silence, and a stale number inside
 # a prompt is indistinguishable, to whoever reads the output, from a lie.
 PHASE_I_END = date(2026, 8, 21)
+PHASE_II_START = date(2026, 9, 9)
+PHASE_II_END = date(2026, 11, 4)
 ELIMINATION_FLOOR = 800.0     # competition rule: equity below this is out
 KILL_SWITCH = 916.25          # ours, self-imposed; halts and flattens first
 
@@ -783,37 +786,144 @@ def _record_block(facts: dict | None) -> str:
     return out
 
 
+def live_peak(root: Path | str | None = None) -> float | None:
+    """The drawdown peak the agent is actually running against, or None.
+
+    Hardcoded as 1041.19 -- the Phase I peak -- until 2026-09-09. Phase II
+    reset the book to 1,000 USDT and deleted the high-water mark with it, so
+    every review generated after the phase opened was briefed on a drawdown
+    that no longer existed.
+    """
+    base = Path(root) if root else Path(__file__).resolve().parent
+    p = base / "ltp_state.json"
+    if not p.exists():
+        return None
+    try:
+        peak = float(json.loads(p.read_text()).get("peak_equity") or 0.0)
+    except (json.JSONDecodeError, OSError, ValueError, TypeError):
+        return None
+    return peak if peak > 0 else None
+
+
+def stop_facts(path: Path | str | None = None,
+               band: float = 3.5) -> dict | None:
+    """Stop count, overshoot distribution and total overshoot cost, measured.
+
+    Delegates to `deploy/stop_analysis.py` -- the tool that produced the
+    original figures -- rather than reimplementing its definition, so the
+    briefing and the analysis cannot drift apart.
+
+    The numbers this replaces had been frozen since 2026-08-02: "5 lifetime
+    stops ... -8.31 of a -10.67 total overshoot cost". By 2026-09-09 there were
+    **eight** stops and -18.71, and the same tool run on the complete record
+    printed the OPPOSITE verdict -- from "stops fire LATE, the sampling
+    interval is the defect" to "the stop is doing its job; leave it alone".
+    A reviewer briefed on the frozen five was being asked to attack a
+    conclusion the evidence had already reversed.
+    """
+    p = Path(path) if path else LEDGER_PATH
+    if not p.exists():
+        return None
+    rows = []
+    for line in p.read_text(errors="ignore").splitlines():
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    if not rows:
+        return None
+    cases = stop_cases(rows, band)
+    return summarise(cases) if cases else None
+
+
+def phase_days(today: date | None = None) -> int:
+    """Completed days since Phase II opened -- the live Sharpe sample size."""
+    t = today or datetime.now(timezone.utc).date()
+    return max(0, (t - PHASE_II_START).days)
+
+
 def strategy_prompts(equity: float | None = None,
-                     facts: dict | None = None) -> list[tuple[str, str]]:
-    """Adversarial review of conclusions we have already drawn."""
+                     facts: dict | None = None,
+                     peak: float | None = None,
+                     stops: dict | None = None) -> list[tuple[str, str]]:
+    """Adversarial review of conclusions we have already drawn.
+
+    `peak` and `stops` are injectable for the same reason `facts` is: the
+    caller pays for the read once, and a test can hand in a known record.
+    Absent them the briefing says the figure is unreadable rather than
+    substituting one, which is the rule the 2.0h median hold taught us.
+    """
     eq = EQUITY_AT_REVIEW if equity is None else float(equity)
+    pk = live_peak() if peak is None else peak
+    st = stop_facts() if stops is None else stops
+
+    if pk:
+        position = (f"  equity {eq:.2f}, peak {pk:.2f}, current drawdown "
+                    f"{(1.0 - eq / pk) * 100.0:.2f}% (the SCORED metric is the "
+                    f"venue's running maximum drawdown, which is monotonic and "
+                    f"is at least this)\n")
+    else:
+        position = (f"  equity {eq:.2f}. The drawdown peak could not be read "
+                    f"for this run -- do not assume one, and do not assume how "
+                    f"much drawdown is already banked.\n")
+
+    if st:
+        stops_line = (
+            f"  {st['stops']} lifetime stops. Median overshoot past the "
+            f"3.5 band {st['median_overshoot_sigma']} sigma, max "
+            f"{st['max_overshoot_sigma']}; total overshoot cost "
+            f"{st['total_overshoot_cost']}. {st['reverted_within_watch']} "
+            f"reverted within the watch window.\n"
+            f"  The stop tool's own verdict on this record: "
+            f"{st['verdict_hint']}.\n")
+    else:
+        stops_line = ("  The stop record could not be read for this run. Do "
+                      "not assume a stop count, an overshoot distribution or "
+                      "an overshoot cost.\n")
+
     common = (
-        "Live record from 2026-07-20, 1000 USDT start, 2x max leverage, "
-        "hourly bars.\n"
-        f"  equity {eq:.2f}, peak 1041.19, max drawdown 3.7% (monotonic, "
-        f"scored)\n"
-        + _record_block(facts) +
-        "  5 lifetime stops. Median overshoot past the 3.5 band is 0.2 sigma, "
-        "but two fired at 1.08 and 6.75 sigma past it, and those two carry "
-        "-8.31 of a -10.67 total overshoot cost.\n"
+        f"Live record: Phase II opened {PHASE_II_START.isoformat()} with a "
+        f"1000 USDT reset, hourly bars. The venue permits 5x leverage; we run "
+        f"2x by choice.\n"
+        + position
+        + _record_block(facts)
+        + stops_line +
         "  scoring: 0.40*Z(Sharpe) + 0.25*Z(PnL) + 0.20*Z(ROI) + 0.15*Z(MDD), "
-        "cross-sectional Z across ~29 teams. Sharpe is computed on ~20 daily "
-        "returns, so it is dominated by noise: one -0.8% day moved it from "
-        "9.30 to 5.66.\n\n")
+        "cross-sectional Z across the 30 teams that advanced to Phase II.\n"
+        f"  Sharpe is computed on completed daily returns and Phase II has run "
+        f"{phase_days()} days, so at this sample size it is dominated by "
+        f"noise. For scale, in PHASE I -- a separate, closed measurement "
+        f"period -- one -0.8% day moved it from 9.30 to 5.66 on ~20 "
+        f"returns.\n\n")
     return [
         ("stop_geometry", common + (
-            "CONCLUSION UNDER REVIEW: 'stop_z stays at 3.5; the level is "
-            "correct and the defect is the hourly sampling interval. Roughly a "
-            "third of all losses came from stops firing late rather than from "
-            "firing at all, so the fix is an intra-bar monitor triggering at "
-            "4.0-4.5 sigma, not a tighter stop.'\n\n"
-            "Attack this. Consider at least: that 4 of 5 stops were followed "
-            "by full reversion within 72h (the exception never came back); "
-            "that an intra-bar monitor removes the hourly bar's implicit noise "
-            "filter and may convert transient spikes into realised losses; and "
-            "that with max drawdown already banked at 3.7%, further drawdowns "
-            "below that level cost nothing in the scored metric. Does the "
-            "monitor still earn its place? What would change your answer?")),
+            "CONCLUSION UNDER REVIEW (stated 2026-08-02, and since audited -- "
+            "see below): 'stop_z stays at 3.5; the level is correct and the "
+            "defect is the hourly sampling interval. Roughly a third of all "
+            "losses came from stops firing late rather than from firing at "
+            "all, so the fix is an intra-bar monitor triggering at 4.0-4.5 "
+            "sigma, not a tighter stop.'\n\n"
+            "WHAT THE 2026-09-09 AUDIT ESTABLISHED, so you attack the live "
+            "question and not one already settled: the -10.67 reproduces "
+            "exactly but was frozen at five stops on the day it was written; "
+            "the full record is -18.71 across eight. 'Roughly a third of all "
+            "losses' was never right for -10.67 -- against the full-phase loss "
+            "base it is 16%, and it is -18.71 that is 29%. Four of the eight "
+            "stops never reached 4.0 sigma at all, so a 4.0-4.5 monitor cannot "
+            "touch their cost at any cadence; the ceiling on what a perfect "
+            "zero-latency monitor could have recovered is -6.30 of the -10.67, "
+            "69% of it in one event. Every stop crossed the band inside a "
+            "single unobserved hourly interval and no sub-hourly data exists, "
+            "so the recoverable fraction is bounded only by [0, -6.30].\n\n"
+            "Attack what remains. Consider at least: that an intra-bar monitor "
+            "removes the hourly bar's implicit noise filter and may convert "
+            "transient spikes into realised losses -- no false-positive cost "
+            "has been estimated anywhere, so the benefit is bounded above and "
+            "the cost is unmeasured; that the monitor is a new code path which "
+            "CLOSES live positions; and that drawdown below an already-banked "
+            "maximum costs nothing in the scored metric. Does the monitor "
+            "still earn its place, or does the instrumentation come first? "
+            "What single measurement would settle it?")),
         ("entry_band", common + (
             "CONCLUSION UNDER REVIEW: 'the band optimiser's objective is flat "
             "within 4% for entry bands from 0.3 to 0.8 sigma, so the entry "

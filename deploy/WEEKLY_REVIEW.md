@@ -1743,7 +1743,7 @@ section existed; that is what it is for.
 | ~~Re-check rank~~ **DONE 2026-08-02**: #2 of 29, score 94.4 | 2026-07-30 | closed |
 | ~~Restore `risk_per_pair` 0.002 → 0.004~~ **APPROVED 2026-08-02, HELD the same evening, and DECIDED AGAINST at the 2026-08-09 review** | 2026-07-30 | **closed.** Sizing is scale-invariant in Sharpe, so a restore buys the 45% of the score made of PnL and ROI while doing nothing for the 40% made of Sharpe, and roughly doubles the MDD we still lead on. The organizer's 2026-08-04 Quant Tip reaches the same place from the scoring side. Re-opening this needs a new argument, not the old one |
 | **Report the header-only CSV exports to the organizers** — order, transaction and position history all export zero rows | 2026-08-02 | next organizer contact; a broken data export in a competition judged on auditability is worth raising |
-| **Decide on the sub-hourly risk check** (read-only pass that may only close or stop, never open). Measured cost of not having it: −10.67 across five stops, ~a third of all losses | 2026-08-02 | **carried to the Sun 2026-08-16 review as agenda item 1 — ship it or drop it in writing.** Design is settled (two-tier, 4.0–4.5σ intra-bar); what is left is the judgement call, with Phase I ending 08-21 |
+| **Decide on the sub-hourly risk check** (read-only pass that may only close or stop, never open). ~~Measured cost of not having it: −10.67 across five stops, ~a third of all losses~~ **AUDITED 2026-09-09 — see that entry.** −10.67 reproduces but was frozen at five stops on 08-02; the full record is **−18.71 across eight**, and −10.67 is **16%** of all losses, not a third. Four of eight stops never reached 4.0σ, so the ceiling on a perfect monitor is **−6.30**, 69% of it one event, and the recoverable fraction is unmeasurable from hourly data — **[0, −6.30] at every cadence**. The tool's own verdict flips on the complete record to *"the stop is doing its job; leave it alone"* | 2026-08-02 | **decide at the Sun 2026-09-13 review.** Recommendation on record: **drop the monitor, ship sub-hourly z logging on open positions instead** (~90 min) — bounded benefit against an entirely unmeasured false-positive cost, in a new code path that closes live positions |
 | ~~Schedule `fills_report.py`~~ **DONE 2026-08-02**, daily at 23:55. Without it this week's loss attribution would not exist — retention had already eaten the live window | 2026-08-02 | closed |
 | ~~Restart for `taker_fee`~~ **DONE 2026-08-02 20:54** | 2026-08-02 | closed |
 | ~~Restart for `side_blocked` logging~~ **DONE 2026-08-09 23:28** — live now, dormant until a block actually declines a signal | 2026-08-08 | closed |
@@ -2743,6 +2743,149 @@ turn 0/54 into anything.
 `tests/test_ai_deep_review.py` (+8). **216 tests pass.** No trading behaviour
 changed: both files are diagnostics and the advisory layer, neither in the
 decision path.
+
+---
+
+## 2026-09-09 (evening) — the −10.67 audited, and the briefing that outlived its phase
+
+Research task 01 ran in Cowork. Output at
+`deploy/research_queue/out/01-overshoot-recheck.md` on branch
+`research/overshoot-recheck`, 431 lines with a per-stop working table.
+
+### The number is right, and stale, and mis-framed
+
+**−10.67 reproduces to the cent.** `stop_analysis.py` was run unmodified
+against the archived ledger and the arithmetic independently reimplemented.
+The five-vs-eight doubt has a dull answer: **all eight stops are live**
+(`dry: false`), nothing was excluded, and the five are simply the stops that
+existed on **2026-08-02**, the day the claim was written. It was then carried
+through the 08-09 and 08-16 reviews without recomputation while three more
+accumulated. Full-phase cost is **−18.71**.
+
+**"Roughly a third of all losses" is wrong as stated.** Against the full-phase
+loss base of −64.69 across 31 closed trades, **−10.67 is 16%.** It is −18.71
+that is 29%. Quoted together — "−10.67 ≈ a third of all losses" — the claim is
+wrong at both ends: numerator 75% understated, denominator doubled. That
+phrasing sat in the commitments table and in the review prompts.
+
+### The 6.75σ exit is genuine — the synthesis's doubt is answered against it
+
+Four independent checks agree. Decision-price P&L −6.19 matches the fills gross
+−6.20 **and the venue's own per-leg `rpnl`** (−8.832 + 2.632 = −6.20); slippage
+across the four legs was 0.87 / 0.0 / −2.74 / 1.73 bps; z decayed slowly
+afterwards (−10.245 → −9.547 → −8.911) rather than snapping back, which is what
+a broken relationship looks like and a spike does not.
+
+**And the σ scale is what made it look impossible.** σ_eq for that pair is
+**35.4 bps**, so 6.75σ of overshoot is a **2.7% relative price move** between
+AVAX and SOL, on 2026-08-01, inside the referenced sell-off. Unremarkable. The
+sample is **n=8, not n=3**.
+
+### The KAS/ETC frame corruption — resolved from source, not left open
+
+The audit found the 2026-08-20 KAS/ETC stop reading **3.597σ in entry
+coordinates against 4.752σ refitted**, `mu_shift_sigma` 6.443, and reported the
+`z_in_entry_coords` convention as undocumented with an inconsistent sign.
+
+**It is neither.** `ltp_agent.py:355–383` defines
+`z_entry_frame = (spread − mu₀)/σ₀`, unadjusted for side. Solving the three
+logged numbers:
+
+```
+(s − mu₀)/σ₀       = +3.597
+(mu_live − mu₀)/σ₀ = +6.443   →  (s − mu_live)/σ₀ = −2.846
+(s − mu_live)/σ_live = −4.752 →  σ_live/σ₀ = 0.599
+```
+
+Fully consistent. **σ collapsed 40% during the hold**, and the sign flip is the
+equilibrium *overtaking* the spread — mu moving up past where the price sat.
+That is the 2026-08-06 addendum's mechanism in its purest observed form, and it
+is **both** effects at once: mu drifted 6.44σ₀ toward and past the position
+while the refit tightened σ by 40%, and the tightening is what amplified a
+−2.846σ₀ residual into a −4.75σ reading.
+
+So the entry-frame overshoot really was **0.097σ** — the band was honoured
+almost exactly — and the "1.25σ overshoot" is entirely frame artefact. Row 7's
+−3.52 is an upper bound with a floor near zero.
+
+**It does not touch the −10.67.** Zero refits fired during any of those five
+holds, checked against all 35 `refit` events.
+
+### What actually decides the monitor
+
+**−10.67 was never the prize.** Four of the eight stops never reached 4.0σ at
+all, so a 4.0–4.5σ monitor cannot touch their −3.04 at any cadence, however
+fast. The ceiling on a **perfect zero-latency** monitor is **−6.30 of the
+−10.67 (59%)**, or −9.07 of −18.71 — and **69% of that ceiling sits in the one
+AVAX/SOL event** the operator's own contemporaneous note calls discontinuous.
+
+**The cadence question cannot be answered from these records.** For every one
+of the eight stops the last logged z before the stop bar was inside the band
+(−3.31, −3.02, +3.08, −2.70, +3.03, +3.11, −3.18, +2.79); every crossing
+happened inside a single unobserved interval. Of 607 z readings essentially all
+are stamped at minute :00. **N = 5, 15 and 30 all return the same answer:
+unknown, bounded by [0, −6.30].** A linear-in-time sensitivity — labelled an
+assumption, and the one most favourable to the monitor — spans only 56% → 41%
+across a 6× change in cadence. The value depends far more on whether the move
+was continuous than on polling rate.
+
+**Two findings settle it for me.**
+
+1. **The tool's own verdict flips on its complete record.** Five stops:
+   *"stops fire LATE → the sampling interval is the defect."* Eight:
+   ***"stops fire at the band and the spread does NOT always revert → the stop
+   is doing its job; leave it alone."*** Same code, same threshold, three more
+   observations.
+2. **Bounded benefit, unmeasured cost.** Four of eight stops fired below 4.0σ
+   and reverted; XLM/XRP kept running to 4.40σ *after* its stop. A 4.0σ tier
+   would also close positions the hourly rule lets breathe, and **no
+   false-positive cost is estimated anywhere or derivable from these records.**
+   Against that we would be adding a new code path that **closes live
+   positions** — the same class of path we deliberately refused to touch
+   mid-competition.
+
+**Recommendation into Sunday: drop the monitor, ship the instrumentation.**
+Sub-hourly z capture on open positions, estimated at ~90 minutes of work, would
+answer at the next stop what a month of re-reading this ledger cannot.
+
+### Three gaps the audit names, worth carrying
+
+- **Three of the five stops in the claim have no venue-verified P&L at all.**
+  Retention ate them; their decision-price P&L is corroborated only by NAV
+  deltas (agreeing to within 0.2).
+- **The largest single loss of the phase, −18.52**, closed after the last
+  snapshot and rests on the ledger plus a NAV delta, never a reconciled fill.
+- **P&L linearity in z is untested at −10.25σ**, and it sets the largest number
+  in the table.
+
+### The briefing had outlived its phase
+
+Fixing the −10.67 exposed that `strategy_prompts` was still opening every
+review with **Phase I's position**: `peak 1041.19`, `max drawdown 3.7%`,
+`5 lifetime stops`, `−10.67`, `~29 teams`, `~20 daily returns`. Phase II reset
+the book to 1,000 and deleted the high-water mark. **Every review generated
+since the phase opened was briefed on a position that no longer existed**, at
+$1.15/day.
+
+Now derived: `live_peak()` from `ltp_state.json`, `stop_facts()` delegating to
+`stop_analysis.py` itself so the briefing and the analysis cannot drift apart,
+`phase_days()` from `PHASE_II_START`. The stop_geometry prompt now carries the
+audit's findings so the reviewer attacks the live question instead of
+re-deriving a settled one. Current drawdown is labelled as **not** the scored
+MDD — it is a lower bound on the venue's running maximum, and conflating them
+overstates how much room is spent.
+
+Two more contract tests had to be rewritten because they pinned the frozen
+figures (`"4 of 5 stops were followed"`, `"already banked at 3.7%"`). Suite
+216 → **225**.
+
+### And one error of mine
+
+The task file said −8.31 came from *a single trade*. It comes from two — the
+stops at 1.08σ and 6.75σ past the band (−3.5863 + −4.7153 = −8.3016).
+`WEEKLY_REVIEW.md:821` and the prompt both said two; the "one trade" was
+invented while writing a task whose whole purpose was checking someone else's
+numbers. Corrected in place with a visible note rather than edited away.
 
 ---
 
