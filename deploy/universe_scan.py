@@ -16,6 +16,14 @@ defined sector groups — restricting the search space is itself a
 multiple-testing correction and the one that carries economic meaning, so we
 never test blind all-vs-all combinations.
 
+The CURRENT-universe comparison is only worth something if it covers the whole
+live book. It silently did not until 2026-09-09: symbols were fetched from
+SECTOR_GROUPS alone, so any CANDIDATES pair whose legs were not also listed
+there was dropped without a word. Two fixes, because either alone would rot
+again — the fetch set is now the *union* of both lists, and any candidate pair
+still excluded for missing data is named in the output rather than subtracted
+from a count.
+
     set -a; source /root/ltp.env; set +a
     python deploy/universe_scan.py
 
@@ -47,6 +55,13 @@ def _sym(base: str) -> str:
 # pairs are de-duplicated. Symbols not on the whitelist simply return no data
 # and are dropped, so an over-broad list here is harmless.
 SECTOR_GROUPS: dict[str, list[str]] = {
+    # The two largest assets. Omitted until 2026-09-09, which silently dropped
+    # ETH/BTC from the CURRENT-universe comparison -- the pair that passed the
+    # gate on six of the eight refits before that date. The scan reported
+    # "CURRENT universe (14 pairs)" against a live book of 15 and nothing said
+    # why. See the union in main(): a symbol in CANDIDATES is now always
+    # fetched whether or not anyone remembers to list it here.
+    "majors": ["BTC", "ETH"],
     "gold": ["XAUT", "PAXG"],
     "privacy": ["XMR", "ZEC", "DASH"],
     "pow": ["ETC", "KAS", "LTC", "BCH"],
@@ -151,7 +166,16 @@ def main() -> int:
     broker = RapidXBroker()
     sel = _sel_cfg(cfg)
 
-    all_syms = sorted({_sym(b) for g in SECTOR_GROUPS.values() for b in g})
+    # Union, deliberately. The sector groups define the EXPANDED search; the
+    # live CANDIDATES define what the book actually trades. Fetching only the
+    # first silently narrows the second, which is how ETH/BTC went untested.
+    sector_syms = {_sym(b) for g in SECTOR_GROUPS.values() for b in g}
+    cand_syms = {s for p in CANDIDATES for s in p}
+    all_syms = sorted(sector_syms | cand_syms)
+    if cand_syms - sector_syms:
+        print(f"note: {sorted(_base(s) for s in cand_syms - sector_syms)} are "
+              f"traded but not in any sector group — fetched for the CURRENT "
+              f"comparison, not paired in the EXPANDED scan")
     print(f"fetching {len(all_syms)} candidate symbols "
           f"({cfg.lookback_bars} bars each; this takes a couple minutes) ...")
     panel = fetch_panel(broker, all_syms, cfg)
@@ -175,11 +199,23 @@ def main() -> int:
     n_expanded = _report(expanded, f"EXPANDED universe ({len(pairs_list)} "
                                     f"sector pairs, FDR across all)")
 
-    # apples-to-apples: the current 14, scored on the same panel
-    current = [(a, b) for a, b in CANDIDATES
-               if a in available and b in available]
+    # apples-to-apples: the live book, scored on the same panel. Any pair that
+    # cannot be scored is NAMED -- a comparison that quietly shrinks its own
+    # denominator reads as evidence about the market when it is evidence about
+    # the fetch list.
+    current, missing_pairs = [], []
+    for a, b in CANDIDATES:
+        if a in available and b in available:
+            current.append((a, b))
+        else:
+            missing_pairs.append(f"{_base(a)}/{_base(b)}")
+    if missing_pairs:
+        print(f"\n** {len(missing_pairs)} of {len(CANDIDATES)} live candidate "
+              f"pairs EXCLUDED for missing data: {missing_pairs}\n"
+              f"   The CURRENT result below is NOT the whole book. **")
     cur_table = select_pairs(panel, candidates=current, cfg=sel)
-    n_current = _report(cur_table, f"CURRENT universe ({len(current)} pairs)")
+    n_current = _report(cur_table, f"CURRENT universe ({len(current)} of "
+                                   f"{len(CANDIDATES)} live pairs)")
 
     print("\n" + "=" * 60)
     print("ORIENTATION SENSITIVITY (Engle-Granger is not symmetric)")

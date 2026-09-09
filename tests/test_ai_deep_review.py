@@ -3,7 +3,7 @@ Guards on the deep-review pass.
 
 It exists for two reasons at once, and the tests care about the first: the
 analysis must be real. The live agent only ever assesses pairs it is holding,
-so the fourteen candidates rejected at each refit get no individual review --
+so the candidates rejected at each refit get no individual review --
 that is the gap. The second reason is a deadline (the organizer requires AI
 spend above 1 USD or the team is disqualified), and a script written under that
 pressure is exactly the kind that quietly becomes token-burning. These pin the
@@ -12,6 +12,7 @@ properties that keep it from becoming that.
 
 import json
 import os
+import re
 import sys
 from datetime import date, datetime, timezone
 
@@ -28,7 +29,9 @@ from deploy.ai_deep_review import (AI_SPEND_FLOOR, ANGLES,  # noqa: E402
                                    days_left, floor_state, followups,
                                    ledger_prompts, over_ceiling,
                                    period_age_hours, record_facts,
-                                   recent_events, strategy_prompts)
+                                   recent_events, strategy_prompts,
+                                   RECORD_FALLBACK, hold_clause, last_refit,
+                                   _record_block)
 
 
 def test_the_reviewer_is_told_to_attack_not_approve():
@@ -55,19 +58,33 @@ def test_every_strategy_prompt_states_a_conclusion_and_asks_for_attack():
 
 def test_prompts_carry_the_real_measured_numbers():
     """The model can only find our errors if it is given what we measured. If
-    these drift out of the prompt the review degrades to opinion."""
+    these drift out of the prompt the review degrades to opinion.
+
+    Rewritten 2026-09-09. This test used to assert `"median hold 2.0h" in p`
+    -- a figure no fills snapshot has ever recorded -- and so actively held
+    the fabrication in place. A test that pins a number nobody measured is
+    worse than no test, because it makes the fiction look load-bearing. The
+    property worth pinning is the SOURCE of a figure, not its value: measured
+    numbers come from the snapshot, and the unreadable case quotes none.
+    """
     p = strategy_prompts()[0][1]
-    for fact in ("1.75 bps",          # the measured fee
-                 "0.57 bps",          # measured slippage
-                 "+0.385",            # funding, net received
-                 "3.7%",              # banked max drawdown
+    for fact in ("3.7%",              # banked max drawdown
                  "9.30 to 5.66",      # the Sharpe collapse
-                 "-10.67",            # total overshoot cost
-                 "median hold 2.0h"):
+                 "-10.67"):           # total overshoot cost
         assert fact in p, fact
-    # ...and when the live snapshot is unavailable it must SAY those figures
-    # are dated rather than presenting them as current.
-    assert "treat them as dated" in p
+    # With no snapshot the briefing must say so and quote nothing, rather than
+    # presenting a stale copy as if it were the reading.
+    assert "could not be read" in p.lower()
+    assert "do not assume" in p.lower()
+
+
+def test_measured_figures_come_from_the_snapshot_not_the_prompt():
+    """The live path must carry the record's own numbers through."""
+    block = _record_block({"as_of": "2026-08-20", "summary": {
+        "round_trips": 29, "median_hold_h": 8.0,
+        "measured_fee_bps_per_side": 1.75, "slippage_bps_mean": 0.57}})
+    assert "8.0h" in block and "1.75 bps" in block and "0.57 bps" in block
+    assert "2026-08-20" in block
 
 
 def test_the_record_block_is_measured_when_a_snapshot_exists():
@@ -224,8 +241,10 @@ def test_the_two_candidate_angles_ask_genuinely_different_questions():
     # property that keeps them from collapsing together.
     assert "do NOT re-litigate whether the pair" in a2
     # ...and asks about execution rather than validity.
-    for probe in ("reach the exit before", "median of 2.0 hours"):
+    for probe in ("reach the exit before", "{hold_clause}"):
         assert probe in a2, probe
+    # The hold question is interpolated, never typed in -- see hold_clause().
+    assert "median of 2.0 hours" not in a2
     assert "split-half statistics" in a1
 
 
@@ -372,3 +391,92 @@ def test_a_failing_gateway_stops_the_run_instead_of_being_hammered():
     assert "fails >= MAX_CONSECUTIVE_FAILURES" in src
     i = src.index("fails >= MAX_CONSECUTIVE_FAILURES")
     assert "done = True" in src[i:i + 400]
+
+
+# --------------------------------------------------------------------------
+# The briefing must not invent what it cannot measure.
+#
+# On 2026-09-09 a synthesis over the corpus found the single most-repeated
+# claim in it -- "median hold 2.0h against fitted half-lives of 17-26h" -- was
+# a prompt artefact. No snapshot ever recorded a median below 2.5h, and the
+# 2026-08-09 snapshot the briefing NAMED as its source records 25.98h. Roughly
+# 45% of strategy reviews reasoned from it. These pin the shape of that bug so
+# it cannot come back in a new place.
+# --------------------------------------------------------------------------
+
+def test_no_prompt_asserts_a_hold_time_the_record_never_showed():
+    """The specific false figure, and the frozen half-life range beside it."""
+    blob = " ".join(ANGLES.values()) + RECORD_FALLBACK
+    assert "2.0 hour" not in blob
+    assert "2.0h" not in blob
+    # the range was frozen from a single week and stated as if it were general
+    assert "17-26" not in blob
+
+
+def test_the_derived_record_block_does_not_hardcode_a_half_life_range():
+    """The rot was fixed in the numbers and left in the sentence around them:
+    `_record_block` interpolated a measured hold into a hardcoded
+    'against fitted half-lives of 17-26h' for a month."""
+    block = _record_block({"as_of": "2026-08-20",
+                           "summary": {"round_trips": 29, "median_hold_h": 8.0}})
+    assert "8.0h" in block
+    assert "17-26" not in block
+
+
+def test_record_fallback_quotes_no_figures_at_all():
+    """A plausible stand-in is indistinguishable downstream from a
+    measurement. That is precisely how the 2.0h survived a month of runs, so
+    the unreadable case now says 'unknown' rather than guessing."""
+    assert not any(c.isdigit() for c in RECORD_FALLBACK)
+    low = RECORD_FALLBACK.lower()
+    assert "could not be read" in low
+    assert "do not assume" in low
+
+
+def test_hold_clause_uses_the_measured_median_when_there_is_one():
+    got = hold_clause({"as_of": "2026-08-20",
+                       "summary": {"median_hold_h": 8.0}})
+    assert "8.0h" in got
+    assert "2026-08-20" in got
+
+
+def test_hold_clause_asks_an_open_question_when_the_record_is_dark():
+    got = hold_clause(None)
+    assert "could not be read" in got
+    assert "do not assume one" in got.lower()
+    assert "2.0" not in got
+
+
+def test_hold_clause_does_not_presuppose_a_mismatch():
+    """The defect was not only the wrong number. 'Is a hold that short
+    evidence the band is too tight...' asserts a contradiction and asks for an
+    explanation; a reviewer asked that will supply one."""
+    got = hold_clause({"as_of": "2026-09-01",
+                       "summary": {"median_hold_h": 20.0}})
+    assert "do not assume they ought to match" in got.lower()
+    for leading in ("is a hold that short", "too tight", "over-estimated"):
+        assert leading not in got.lower()
+
+
+def test_no_angle_hardcodes_a_calendar_date():
+    """`days_left()` and `live_equity()` exist because typed-in dates rot.
+    Angle 1 carried a 2026-07-31/08-01 shock date for six weeks."""
+    blob = " ".join(ANGLES.values())
+    assert not re.search(r"20\d\d-\d\d-\d\d", blob)
+
+
+def test_last_refit_returns_the_newest_refit_record(tmp_path):
+    led = tmp_path / "ltp_ledger.jsonl"
+    led.write_text("\n".join([
+        json.dumps({"ts": "2026-09-07T19:00:00+00:00", "event": "refit",
+                    "passed": 1, "tested": 15}),
+        json.dumps({"ts": "2026-09-08T00:00:00+00:00", "event": "enter"}),
+        json.dumps({"ts": "2026-09-08T15:38:00+00:00", "event": "refit",
+                    "passed": 0, "tested": 15}),
+    ]) + "\n", encoding="utf-8")
+    got = last_refit(led)
+    assert got["passed"] == 0 and got["tested"] == 15
+
+
+def test_last_refit_is_none_rather_than_stale_when_unreadable(tmp_path):
+    assert last_refit(tmp_path / "nope.jsonl") is None
