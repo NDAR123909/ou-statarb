@@ -82,5 +82,11 @@ eventually be dispatched without being read.
 
 | # | task | status |
 |---|---|---|
-| 01 | `01-overshoot-recheck.md` — **GATE** on the intra-bar monitor decision | open · run before Sunday 2026-09-13 |
-| 02 | `02-side-blocked-earned-its-keep.md` — nothing waits on it | open · next Wednesday |
+| 01 | `01-overshoot-recheck.md` — **GATE** on the intra-bar monitor decision | **done 2026-09-09** → `out/01-overshoot-recheck.md` |
+| 03 | `03-frame-drift-cost.md` — what the moving `mu`/`sigma` frame has cost | **open · run next**, ahead of 02 |
+| 02 | `02-side-blocked-earned-its-keep.md` — nothing waits on it | open · after 03 |
+
+Run order is 01 → 03 → 02, not numeric. 03 jumped the queue because two
+independent analyses landed on the same mechanism within a day of each other
+without either looking for it, and it touches the accuracy of the record
+itself rather than only performance.
