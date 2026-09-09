@@ -17,7 +17,11 @@ rapidx --version
 # 2. Credentials (issued by LTP at registration; never commit these)
 export LTP_ACCESS_KEY="..."
 export LTP_SECRET_KEY="..."
-export LTP_API_HOST="https://api.ltp-contest.com"
+# PRODUCTION host. `api.ltp-contest.com` is the sandbox/contest domain used
+# through Phase I; it answers a production key with `100018 API not exist`.
+# The AI gateway did NOT move with it — LTP_AI_BASE_URL stays on
+# ai.ltp-contest.com. The two domains have diverged; do not tidy one to match.
+export LTP_API_HOST="https://api.liquiditytech.com"
 rapidx auth check && rapidx self-check --read-only --json
 
 # 3. Python side is just this repo

@@ -927,6 +927,55 @@ means a position that will not close. Until then `fills_report.py`'s
 symbol-plus-timestamp matching is the sole source for realised exits, and every
 P&L attribution in this record depends on it.
 
+## Addendum — the Phase II reset, and a kill switch deliberately re-anchored (2026-09-08)
+
+Phase II began 2026-09-08 16:00 UTC (00:00 GMT+8 on 09-09) with every team reset
+to 1,000 USDT of **live capital in live markets**. No code changed at the
+cutover. Two things did, and both are disclosable because they move a risk
+control the pre-registration names.
+
+**1. The drawdown kill switch was re-anchored, by deleting state.** The agent
+carries a high-water mark in `deploy/ltp_hwm.json`, separate from
+`ltp_state.json` so that it survives a state wipe — that separation was the
+week-1 fix for the kill switch silently re-anchoring *downward* after an
+operator `rm`. `reconcile_peak` takes `max(state, hwm file, live)`, so it is
+monotone by construction and cannot be talked down by a bad reading.
+
+At the phase boundary that property points the wrong way. The file held
+`peak_equity: 1057.48` from Phase I. Against a fresh 1,000 USDT the agent would
+have believed it was **already 5.4% in drawdown**, with its kill switch at
+930.58 — *seven percent below its own opening equity*, so a single ordinary
+early loss would have halted the book on day one of fifty-six. **Both files were
+deleted deliberately**, and the kill switch now anchors on Phase II's own peak
+(880.00 from a 1,000 peak). The book was flat and there were no positions to
+orphan; that check is a standing rule before touching `ltp_state.json` and it
+was performed.
+
+This is disclosed rather than treated as housekeeping because deleting the file
+that exists to be undeletable is exactly the action a reader of the
+pre-registration would want to see justified. The justification is that the
+measurement period changed, not that the number was inconvenient.
+
+**2. Leverage was re-applied at 2×, against a 5× allowance.** Phase II raises
+the cap from 2× to 5×; `deploy/set_leverage.py` was run over all 30 whitelist
+symbols at 2×. Sharpe is scale-invariant, so leverage buys nothing in the 40% of
+the score that is Sharpe while scaling PnL, ROI and **MDD** together — and MDD
+is monotonically non-decreasing, so it is a banked asset that leverage spends.
+Phase I's weakness was never under-sizing: it was the worst return-per-drawdown
+of the top four (1.03 against 3.18 / 2.37 / 2.03). Staying at 2× is also a hard
+rail against an accidental disqualification, which on live capital is no longer
+a sandbox concern. Peak gross in Phase I was ~1.06×, so the headroom was never
+used.
+
+**Nothing in the strategy itself changed.** Gates, bands, `taker_fee`, `stop_z`,
+sizing and the news/regime vetoes are all as disclosed above. Phase II runs the
+Phase I model unchanged — the nineteen-day build window closed with the
+universe-breadth work, the intra-bar monitor and the venue comparison all
+unshipped. That is recorded in `deploy/WEEKLY_REVIEW.md` rather than dressed up
+here, and it means every measurement in this document taken in the sandbox is
+now a **prior, not a fact**: slippage of 0.57–0.91 bps and funding as a rounding
+error were sandbox numbers, and should be expected to worsen.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;
