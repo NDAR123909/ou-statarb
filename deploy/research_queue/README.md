@@ -36,12 +36,28 @@ what comes back. The rest is the tool working.
 
 **The operator dispatches. Nobody needs to be asked.**
 
-1. `git checkout -b research/<task-name>` in the local clone.
-2. Point Cowork at the repo folder and paste the task file's **PROMPT** block
-   verbatim. It is written to be pasted, not paraphrased.
-3. When it finishes: `git status`, confirm it created only what the task names,
-   commit and push the branch.
+Nothing here is automated. There is no timer and no scheduled job — the day is
+a reminder so the lane does not drift, exactly like the daily `status.py`
+glance. The procedure is five minutes of typing.
+
+1. Sync the local clone and branch:
+   ```powershell
+   cd $HOME\repos\ou-statarb
+   git checkout claude/offline-competition-deploy-nuk5tz
+   git pull
+   git checkout -b research/<task-name>
+   ```
+2. Open Claude Desktop → Cowork, point it at the repo folder, and give it
+   **one line** — Cowork can read the task file itself, so the prompt never
+   needs copying:
+   > Read `deploy/research_queue/01-overshoot-recheck.md` and carry out the
+   > task in its PROMPT block exactly as written.
+3. When it finishes: `git status`, confirm it created only the output file the
+   task names, then commit and push the branch.
 4. Move the task file to `done/` in the same commit and note the output path.
+
+The scope rules live inside each PROMPT block, so a task dispatched this way
+carries them whether or not anyone remembers to repeat them.
 
 Tasks are numbered by dispatch order, not importance. A task marked **GATE**
 blocks a decision — run those first.
