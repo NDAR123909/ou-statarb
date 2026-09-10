@@ -1761,7 +1761,8 @@ section existed; that is what it is for.
 | **Re-run `universe_scan.py`** now that ETH/BTC is actually fetched. The 2026-09-09 run's CURRENT line (`0/14`) excluded the pair carrying the book and cannot be quoted until this is done | 2026-09-09 | next droplet session, avoiding ~15:38 UTC (refit) |
 | **Rule out a data cause for the 0/54**, before "regime" is written down as fact. ETH\|BTC passed 09-07, then 0/15 and 0/54 within 36h — coinciding exactly with the host change. Compare klines from `api.liquiditytech.com` against a known 09-07 fit | 2026-09-09 | before any decision rests on the regime verdict |
 | ~~**Enumerate the orderable instrument set**~~ **PROBED 2026-09-10.** No listing action exists in any of the 53 capabilities — enumeration is a name-by-name probing exercise with `get-symbol-info` as the oracle. `OKX_PERP_CL_USDT` (WTI crude) is **live and reachable** | 2026-09-10 | closed as a question; the blocker below replaces it |
-| **Chase `market.klines` for the OKX adapter** — `RCLI30002`, the one missing method of seven. Without it no historical fit is possible on any OKX instrument, for any team. Reported to #TechnicalSupport 2026-09-10 | 2026-09-10 | **blocks the universe scan entirely.** Re-test on any RapidX release; watch the RapidX channel. Fallback (OKX public REST for selection only) is recorded in the 09-10 entry and should NOT be built while a one-line fix on their side is plausible |
+| ~~**Chase `market.klines` for the OKX adapter**~~ **RESOLVED 2026-09-10** — we were on CLI **1.0.41**, three versions stale. `npm install -g @liquiditytech/rapidx-cli@latest` → 1.0.44, OKX klines return data. Binance path verified unchanged before restart | 2026-09-10 | closed |
+| **Chase the OKX 300-bar klines cap.** Binance returns 1000 on an identical request; OKX returns 300 for symbols with years of history. `KlinesInput` is `additionalProperties: false` with only symbol/interval/limit, so pagination cannot be expressed, and `limit` carries no documented maximum — a bug, not a feature request. Raised 2026-09-10 | 2026-09-10 | **still blocks the universe scan.** 300 bars = 12.5 days, which silently narrows the effective half-life band to ~6–48h. **Do not scan OKX at 300 bars and report the result as a regime measurement.** Re-test on each RapidX release |
 | **Verify OKX instruments are actually ORDERABLE**, not merely readable. `symbol-info` succeeding is not proof; the organizer's test is "any instrument you are able to place orders on". The check is `order place-preview`, classed **TRADE_WRITE** — decide it deliberately at a review, not casually against live capital | 2026-09-10 | Sun 2026-09-13 review |
 | **Scan the full Phase II universe, grouped by DRIVER not venue.** The top-50 whitelist is gone and the organizer confirmed (2026-09-09) that **any orderable instrument counts, crypto or not** — commodity and tokenised-equity perps score identically. The 0/55 result is a **one-factor** problem: every crypto perp shares BTC beta, so widening within crypto cannot fix it. Non-crypto breaks the factor | 2026-09-09, reshaped 2026-09-10 | highest-priority research item. Hedges recorded in the 09-10 entry: liquidity, weekend gaps in the underlying, corporate actions, FDR, 960-bar data depth |
 | **Resolve the taker-fee discrepancy** — API reports `level=1`, taker 3.5 bps; this record has it *measured* at 1.75 bps/side. VIP 5 is "being applied" per LTP. Re-measure once it lands; `optimal_bands` consumes it, so it decides which passing pairs are tradeable | 2026-09-09 | when LTP confirms VIP 5, and at the next review regardless |
@@ -3085,7 +3086,66 @@ can build a statistical strategy on OKX instruments in this state. We are not
 behind; the tooling is not ready. Reported to #TechnicalSupport 2026-09-10 with
 the error code, the coverage table and the naming convention.
 
-**The fallback, if it stays unregistered.** Selection data and execution data
+**FIXED SAME DAY — by upgrading our own CLI.** Zach's reply: run
+`npm install -g @liquiditytech/rapidx-cli@latest`. **We were on 1.0.41**, three
+versions behind, while this log had recorded "CLI 1.0.44" since another team
+quoted it on 09-08 — we assumed we were current and were not. Upgraded 20:20
+UTC with the agent stopped and the book flat; Binance klines verified unchanged
+before restarting, since `ltp_broker.klines()` reads rows **by position** inside
+a bare `except` and a shape change would have silently returned zero pairs.
+Agent back at 20:23, pid 14890, restarts 0.
+
+**Two response-shape differences, and we survive them by accident:**
+
+| | Binance | OKX |
+|---|---|---|
+| timestamp | `1789056000000` int | `"1789070400000"` **string** |
+| row order | ascending | **descending**, newest first |
+| fields | 12 | 9 |
+
+`int()` happens to accept numeric strings, the trailing `.sort_index()` happens
+to fix the reversal, and we only index positions 0 and 4, which happen to
+align. **Remove any one of those and OKX breaks silently.** Pinned by a unit
+test against both literal shapes.
+
+### THE REAL BLOCKER: OKX klines cap at 300 rows
+
+```
+BINANCE_PERP_BTC_USDT   limit 1000 → count 1000
+OKX_PERP_BTC_USDT       limit 1000 → count  300     ← years of history exist
+OKX_PERP_CL_USDT        limit 1000 → count  300
+```
+
+BTC on OKX has traded for years, so this is an **adapter cap, not data
+availability**. And it cannot be paged around: `KlinesInput` declares only
+`symbol` / `interval` / `limit`, with **`additionalProperties: false`**, so no
+start, end or cursor can be passed. `limit` carries **no documented maximum**,
+which makes this a bug report rather than a feature request. Raised with LTP
+2026-09-10.
+
+**Why 300 is disqualifying rather than merely awkward.** It is **12.5 days**
+against `lookback_bars = 960`:
+
+- the half-life band is 6–168h, and a 168h pair shows **1.8 half-lives** in
+  12.5 days — an OU decay rate cannot be fitted on that;
+- the crossing gate needs ~9.5 crossings in 300 bars, and a 24h half-life
+  spread produces roughly 8. Marginal at the *fast* end;
+- split-half would run on 150 bars per half.
+
+So the cap **silently narrows the effective half-life band to roughly 6–48h**
+and rejects everything slower for lack of evidence rather than lack of
+cointegration. That would read as a market finding when it is a data artifact —
+the same failure shape as ETC/KAS vanishing from the scan. **Do not run a scan
+over OKX instruments at 300 bars and report the result as a regime measurement.**
+
+**A note on where the naming convention was.** `KlinesInput`'s own description
+documents `OKX_PERP_<BASE>_<QUOTE>` and that `OKX_SWAP_<BASE>_<QUOTE>` is an
+accepted alias. The answer that cost us a false negative this morning was in
+`rapidx schema --json` the whole time, under `inputSchemas`, which we had not
+read. Worth remembering before the next round of probing: **read the schema
+first.**
+
+**The fallback, if the cap stays.** Selection data and execution data
 need not come from the same place. OKX's public REST serves klines
 unauthenticated — market data, compliant under the same reasoning that covers
 SoSoValue and AIVIX — so we could fit on OKX's own history and trade through
