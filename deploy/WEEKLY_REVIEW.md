@@ -3005,6 +3005,75 @@ once enumerating it.
 or `rapidx schema --json` is the next call. Until that list exists, both the
 venue question and this one are unanswerable.
 
+### PROBED THE SAME DAY — WTI crude is live and reachable
+
+```
+rapidx market get-symbol-info --symbol OKX_PERP_CL_USDT --json
+  → PASS, real_tool_call
+    originalSymbol  CL-USDT-SWAP        state  live
+    contractSize    0.1   minSize 1     minNotional 0
+    tickSize        0.01  pricePrecision 2   qtyPrecision 0
+    defaultLeverage 5     safeLeverage  10   liquidationFee 0.020
+```
+
+`OKX_PERP_BTC_USDT` also live, so the whole OKX namespace is reachable.
+
+**The naming convention, recorded because it cost us a false negative.**
+RapidX normalises to **`OKX_PERP_<BASE>_USDT`** and reports the venue's own
+name in `originalSymbol`. The organizer quoted OKX's native `CL-USDT-SWAP`,
+which RapidX **rejects outright** — so the first probe looked like "not
+available" when it was only "wrong spelling".
+
+**Three failure modes, now separated — this is the existence oracle.** A
+control probe (`BINANCE_PERP_FAKE_USDT`) was run precisely to make the others
+interpretable:
+
+| result | meaning |
+|---|---|
+| `RCLI12001` "Invalid RapidX symbol" | **malformed name**, never reached the venue |
+| `RCLI22001` / upstream `401011` "sym is not supported" | **well-formed, not supported** |
+| `PASS` + `real_tool_call` | live |
+
+**CLI quirk worth knowing.** The `FAKE` probe returns
+`evidence.source: "local_check"` *while also* carrying
+`details.upstreamCode: 401011`. **The `source` field does not reliably
+distinguish a local pattern check from an upstream round-trip** — read the
+error code and `details` instead. Taken at face value it would have told us
+the venue was never contacted, which is false.
+
+**One hedge from the entry above is now weaker.** I flagged thin liquidity
+against `minNotional` on a 1,000 USDT book. For CL, `minSize 1` at
+`contractSize 0.1` is a **tenth of a barrel** — single-digit dollars of
+notional — with `minNotional: 0`. Comfortably inside what vol-targeted sizing
+wants. That caution was unfounded here; it may still bite on thinner contracts.
+
+### Two things this does NOT establish
+
+1. **`symbol-info` succeeding is not proof of orderability.** The organizer's
+   test is *"any instrument you are able to place orders on."* Data access and
+   order access can differ. The definitive check is `order place-preview` — but
+   that is classed **TRADE_WRITE**, so it does not get run casually against a
+   live-capital account. Decide it deliberately at the review.
+2. **Data depth is unverified.** Selection needs `lookback_bars = 960` hourly
+   bars. `fetch_panel` drops a symbol with no data **silently**, which is
+   exactly how ETC/KAS's absence went unnoticed for a day, so a shallow history
+   would quietly shrink the universe rather than announce itself.
+
+### There is no listing action, and that reshapes the work
+
+All 53 capabilities were dumped. **Every market action takes a symbol as
+input** — `klines`, `ticker`, `orderbook`, `symbol-info`, `funding-rate`,
+`open-interest`, `mark-price`. Nothing returns a list. Neither does anything
+under `portfolio`.
+
+So enumerating the universe is **not a call, it is a probing exercise**:
+generate candidate names from outside, then use `get-symbol-info` as the
+oracle. OKX's public instrument endpoint gives the candidate list, and
+`originalSymbol` proves the mapping is mechanical
+(`<BASE>-USDT-SWAP` ↔ `OKX_PERP_<BASE>_USDT`). Public market data is
+compliant under the same reasoning that covers SoSoValue and AIVIX — it is
+market data, not a model.
+
 ### What it does to Sunday
 
 Agenda item 3 changes shape. It was *"pull both crypto symbol lists and
