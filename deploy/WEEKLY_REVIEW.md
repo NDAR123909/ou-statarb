@@ -106,6 +106,21 @@ Hard exit: **equity < 800 USDT** → forced liquidation and elimination.
   the engagement figure is a **rolling window, not a cumulative total** — it
   fell 72k → 61k across 2026-08-02 with no change in behaviour. A drop there is
   not a fault.
+- **A Sharpe of ±13.51 on the Phase II leaderboard is NOT a measurement — it
+  is `sqrt(365/2)`.** Established 2026-09-10, day 2 of the phase, when six of
+  the visible top ten showed exactly ±13.51. That value is what two completed
+  daily returns produce **when one of them is flat**, and it is *independent of
+  the size of the move*: +2.6% and +50% both give 13.51. Derivation, with
+  r = [x, 0]: mean = x/2, stdev(ddof=1) = |x|/√2, so mean/stdev = sign(x)/√2
+  and × √365 gives sign(x)·13.509 for any x whatsoever.
+
+  The proof was sitting at rank 4: **Poetikrule, −0.0% return, −0.16 PnL,
+  ranked fourth** on a Sharpe that is a constant. Only four values on that
+  board carried information (X-Explore 3.78, NeuPortal −10.28, btcol −13.74,
+  Quantech −32.61); the rest were arithmetic. **Before reading any early
+  leaderboard, check how many teams share an identical Sharpe** — and note
+  that a two-day artifact collapses the moment a third distinguishable day
+  lands, exactly as ours went 9.30 → 5.66 on one −0.8% day.
 - **Sharpe at this sample size is noise, in both directions.** With ~14
   completed days, one −0.8% day moved ours from 9.30 to 5.66 (2026-08-02) —
   pure arithmetic, since a single outlier hits the mean and the deviation at
@@ -3182,6 +3197,36 @@ compare."* It is now:
 4. **Then** decide the venue, if the choice is even forced — the organizer's
    phrasing suggests it is about what the portfolio can order, not a
    declaration we make.
+
+### The leaderboard appeared, and it is measuring nothing yet
+
+Top ten visible on day 2. **We are not in it, and that fact carries no
+information** — see the `sqrt(365/2)` entry in Standing context. Six of the ten
+shared an identical Sharpe of ±13.51, which is the constant two days produce
+when one is flat.
+
+State of the field: best PnL on the board is **+25.57 on a 1,000 USDT book**,
+2.6% after two days. Nobody has done anything. The only top-three team whose
+number means something is **X-Explore** — 558 trades, Sharpe 3.78, MDD 1.7% —
+which is a real strategy running at high frequency. Krosus (93.0) and TDB
+(83.1) are two-day artifacts.
+
+**Poetikrule shows `0 | 0 | 0` AI engagement at rank 4.** The record already
+says both that this column is unreliable (the 2026-08-13 display bug) and that
+zero-AI teams have been eliminated in prior reviews. Watch it; do not build an
+argument on it — that mistake was made and retracted once already.
+
+**What flat actually costs us, stated plainly.** PnL 0, Return 0, and a Sharpe
+that is zero or undefined. Our Phase I edge was the 40% Sharpe term and
+**Sharpe needs returns** — there is nothing to be sharp about in an empty book.
+That is worse than Phase I, where advancement was the only bar and ten teams
+cleared it with negative returns; Phase II is scored on rank.
+
+**And it is still not a reason to loosen a gate.** The 09-09 scan returned 0 of
+55 with 40 rejections on crossings and split-half — a trending market. Forcing
+entries into that is how Quantech reached −460% annualised and 4.7% MDD on day
+two. The legitimate lever is the universe question, and it is blocked on LTP's
+300-bar cap rather than on our judgement. Nothing to do but wait and build.
 
 ---
 
