@@ -1760,7 +1760,8 @@ section existed; that is what it is for.
 | **`deploy/README_ltp.md:20` still documents `LTP_API_HOST=https://api.ltp-contest.com`** — the sandbox host. A future session following the setup block would rebuild the exact failure we just spent a day diagnosing | 2026-09-08 | next doc pass; trivial, but it is a trap laid for a cold reader |
 | **Re-run `universe_scan.py`** now that ETH/BTC is actually fetched. The 2026-09-09 run's CURRENT line (`0/14`) excluded the pair carrying the book and cannot be quoted until this is done | 2026-09-09 | next droplet session, avoiding ~15:38 UTC (refit) |
 | **Rule out a data cause for the 0/54**, before "regime" is written down as fact. ETH\|BTC passed 09-07, then 0/15 and 0/54 within 36h — coinciding exactly with the host change. Compare klines from `api.liquiditytech.com` against a known 09-07 fit | 2026-09-09 | before any decision rests on the regime verdict |
-| **Scan the full Phase II universe.** The top-50 Binance whitelist is gone — all perps on Binance *or* OKX are permitted. Pull both symbol lists, extend `SECTOR_GROUPS`, and re-measure. This is the venue decision and it is made once | 2026-09-09 | highest-priority research item; supersedes the old "widen the universe" framing |
+| **Enumerate the orderable instrument set — we have never once done this.** `ltp_broker.py` has no listing action; every symbol ever traded came from the hardcoded `CANDIDATES` list. Start with `rapidx market --help` / `rapidx schema --json`. **Everything about the universe question waits on this** | 2026-09-10 | next droplet session. Blocks the item below |
+| **Scan the full Phase II universe, grouped by DRIVER not venue.** The top-50 whitelist is gone and the organizer confirmed (2026-09-09) that **any orderable instrument counts, crypto or not** — commodity and tokenised-equity perps score identically. The 0/55 result is a **one-factor** problem: every crypto perp shares BTC beta, so widening within crypto cannot fix it. Non-crypto breaks the factor | 2026-09-09, reshaped 2026-09-10 | highest-priority research item. Hedges recorded in the 09-10 entry: liquidity, weekend gaps in the underlying, corporate actions, FDR, 960-bar data depth |
 | **Resolve the taker-fee discrepancy** — API reports `level=1`, taker 3.5 bps; this record has it *measured* at 1.75 bps/side. VIP 5 is "being applied" per LTP. Re-measure once it lands; `optimal_bands` consumes it, so it decides which passing pairs are tradeable | 2026-09-09 | when LTP confirms VIP 5, and at the next review regardless |
 | ~~**Synthesise the ~3,400 deep reviews**~~ **DONE 2026-09-09** via Claude Cowork — `deploy/DEEP_REVIEW_SYNTHESIS.md` on branch `research/deep-review-synthesis`. Found the corpus's most convergent claim to be a prompt artefact of our own making; that bug is now fixed and pinned | 2026-08-12 | closed — but the surviving claims still need reading before Sunday |
 | ~~**Watch `bad_read`**~~ **CLOSED 2026-09-08** — frozen at 307 across seven hours on the production host. The guard fired every bar through the dead-credential window and has not fired since | 2026-09-08 | closed |
@@ -2921,6 +2922,102 @@ stops at 1.08σ and 6.75σ past the band (−3.5863 + −4.7153 = −8.3016).
 `WEEKLY_REVIEW.md:821` and the prompt both said two; the "one trade" was
 invented while writing a task whose whole purpose was checking someone else's
 numbers. Corrected in place with a visible note rather than edited away.
+
+---
+
+## 2026-09-10 — the universe is not crypto-only, and that may be the whole game
+
+**Organizer clarification, Telegram, 2026-09-09 23:38 (Ella Zhang), answering
+another team:**
+
+> *"Any instrument you are able to place orders on under your RapidX perp
+> portfolio is eligible for Phase II. Whether the underlying is crypto or not
+> makes no difference, so commodity and tokenised-equity contracts such as
+> **CL-USDT-SWAP** are treated exactly the same as any other perpetual."*
+
+Both follow-ups answered explicitly: they **count toward the Track A composite
+score on the same basis**, with no separate or adjusted treatment, and there is
+**nothing different about adding one to an automation session whitelist**.
+
+### Why this is potentially the most important message of Phase II
+
+The 2026-09-09 scan returned **0 of 55**, with **40 of the 55 rejections** being
+"too few mean crossings" or "fails split-half cointegration". That is a
+trending market — and it trends *everywhere at once* because **every crypto
+perp is driven by one factor.** BTC beta is why our sector pairs fail together:
+when the whole complex trends there is no such thing as a diversifying crypto
+pair, and no amount of widening *within* crypto fixes it. That is exactly what
+the scan measured.
+
+Non-crypto perpetuals break the single factor. Crude, metals and tokenised
+equities have **different macro drivers**, so the probability that *something*
+is mean-reverting at any moment rises substantially. That attacks the precise
+bind we are in: flat days earn no PnL (25%), no return (20%), and **actively
+suppress Sharpe** (40%, and it scales as √(n/(n+k)) in idle days). We have been
+flat since the phase opened.
+
+Two specifics:
+
+- **`CL-USDT-SWAP` is WTI crude.** If Brent is also listed, **WTI/Brent is
+  arguably the most reliably cointegrated pair in finance** — a physical
+  arbitrage relationship with decades of evidence behind it, not a narrative
+  grouping like "two L1 blockchains". Our gates would finally be testing a
+  relationship that is known to exist.
+- **This framework was written for equities.** `examples/real_data_portfolio.py`
+  is 31 DJIA names, 2006–2017. Tokenised equity perps would let it run on the
+  asset class it was validated on — with the honest caveat that the validated
+  figure is **net Sharpe 0.36 OOS**, modest, and nothing like Phase I's noisy
+  4.86.
+
+And it is the purest available form of the agenda's own standing instruction:
+**widen the universe, do not weaken the screen.** Nothing here touches a gate.
+
+### Where to hedge, before anyone gets excited
+
+- **Liquidity.** These contracts are likely thin. On a 1,000 USDT book
+  `minNotional` may exceed what vol-targeted sizing wants, and `costs.py`'s
+  sqrt-impact term stops being decorative.
+- **Trading hours.** The perp trades 24/7; the underlying does not. Weekend and
+  overnight gaps in the underlying become **jumps** in the spread — and a jump
+  is exactly what the z-stop handles worst. The hourly OU model assumes
+  continuous trading.
+- **Corporate actions become live**, not hypothetical. Already a documented
+  unhandled gap; on tokenised equities it means dividends and splits.
+- **FDR.** More candidates, stricter correction. The usual tax.
+- **Data depth.** We need 960 hourly bars per symbol. Newly listed contracts
+  may not have them, and `fetch_panel` drops a symbol with no data silently —
+  which is how ETC/KAS's absence went unnoticed for a day.
+
+### The binding unknown, and it is empirical
+
+The operative phrase is *"any instrument you are able to place orders on."* So
+the question is not interpretive but factual: **what is actually orderable from
+our portfolio?**
+
+**We have never asked.** `ltp_broker.py` implements `market get-klines`,
+`market get-symbol-info` and `market get-mark-price` — and **no listing action
+at all**. Every symbol this agent has ever traded came from the hardcoded
+`CANDIDATES` list in `ltp_agent.py`, seeded from the Phase I top-50 Binance
+whitelist. We have been reasoning about "the universe" for eight weeks without
+once enumerating it.
+
+`rapidx --help` shows the domains but not the actions; `rapidx market --help`
+or `rapidx schema --json` is the next call. Until that list exists, both the
+venue question and this one are unanswerable.
+
+### What it does to Sunday
+
+Agenda item 3 changes shape. It was *"pull both crypto symbol lists and
+compare."* It is now:
+
+1. **Enumerate the orderable instrument set.** Everything else waits on this.
+2. **Group by economic driver, not by venue** — crypto majors, crypto sectors,
+   energy, metals, equity sectors. The grouping *is* the multiple-testing
+   correction and it is the one that carries meaning.
+3. **Scan across drivers**, unchanged gates, FDR over every test run.
+4. **Then** decide the venue, if the choice is even forced — the organizer's
+   phrasing suggests it is about what the portfolio can order, not a
+   declaration we make.
 
 ---
 
