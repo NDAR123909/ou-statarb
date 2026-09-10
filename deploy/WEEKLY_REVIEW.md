@@ -1760,7 +1760,9 @@ section existed; that is what it is for.
 | **`deploy/README_ltp.md:20` still documents `LTP_API_HOST=https://api.ltp-contest.com`** — the sandbox host. A future session following the setup block would rebuild the exact failure we just spent a day diagnosing | 2026-09-08 | next doc pass; trivial, but it is a trap laid for a cold reader |
 | **Re-run `universe_scan.py`** now that ETH/BTC is actually fetched. The 2026-09-09 run's CURRENT line (`0/14`) excluded the pair carrying the book and cannot be quoted until this is done | 2026-09-09 | next droplet session, avoiding ~15:38 UTC (refit) |
 | **Rule out a data cause for the 0/54**, before "regime" is written down as fact. ETH\|BTC passed 09-07, then 0/15 and 0/54 within 36h — coinciding exactly with the host change. Compare klines from `api.liquiditytech.com` against a known 09-07 fit | 2026-09-09 | before any decision rests on the regime verdict |
-| **Enumerate the orderable instrument set — we have never once done this.** `ltp_broker.py` has no listing action; every symbol ever traded came from the hardcoded `CANDIDATES` list. Start with `rapidx market --help` / `rapidx schema --json`. **Everything about the universe question waits on this** | 2026-09-10 | next droplet session. Blocks the item below |
+| ~~**Enumerate the orderable instrument set**~~ **PROBED 2026-09-10.** No listing action exists in any of the 53 capabilities — enumeration is a name-by-name probing exercise with `get-symbol-info` as the oracle. `OKX_PERP_CL_USDT` (WTI crude) is **live and reachable** | 2026-09-10 | closed as a question; the blocker below replaces it |
+| **Chase `market.klines` for the OKX adapter** — `RCLI30002`, the one missing method of seven. Without it no historical fit is possible on any OKX instrument, for any team. Reported to #TechnicalSupport 2026-09-10 | 2026-09-10 | **blocks the universe scan entirely.** Re-test on any RapidX release; watch the RapidX channel. Fallback (OKX public REST for selection only) is recorded in the 09-10 entry and should NOT be built while a one-line fix on their side is plausible |
+| **Verify OKX instruments are actually ORDERABLE**, not merely readable. `symbol-info` succeeding is not proof; the organizer's test is "any instrument you are able to place orders on". The check is `order place-preview`, classed **TRADE_WRITE** — decide it deliberately at a review, not casually against live capital | 2026-09-10 | Sun 2026-09-13 review |
 | **Scan the full Phase II universe, grouped by DRIVER not venue.** The top-50 whitelist is gone and the organizer confirmed (2026-09-09) that **any orderable instrument counts, crypto or not** — commodity and tokenised-equity perps score identically. The 0/55 result is a **one-factor** problem: every crypto perp shares BTC beta, so widening within crypto cannot fix it. Non-crypto breaks the factor | 2026-09-09, reshaped 2026-09-10 | highest-priority research item. Hedges recorded in the 09-10 entry: liquidity, weekend gaps in the underlying, corporate actions, FDR, 960-bar data depth |
 | **Resolve the taker-fee discrepancy** — API reports `level=1`, taker 3.5 bps; this record has it *measured* at 1.75 bps/side. VIP 5 is "being applied" per LTP. Re-measure once it lands; `optimal_bands` consumes it, so it decides which passing pairs are tradeable | 2026-09-09 | when LTP confirms VIP 5, and at the next review regardless |
 | ~~**Synthesise the ~3,400 deep reviews**~~ **DONE 2026-09-09** via Claude Cowork — `deploy/DEEP_REVIEW_SYNTHESIS.md` on branch `research/deep-review-synthesis`. Found the corpus's most convergent claim to be a prompt artefact of our own making; that bug is now fixed and pinned | 2026-08-12 | closed — but the surviving claims still need reading before Sunday |
@@ -3058,6 +3060,39 @@ wants. That caution was unfounded here; it may still bite on thinner contracts.
    bars. `fetch_panel` drops a symbol with no data **silently**, which is
    exactly how ETC/KAS's absence went unnoticed for a day, so a shallow history
    would quietly shrink the universe rather than announce itself.
+
+### BLOCKED, and precisely: `market.klines` is the one OKX adapter method missing
+
+```
+rapidx market get-klines --input '{"symbol":"OKX_PERP_CL_USDT","interval":"1h","limit":1000}'
+  → {"ok":false,"code":"RCLI30002",
+     "message":"OKX adapter not registered for market.klines"}
+```
+
+A coverage probe against `OKX_PERP_BTC_USDT` puts the gap at exactly one method
+of seven:
+
+| action | OKX |
+|---|---|
+| `symbol-info`, `ticker`, `mark-price` | ✅ live |
+| `funding-rate`, `open-interest`, `orderbook` | ✅ live |
+| **`klines`** | ❌ `RCLI30002` |
+
+**This is a CLI gap, not a data gap, and it is not ours to fix.** Everything
+needed to *trade* OKX works today — live price, mark price, book, funding. Only
+the historical fit is blocked, and it blocks it for **every team**, so nobody
+can build a statistical strategy on OKX instruments in this state. We are not
+behind; the tooling is not ready. Reported to #TechnicalSupport 2026-09-10 with
+the error code, the coverage table and the naming convention.
+
+**The fallback, if it stays unregistered.** Selection data and execution data
+need not come from the same place. OKX's public REST serves klines
+unauthenticated — market data, compliant under the same reasoning that covers
+SoSoValue and AIVIX — so we could fit on OKX's own history and trade through
+RapidX, since `mark-price` and `ticker` both work for the live z. It is uglier,
+it introduces a data-source seam that would have to be disclosed in
+`LTP_STRATEGY.md`, and it should not be built while a one-line fix on their
+side is plausible. Recorded so the option is not rediscovered from scratch.
 
 ### There is no listing action, and that reshapes the work
 
