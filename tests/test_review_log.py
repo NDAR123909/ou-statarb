@@ -172,3 +172,31 @@ def test_measured_costs_are_disclosed_and_consistent_with_the_config():
         f"a value below it under-charges the band optimiser, and one far above "
         f"it re-creates the assumption that was just removed. Change it only "
         f"with a fresh measurement and an addendum in LTP_STRATEGY.md.")
+
+
+def test_the_degenerate_two_day_sharpe_is_documented():
+    """A Sharpe of +/-13.51 is sqrt(365/2), not a measurement.
+
+    On day 2 of Phase II six of the visible top ten shared exactly that value,
+    because two daily returns with one of them flat produce it for ANY size of
+    move. A session reading that board cold would otherwise conclude it was
+    being beaten by teams running Sharpe 13 -- and might loosen a gate over it.
+
+    Pinned rather than trusted to prose: the arithmetic is checked here so the
+    claim in the record cannot rot into a number nobody can reproduce.
+    """
+    import math
+    import statistics
+
+    for move in (0.026, 0.009, -0.0016, 0.5):
+        returns = [move, 0.0]
+        sharpe = (statistics.mean(returns) / statistics.stdev(returns)
+                  * math.sqrt(365))
+        assert abs(abs(sharpe) - math.sqrt(365 / 2)) < 1e-9
+        assert abs(abs(sharpe) - 13.51) < 0.01
+
+    with open(REVIEW) as fh:
+        body = fh.read()
+    assert "sqrt(365/2)" in body, (
+        "the record no longer explains the degenerate early-leaderboard "
+        "Sharpe, so a cold session would read it as a real measurement")

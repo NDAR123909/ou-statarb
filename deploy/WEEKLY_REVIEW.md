@@ -106,6 +106,21 @@ Hard exit: **equity < 800 USDT** → forced liquidation and elimination.
   the engagement figure is a **rolling window, not a cumulative total** — it
   fell 72k → 61k across 2026-08-02 with no change in behaviour. A drop there is
   not a fault.
+- **A Sharpe of ±13.51 on the Phase II leaderboard is NOT a measurement — it
+  is `sqrt(365/2)`.** Established 2026-09-10, day 2 of the phase, when six of
+  the visible top ten showed exactly ±13.51. That value is what two completed
+  daily returns produce **when one of them is flat**, and it is *independent of
+  the size of the move*: +2.6% and +50% both give 13.51. Derivation, with
+  r = [x, 0]: mean = x/2, stdev(ddof=1) = |x|/√2, so mean/stdev = sign(x)/√2
+  and × √365 gives sign(x)·13.509 for any x whatsoever.
+
+  The proof was sitting at rank 4: **Poetikrule, −0.0% return, −0.16 PnL,
+  ranked fourth** on a Sharpe that is a constant. Only four values on that
+  board carried information (X-Explore 3.78, NeuPortal −10.28, btcol −13.74,
+  Quantech −32.61); the rest were arithmetic. **Before reading any early
+  leaderboard, check how many teams share an identical Sharpe** — and note
+  that a two-day artifact collapses the moment a third distinguishable day
+  lands, exactly as ours went 9.30 → 5.66 on one −0.8% day.
 - **Sharpe at this sample size is noise, in both directions.** With ~14
   completed days, one −0.8% day moved ours from 9.30 to 5.66 (2026-08-02) —
   pure arithmetic, since a single outlier hits the mean and the deviation at
@@ -1760,7 +1775,11 @@ section existed; that is what it is for.
 | **`deploy/README_ltp.md:20` still documents `LTP_API_HOST=https://api.ltp-contest.com`** — the sandbox host. A future session following the setup block would rebuild the exact failure we just spent a day diagnosing | 2026-09-08 | next doc pass; trivial, but it is a trap laid for a cold reader |
 | **Re-run `universe_scan.py`** now that ETH/BTC is actually fetched. The 2026-09-09 run's CURRENT line (`0/14`) excluded the pair carrying the book and cannot be quoted until this is done | 2026-09-09 | next droplet session, avoiding ~15:38 UTC (refit) |
 | **Rule out a data cause for the 0/54**, before "regime" is written down as fact. ETH\|BTC passed 09-07, then 0/15 and 0/54 within 36h — coinciding exactly with the host change. Compare klines from `api.liquiditytech.com` against a known 09-07 fit | 2026-09-09 | before any decision rests on the regime verdict |
-| **Scan the full Phase II universe.** The top-50 Binance whitelist is gone — all perps on Binance *or* OKX are permitted. Pull both symbol lists, extend `SECTOR_GROUPS`, and re-measure. This is the venue decision and it is made once | 2026-09-09 | highest-priority research item; supersedes the old "widen the universe" framing |
+| ~~**Enumerate the orderable instrument set**~~ **PROBED 2026-09-10.** No listing action exists in any of the 53 capabilities — enumeration is a name-by-name probing exercise with `get-symbol-info` as the oracle. `OKX_PERP_CL_USDT` (WTI crude) is **live and reachable** | 2026-09-10 | closed as a question; the blocker below replaces it |
+| ~~**Chase `market.klines` for the OKX adapter**~~ **RESOLVED 2026-09-10** — we were on CLI **1.0.41**, three versions stale. `npm install -g @liquiditytech/rapidx-cli@latest` → 1.0.44, OKX klines return data. Binance path verified unchanged before restart | 2026-09-10 | closed |
+| **Chase the OKX 300-bar klines cap.** Binance returns 1000 on an identical request; OKX returns 300 for symbols with years of history. `KlinesInput` is `additionalProperties: false` with only symbol/interval/limit, so pagination cannot be expressed, and `limit` carries no documented maximum — a bug, not a feature request. Raised 2026-09-10 | 2026-09-10 | **still blocks the universe scan.** 300 bars = 12.5 days, which silently narrows the effective half-life band to ~6–48h. **Do not scan OKX at 300 bars and report the result as a regime measurement.** Re-test on each RapidX release |
+| **Verify OKX instruments are actually ORDERABLE**, not merely readable. `symbol-info` succeeding is not proof; the organizer's test is "any instrument you are able to place orders on". The check is `order place-preview`, classed **TRADE_WRITE** — decide it deliberately at a review, not casually against live capital | 2026-09-10 | Sun 2026-09-13 review |
+| **Scan the full Phase II universe, grouped by DRIVER not venue.** The top-50 whitelist is gone and the organizer confirmed (2026-09-09) that **any orderable instrument counts, crypto or not** — commodity and tokenised-equity perps score identically. The 0/55 result is a **one-factor** problem: every crypto perp shares BTC beta, so widening within crypto cannot fix it. Non-crypto breaks the factor | 2026-09-09, reshaped 2026-09-10 | highest-priority research item. Hedges recorded in the 09-10 entry: liquidity, weekend gaps in the underlying, corporate actions, FDR, 960-bar data depth |
 | **Resolve the taker-fee discrepancy** — API reports `level=1`, taker 3.5 bps; this record has it *measured* at 1.75 bps/side. VIP 5 is "being applied" per LTP. Re-measure once it lands; `optimal_bands` consumes it, so it decides which passing pairs are tradeable | 2026-09-09 | when LTP confirms VIP 5, and at the next review regardless |
 | ~~**Synthesise the ~3,400 deep reviews**~~ **DONE 2026-09-09** via Claude Cowork — `deploy/DEEP_REVIEW_SYNTHESIS.md` on branch `research/deep-review-synthesis`. Found the corpus's most convergent claim to be a prompt artefact of our own making; that bug is now fixed and pinned | 2026-08-12 | closed — but the surviving claims still need reading before Sunday |
 | ~~**Watch `bad_read`**~~ **CLOSED 2026-09-08** — frozen at 307 across seven hours on the production host. The guard fired every bar through the dead-credential window and has not fired since | 2026-09-08 | closed |
@@ -2921,6 +2940,293 @@ stops at 1.08σ and 6.75σ past the band (−3.5863 + −4.7153 = −8.3016).
 `WEEKLY_REVIEW.md:821` and the prompt both said two; the "one trade" was
 invented while writing a task whose whole purpose was checking someone else's
 numbers. Corrected in place with a visible note rather than edited away.
+
+---
+
+## 2026-09-10 — the universe is not crypto-only, and that may be the whole game
+
+**Organizer clarification, Telegram, 2026-09-09 23:38 (Ella Zhang), answering
+another team:**
+
+> *"Any instrument you are able to place orders on under your RapidX perp
+> portfolio is eligible for Phase II. Whether the underlying is crypto or not
+> makes no difference, so commodity and tokenised-equity contracts such as
+> **CL-USDT-SWAP** are treated exactly the same as any other perpetual."*
+
+Both follow-ups answered explicitly: they **count toward the Track A composite
+score on the same basis**, with no separate or adjusted treatment, and there is
+**nothing different about adding one to an automation session whitelist**.
+
+### Why this is potentially the most important message of Phase II
+
+The 2026-09-09 scan returned **0 of 55**, with **40 of the 55 rejections** being
+"too few mean crossings" or "fails split-half cointegration". That is a
+trending market — and it trends *everywhere at once* because **every crypto
+perp is driven by one factor.** BTC beta is why our sector pairs fail together:
+when the whole complex trends there is no such thing as a diversifying crypto
+pair, and no amount of widening *within* crypto fixes it. That is exactly what
+the scan measured.
+
+Non-crypto perpetuals break the single factor. Crude, metals and tokenised
+equities have **different macro drivers**, so the probability that *something*
+is mean-reverting at any moment rises substantially. That attacks the precise
+bind we are in: flat days earn no PnL (25%), no return (20%), and **actively
+suppress Sharpe** (40%, and it scales as √(n/(n+k)) in idle days). We have been
+flat since the phase opened.
+
+Two specifics:
+
+- **`CL-USDT-SWAP` is WTI crude.** If Brent is also listed, **WTI/Brent is
+  arguably the most reliably cointegrated pair in finance** — a physical
+  arbitrage relationship with decades of evidence behind it, not a narrative
+  grouping like "two L1 blockchains". Our gates would finally be testing a
+  relationship that is known to exist.
+- **This framework was written for equities.** `examples/real_data_portfolio.py`
+  is 31 DJIA names, 2006–2017. Tokenised equity perps would let it run on the
+  asset class it was validated on — with the honest caveat that the validated
+  figure is **net Sharpe 0.36 OOS**, modest, and nothing like Phase I's noisy
+  4.86.
+
+And it is the purest available form of the agenda's own standing instruction:
+**widen the universe, do not weaken the screen.** Nothing here touches a gate.
+
+### Where to hedge, before anyone gets excited
+
+- **Liquidity.** These contracts are likely thin. On a 1,000 USDT book
+  `minNotional` may exceed what vol-targeted sizing wants, and `costs.py`'s
+  sqrt-impact term stops being decorative.
+- **Trading hours.** The perp trades 24/7; the underlying does not. Weekend and
+  overnight gaps in the underlying become **jumps** in the spread — and a jump
+  is exactly what the z-stop handles worst. The hourly OU model assumes
+  continuous trading.
+- **Corporate actions become live**, not hypothetical. Already a documented
+  unhandled gap; on tokenised equities it means dividends and splits.
+- **FDR.** More candidates, stricter correction. The usual tax.
+- **Data depth.** We need 960 hourly bars per symbol. Newly listed contracts
+  may not have them, and `fetch_panel` drops a symbol with no data silently —
+  which is how ETC/KAS's absence went unnoticed for a day.
+
+### The binding unknown, and it is empirical
+
+The operative phrase is *"any instrument you are able to place orders on."* So
+the question is not interpretive but factual: **what is actually orderable from
+our portfolio?**
+
+**We have never asked.** `ltp_broker.py` implements `market get-klines`,
+`market get-symbol-info` and `market get-mark-price` — and **no listing action
+at all**. Every symbol this agent has ever traded came from the hardcoded
+`CANDIDATES` list in `ltp_agent.py`, seeded from the Phase I top-50 Binance
+whitelist. We have been reasoning about "the universe" for eight weeks without
+once enumerating it.
+
+`rapidx --help` shows the domains but not the actions; `rapidx market --help`
+or `rapidx schema --json` is the next call. Until that list exists, both the
+venue question and this one are unanswerable.
+
+### PROBED THE SAME DAY — WTI crude is live and reachable
+
+```
+rapidx market get-symbol-info --symbol OKX_PERP_CL_USDT --json
+  → PASS, real_tool_call
+    originalSymbol  CL-USDT-SWAP        state  live
+    contractSize    0.1   minSize 1     minNotional 0
+    tickSize        0.01  pricePrecision 2   qtyPrecision 0
+    defaultLeverage 5     safeLeverage  10   liquidationFee 0.020
+```
+
+`OKX_PERP_BTC_USDT` also live, so the whole OKX namespace is reachable.
+
+**The naming convention, recorded because it cost us a false negative.**
+RapidX normalises to **`OKX_PERP_<BASE>_USDT`** and reports the venue's own
+name in `originalSymbol`. The organizer quoted OKX's native `CL-USDT-SWAP`,
+which RapidX **rejects outright** — so the first probe looked like "not
+available" when it was only "wrong spelling".
+
+**Three failure modes, now separated — this is the existence oracle.** A
+control probe (`BINANCE_PERP_FAKE_USDT`) was run precisely to make the others
+interpretable:
+
+| result | meaning |
+|---|---|
+| `RCLI12001` "Invalid RapidX symbol" | **malformed name**, never reached the venue |
+| `RCLI22001` / upstream `401011` "sym is not supported" | **well-formed, not supported** |
+| `PASS` + `real_tool_call` | live |
+
+**CLI quirk worth knowing.** The `FAKE` probe returns
+`evidence.source: "local_check"` *while also* carrying
+`details.upstreamCode: 401011`. **The `source` field does not reliably
+distinguish a local pattern check from an upstream round-trip** — read the
+error code and `details` instead. Taken at face value it would have told us
+the venue was never contacted, which is false.
+
+**One hedge from the entry above is now weaker.** I flagged thin liquidity
+against `minNotional` on a 1,000 USDT book. For CL, `minSize 1` at
+`contractSize 0.1` is a **tenth of a barrel** — single-digit dollars of
+notional — with `minNotional: 0`. Comfortably inside what vol-targeted sizing
+wants. That caution was unfounded here; it may still bite on thinner contracts.
+
+### Two things this does NOT establish
+
+1. **`symbol-info` succeeding is not proof of orderability.** The organizer's
+   test is *"any instrument you are able to place orders on."* Data access and
+   order access can differ. The definitive check is `order place-preview` — but
+   that is classed **TRADE_WRITE**, so it does not get run casually against a
+   live-capital account. Decide it deliberately at the review.
+2. **Data depth is unverified.** Selection needs `lookback_bars = 960` hourly
+   bars. `fetch_panel` drops a symbol with no data **silently**, which is
+   exactly how ETC/KAS's absence went unnoticed for a day, so a shallow history
+   would quietly shrink the universe rather than announce itself.
+
+### BLOCKED, and precisely: `market.klines` is the one OKX adapter method missing
+
+```
+rapidx market get-klines --input '{"symbol":"OKX_PERP_CL_USDT","interval":"1h","limit":1000}'
+  → {"ok":false,"code":"RCLI30002",
+     "message":"OKX adapter not registered for market.klines"}
+```
+
+A coverage probe against `OKX_PERP_BTC_USDT` puts the gap at exactly one method
+of seven:
+
+| action | OKX |
+|---|---|
+| `symbol-info`, `ticker`, `mark-price` | ✅ live |
+| `funding-rate`, `open-interest`, `orderbook` | ✅ live |
+| **`klines`** | ❌ `RCLI30002` |
+
+**This is a CLI gap, not a data gap, and it is not ours to fix.** Everything
+needed to *trade* OKX works today — live price, mark price, book, funding. Only
+the historical fit is blocked, and it blocks it for **every team**, so nobody
+can build a statistical strategy on OKX instruments in this state. We are not
+behind; the tooling is not ready. Reported to #TechnicalSupport 2026-09-10 with
+the error code, the coverage table and the naming convention.
+
+**FIXED SAME DAY — by upgrading our own CLI.** Zach's reply: run
+`npm install -g @liquiditytech/rapidx-cli@latest`. **We were on 1.0.41**, three
+versions behind, while this log had recorded "CLI 1.0.44" since another team
+quoted it on 09-08 — we assumed we were current and were not. Upgraded 20:20
+UTC with the agent stopped and the book flat; Binance klines verified unchanged
+before restarting, since `ltp_broker.klines()` reads rows **by position** inside
+a bare `except` and a shape change would have silently returned zero pairs.
+Agent back at 20:23, pid 14890, restarts 0.
+
+**Two response-shape differences, and we survive them by accident:**
+
+| | Binance | OKX |
+|---|---|---|
+| timestamp | `1789056000000` int | `"1789070400000"` **string** |
+| row order | ascending | **descending**, newest first |
+| fields | 12 | 9 |
+
+`int()` happens to accept numeric strings, the trailing `.sort_index()` happens
+to fix the reversal, and we only index positions 0 and 4, which happen to
+align. **Remove any one of those and OKX breaks silently.** Pinned by a unit
+test against both literal shapes.
+
+### THE REAL BLOCKER: OKX klines cap at 300 rows
+
+```
+BINANCE_PERP_BTC_USDT   limit 1000 → count 1000
+OKX_PERP_BTC_USDT       limit 1000 → count  300     ← years of history exist
+OKX_PERP_CL_USDT        limit 1000 → count  300
+```
+
+BTC on OKX has traded for years, so this is an **adapter cap, not data
+availability**. And it cannot be paged around: `KlinesInput` declares only
+`symbol` / `interval` / `limit`, with **`additionalProperties: false`**, so no
+start, end or cursor can be passed. `limit` carries **no documented maximum**,
+which makes this a bug report rather than a feature request. Raised with LTP
+2026-09-10.
+
+**Why 300 is disqualifying rather than merely awkward.** It is **12.5 days**
+against `lookback_bars = 960`:
+
+- the half-life band is 6–168h, and a 168h pair shows **1.8 half-lives** in
+  12.5 days — an OU decay rate cannot be fitted on that;
+- the crossing gate needs ~9.5 crossings in 300 bars, and a 24h half-life
+  spread produces roughly 8. Marginal at the *fast* end;
+- split-half would run on 150 bars per half.
+
+So the cap **silently narrows the effective half-life band to roughly 6–48h**
+and rejects everything slower for lack of evidence rather than lack of
+cointegration. That would read as a market finding when it is a data artifact —
+the same failure shape as ETC/KAS vanishing from the scan. **Do not run a scan
+over OKX instruments at 300 bars and report the result as a regime measurement.**
+
+**A note on where the naming convention was.** `KlinesInput`'s own description
+documents `OKX_PERP_<BASE>_<QUOTE>` and that `OKX_SWAP_<BASE>_<QUOTE>` is an
+accepted alias. The answer that cost us a false negative this morning was in
+`rapidx schema --json` the whole time, under `inputSchemas`, which we had not
+read. Worth remembering before the next round of probing: **read the schema
+first.**
+
+**The fallback, if the cap stays.** Selection data and execution data
+need not come from the same place. OKX's public REST serves klines
+unauthenticated — market data, compliant under the same reasoning that covers
+SoSoValue and AIVIX — so we could fit on OKX's own history and trade through
+RapidX, since `mark-price` and `ticker` both work for the live z. It is uglier,
+it introduces a data-source seam that would have to be disclosed in
+`LTP_STRATEGY.md`, and it should not be built while a one-line fix on their
+side is plausible. Recorded so the option is not rediscovered from scratch.
+
+### There is no listing action, and that reshapes the work
+
+All 53 capabilities were dumped. **Every market action takes a symbol as
+input** — `klines`, `ticker`, `orderbook`, `symbol-info`, `funding-rate`,
+`open-interest`, `mark-price`. Nothing returns a list. Neither does anything
+under `portfolio`.
+
+So enumerating the universe is **not a call, it is a probing exercise**:
+generate candidate names from outside, then use `get-symbol-info` as the
+oracle. OKX's public instrument endpoint gives the candidate list, and
+`originalSymbol` proves the mapping is mechanical
+(`<BASE>-USDT-SWAP` ↔ `OKX_PERP_<BASE>_USDT`). Public market data is
+compliant under the same reasoning that covers SoSoValue and AIVIX — it is
+market data, not a model.
+
+### What it does to Sunday
+
+Agenda item 3 changes shape. It was *"pull both crypto symbol lists and
+compare."* It is now:
+
+1. **Enumerate the orderable instrument set.** Everything else waits on this.
+2. **Group by economic driver, not by venue** — crypto majors, crypto sectors,
+   energy, metals, equity sectors. The grouping *is* the multiple-testing
+   correction and it is the one that carries meaning.
+3. **Scan across drivers**, unchanged gates, FDR over every test run.
+4. **Then** decide the venue, if the choice is even forced — the organizer's
+   phrasing suggests it is about what the portfolio can order, not a
+   declaration we make.
+
+### The leaderboard appeared, and it is measuring nothing yet
+
+Top ten visible on day 2. **We are not in it, and that fact carries no
+information** — see the `sqrt(365/2)` entry in Standing context. Six of the ten
+shared an identical Sharpe of ±13.51, which is the constant two days produce
+when one is flat.
+
+State of the field: best PnL on the board is **+25.57 on a 1,000 USDT book**,
+2.6% after two days. Nobody has done anything. The only top-three team whose
+number means something is **X-Explore** — 558 trades, Sharpe 3.78, MDD 1.7% —
+which is a real strategy running at high frequency. Krosus (93.0) and TDB
+(83.1) are two-day artifacts.
+
+**Poetikrule shows `0 | 0 | 0` AI engagement at rank 4.** The record already
+says both that this column is unreliable (the 2026-08-13 display bug) and that
+zero-AI teams have been eliminated in prior reviews. Watch it; do not build an
+argument on it — that mistake was made and retracted once already.
+
+**What flat actually costs us, stated plainly.** PnL 0, Return 0, and a Sharpe
+that is zero or undefined. Our Phase I edge was the 40% Sharpe term and
+**Sharpe needs returns** — there is nothing to be sharp about in an empty book.
+That is worse than Phase I, where advancement was the only bar and ten teams
+cleared it with negative returns; Phase II is scored on rank.
+
+**And it is still not a reason to loosen a gate.** The 09-09 scan returned 0 of
+55 with 40 rejections on crossings and split-half — a trending market. Forcing
+entries into that is how Quantech reached −460% annualised and 4.7% MDD on day
+two. The legitimate lever is the universe question, and it is blocked on LTP's
+300-bar cap rather than on our judgement. Nothing to do but wait and build.
 
 ---
 
