@@ -1,12 +1,26 @@
 """
 deploy/universe_scan.py — read-only breadth diagnostic (NO trading).
 
-The live agent tests only 14 hand-picked pairs and has been thin-to-idle. This
-answers the one question that decides what to do about it: is a *wider but
+The live agent tests 15 hand-picked crypto pairs and has been thin-to-idle.
+This answers the one question that decides what to do about it: is a *wider but
 equally rigorous* universe finding genuine mean-reverting pairs (a breadth
 problem we can fix), or is the whole market trending so that even a broad
 search comes up empty on the Hurst/crossings gates (a regime, where sitting
 out is correct and forcing trades loses money)?
+
+**2026-09-11: the question changed shape, because the universe did.** The
+organizer confirmed that any instrument orderable under the RapidX perp
+portfolio is eligible regardless of underlying, and a probe sweep
+(`universe_discover.py`) found **60 live symbols on Binance** against the 30 in
+CANDIDATES -- including WTI crude (CL), Brent (BZ), soybeans (ZS), an S&P
+contract (SPX) and four mega-cap equities.
+
+That matters because the 0-of-55 result on 2026-09-09 was a **one-factor**
+finding: every crypto perp shares BTC beta, so when the complex trends they all
+fail the split-half and crossing gates together, and widening *within* crypto
+cannot help. Grouping by ECONOMIC DRIVER rather than by crypto narrative is the
+first time this scan has been able to test anything else. CL/BZ in particular
+is a physical arbitrage relationship, not a thematic one.
 
 It changes nothing: it fetches klines, runs the EXACT same selection gates
 (`select_pairs` + the same `SelectionConfig` the agent builds at refit, with
@@ -25,6 +39,7 @@ still excluded for missing data is named in the output rather than subtracted
 from a count.
 
     set -a; source /root/ltp.env; set +a
+    python deploy/universe_discover.py      # refresh the manifest first
     python deploy/universe_scan.py
 
 Honest reading of the result:
@@ -36,6 +51,7 @@ Honest reading of the result:
 
 from __future__ import annotations
 
+import json
 import sys
 from itertools import combinations
 from pathlib import Path
@@ -46,15 +62,57 @@ from deploy.ltp_agent import AgentConfig, fetch_panel, CANDIDATES  # noqa: E402
 from statarb.selection import SelectionConfig, select_pairs      # noqa: E402
 
 
-def _sym(base: str) -> str:
-    return f"BINANCE_PERP_{base}_USDT"
+# The standing venue decision, 2026-09-11. Binance carries 60 live symbols
+# against OKX's 53 and is the only one with XAUT/PAXG -- the gold pair, our
+# most economically grounded candidate. OKX uniquely has NG (natural gas),
+# which would turn energy from one pair into three; whether the portfolio may
+# trade BOTH venues is an open question with the organizer. Change this in one
+# place if the answer is yes.
+VENUE = "BINANCE"
 
 
-# Economically-motivated sector groups. Pairs are formed only WITHIN a group.
-# A coin may sit in more than one group (different economic lenses); duplicate
-# pairs are de-duplicated. Symbols not on the whitelist simply return no data
-# and are dropped, so an over-broad list here is harmless.
+def _sym(base: str, venue: str | None = None) -> str:
+    return f"{venue or VENUE}_PERP_{base}_USDT"
+
+
+# Groups by ECONOMIC DRIVER. Pairs are formed only WITHIN a group, and that
+# restriction is itself a multiple-testing correction -- the one that carries
+# economic meaning -- so we never test blind all-vs-all combinations. A symbol
+# may sit in more than one group (different lenses); duplicate pairs are
+# de-duplicated.
+#
+# The non-crypto groups arrived 2026-09-11 and are the point of this file now.
+# Every crypto perp shares BTC beta, which is why the 09-09 scan failed all 55
+# pairs at once on split-half and crossings: a single factor trending takes the
+# whole set down together. Crude, equities and an index are driven by different
+# things, so the probability that SOMETHING is mean-reverting at a given moment
+# is structurally higher.
+#
+# A note on gaps, since it cuts the other way from the obvious worry: these
+# perps trade 24/7 while their underlyings do not, so a weekend move arrives as
+# a jump -- which the z-stop handles worst. But WITHIN a driver both legs jump
+# together, so the SPREAD is largely insulated. The gap risk lands on
+# cross-driver pairs, which this grouping already excludes on economic grounds.
+NON_CRYPTO = ("energy", "megacap_equity", "index_vs_member", "ags")
+
 SECTOR_GROUPS: dict[str, list[str]] = {
+    # WTI and Brent: two grades of the same physical commodity, arbitraged
+    # against each other for decades. Spot-checked 2026-09-11 at 96.63 / 100.83
+    # -- a $4.20 differential, which is where that spread actually lives. This
+    # is the strongest economic prior in the whole file and nothing in crypto
+    # comes close to it.
+    "energy": ["CL", "BZ"],
+    # The asset class this framework was WRITTEN for. The reference backtest is
+    # 31 DJIA names at 0.36 net Sharpe OOS; we have been running an equity
+    # statarb engine on crypto for eight weeks because that is what the Phase I
+    # whitelist contained.
+    "megacap_equity": ["AAPL", "MSFT", "NVDA", "TSLA"],
+    # An index against its own large constituents is cointegrated close to by
+    # construction, since each is a material weight of the other.
+    "index_vs_member": ["SPX", "AAPL", "MSFT", "NVDA", "TSLA"],
+    # ZS (soybeans) has no partner on Binance, so it forms no pair. Listed so
+    # the manifest check reports it rather than leaving it invisible.
+    "ags": ["ZS"],
     # The two largest assets. Omitted until 2026-09-09, which silently dropped
     # ETH/BTC from the CURRENT-universe comparison -- the pair that passed the
     # gate on six of the eight refits before that date. The scan reported
@@ -82,6 +140,39 @@ SECTOR_GROUPS: dict[str, list[str]] = {
     "l2_eth": ["ARB", "OP", "STRK"],
     "exchange": ["BNB", "OKB"],
 }
+
+
+MANIFESTS = ("universe_manifest.json", "universe_manifest_nc.json")
+
+
+def live_symbols() -> set[str] | None:
+    """Symbols confirmed live by `universe_discover.py`, or None if unprobed.
+
+    There is no listing endpoint -- all 53 RapidX capabilities take a symbol as
+    input -- so "is this tradeable" is only answerable by probing, and the
+    manifests are that probe's output. Read here so an unlisted name is NAMED
+    below rather than vanishing into `fetch_panel`'s silent drop, which is how
+    ETH/BTC went untested for a day and would have hidden every non-crypto
+    symbol just as quietly.
+
+    Returns None rather than an empty set when no manifest exists: "not probed"
+    and "probed and found nothing" must not look alike.
+    """
+    here = Path(__file__).resolve().parent
+    out: set[str] = set()
+    found = False
+    for name in MANIFESTS:
+        path = here / name
+        if not path.exists():
+            continue
+        found = True
+        try:
+            blob = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+        out |= {r["symbol"] for r in blob.get("symbols", [])
+                if r.get("state") == "live"}
+    return out if found else None
 
 
 def _sel_cfg(cfg: AgentConfig) -> SelectionConfig:
@@ -176,6 +267,17 @@ def main() -> int:
         print(f"note: {sorted(_base(s) for s in cand_syms - sector_syms)} are "
               f"traded but not in any sector group — fetched for the CURRENT "
               f"comparison, not paired in the EXPANDED scan")
+    known_live = live_symbols()
+    if known_live is None:
+        print("note: no manifest found — run deploy/universe_discover.py first "
+              "so unlisted symbols are named rather than silently dropped")
+    else:
+        for group, bases in SECTOR_GROUPS.items():
+            absent = [b for b in bases if _sym(b) not in known_live]
+            if absent:
+                tag = "  <- forms no pair" if len(bases) - len(absent) < 2 else ""
+                print(f"  {group:<18} not live on {VENUE}: {absent}{tag}")
+
     print(f"fetching {len(all_syms)} candidate symbols "
           f"({cfg.lookback_bars} bars each; this takes a couple minutes) ...")
     panel = fetch_panel(broker, all_syms, cfg)
@@ -221,6 +323,19 @@ def main() -> int:
     print("ORIENTATION SENSITIVITY (Engle-Granger is not symmetric)")
     print("=" * 60)
     compare_orientations(panel, pairs_list, sel)
+
+    # The whole point of the 09-11 expansion: did anything OUTSIDE crypto's
+    # single factor pass? A breadth result driven entirely by crypto is the
+    # 09-09 finding again, and should not be read as a new one.
+    nc_bases = {b for g in NON_CRYPTO for b in SECTOR_GROUPS.get(g, [])}
+    nc_passed = [r for _, r in expanded[expanded.passed].iterrows()
+                 if _base(r.a) in nc_bases and _base(r.b) in nc_bases]
+    print("\n" + "=" * 60)
+    print(f"NON-CRYPTO: {len(nc_passed)} of the passing pairs are outside "
+          f"crypto's single factor")
+    for r in nc_passed:
+        print(f"   {_base(r.a)}/{_base(r.b):<9} adf_p={r.adf_pvalue:.4f} "
+              f"hl={r.half_life:.0f}h beta={r.beta:+.2f}")
 
     print("\n" + "=" * 60)
     if n_expanded > n_current and n_expanded >= 3:
