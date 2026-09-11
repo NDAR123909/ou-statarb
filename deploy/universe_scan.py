@@ -206,6 +206,33 @@ def _report(table, label: str) -> int:
     return len(passed)
 
 
+def _report_group(table, bases: set[str], label: str) -> None:
+    """EVERY pair in a set, passing or not, with the gate that rejected it.
+
+    Added 2026-09-11, because the first driver-grouped run printed only the
+    passing rows and so could not answer the question it existed to ask.
+
+    CL/BZ is WTI against Brent -- two grades of one physical commodity, a
+    $4.20 differential spot-checked the same day. It is as close to a known
+    true positive as this project will ever get, which makes it a **control on
+    the gates** rather than merely a candidate. A pipeline that rejects it is
+    telling us something about itself, and an aggregate reject tally cannot say
+    which gate did it. `half-life out of band` and `too few mean crossings`
+    would mean the 6h-168h band -- chosen for hourly crypto -- excludes
+    commodity spreads for being SLOW, not for failing to revert. That is a
+    very different finding from `fails split-half cointegration`, which would
+    mean the relationship genuinely broke inside the window.
+    """
+    rows = [r for _, r in table.iterrows()
+            if _base(r.a) in bases and _base(r.b) in bases]
+    print(f"\n== {label}: {sum(1 for r in rows if r.passed)}/{len(rows)} pass ==")
+    for r in sorted(rows, key=lambda r: r.adf_pvalue):
+        verdict = "PASS" if r.passed else f"rejected: {r.reject_reason}"
+        print(f"   {_base(r.a)}/{_base(r.b):<9} adf_p={r.adf_pvalue:.4f} "
+              f"hurst={r.hurst:.2f} hl={r.half_life:>7.1f}h beta={r.beta:+.2f} "
+              f"cross={int(r.crossings):>3}  {verdict}")
+
+
 def _return_vol(panel, sym: str) -> float:
     """Volatility of log returns for one symbol on the panel."""
     import numpy as np
@@ -328,14 +355,14 @@ def main() -> int:
     # single factor pass? A breadth result driven entirely by crypto is the
     # 09-09 finding again, and should not be read as a new one.
     nc_bases = {b for g in NON_CRYPTO for b in SECTOR_GROUPS.get(g, [])}
-    nc_passed = [r for _, r in expanded[expanded.passed].iterrows()
-                 if _base(r.a) in nc_bases and _base(r.b) in nc_bases]
     print("\n" + "=" * 60)
-    print(f"NON-CRYPTO: {len(nc_passed)} of the passing pairs are outside "
-          f"crypto's single factor")
-    for r in nc_passed:
-        print(f"   {_base(r.a)}/{_base(r.b):<9} adf_p={r.adf_pvalue:.4f} "
-              f"hl={r.half_life:.0f}h beta={r.beta:+.2f}")
+    print("NON-CRYPTO — every pair, with the gate that rejected it")
+    print("=" * 60)
+    _report_group(expanded, nc_bases, "outside crypto's single factor")
+    print(f"\n   agent half-life band: {cfg.min_half_life:.0f}h to "
+          f"{cfg.max_half_life:.0f}h. A commodity or equity spread rejected "
+          f"for being SLOW\n   is a statement about that band, which was set "
+          f"for hourly crypto, not about\n   whether the relationship exists.")
 
     print("\n" + "=" * 60)
     if n_expanded > n_current and n_expanded >= 3:
