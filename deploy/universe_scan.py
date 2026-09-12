@@ -1,12 +1,26 @@
 """
 deploy/universe_scan.py — read-only breadth diagnostic (NO trading).
 
-The live agent tests only 14 hand-picked pairs and has been thin-to-idle. This
-answers the one question that decides what to do about it: is a *wider but
+The live agent tests 15 hand-picked crypto pairs and has been thin-to-idle.
+This answers the one question that decides what to do about it: is a *wider but
 equally rigorous* universe finding genuine mean-reverting pairs (a breadth
 problem we can fix), or is the whole market trending so that even a broad
 search comes up empty on the Hurst/crossings gates (a regime, where sitting
 out is correct and forcing trades loses money)?
+
+**2026-09-11: the question changed shape, because the universe did.** The
+organizer confirmed that any instrument orderable under the RapidX perp
+portfolio is eligible regardless of underlying, and a probe sweep
+(`universe_discover.py`) found **60 live symbols on Binance** against the 30 in
+CANDIDATES -- including WTI crude (CL), Brent (BZ), soybeans (ZS), an S&P
+contract (SPX) and four mega-cap equities.
+
+That matters because the 0-of-55 result on 2026-09-09 was a **one-factor**
+finding: every crypto perp shares BTC beta, so when the complex trends they all
+fail the split-half and crossing gates together, and widening *within* crypto
+cannot help. Grouping by ECONOMIC DRIVER rather than by crypto narrative is the
+first time this scan has been able to test anything else. CL/BZ in particular
+is a physical arbitrage relationship, not a thematic one.
 
 It changes nothing: it fetches klines, runs the EXACT same selection gates
 (`select_pairs` + the same `SelectionConfig` the agent builds at refit, with
@@ -25,6 +39,7 @@ still excluded for missing data is named in the output rather than subtracted
 from a count.
 
     set -a; source /root/ltp.env; set +a
+    python deploy/universe_discover.py      # refresh the manifest first
     python deploy/universe_scan.py
 
 Honest reading of the result:
@@ -36,6 +51,8 @@ Honest reading of the result:
 
 from __future__ import annotations
 
+import argparse
+import json
 import sys
 from itertools import combinations
 from pathlib import Path
@@ -43,18 +60,62 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from deploy.ltp_broker import RapidXBroker                       # noqa: E402
 from deploy.ltp_agent import AgentConfig, fetch_panel, CANDIDATES  # noqa: E402
+from statarb.ou import fit_spread_model                         # noqa: E402
 from statarb.selection import SelectionConfig, select_pairs      # noqa: E402
+import numpy as np                                              # noqa: E402
 
 
-def _sym(base: str) -> str:
-    return f"BINANCE_PERP_{base}_USDT"
+# ~~The standing venue decision~~ -- ANSWERED 2026-09-11 by the organizer:
+# "You can place orders on both Binance and OKX for a single RapidX portfolio
+# but only on perpetuals for Phase II." So there is no choice to make; we take
+# the union. VENUE remains the default for `_sym` and for the live agent, whose
+# CANDIDATES are all Binance.
+VENUE = "BINANCE"
+VENUES = ("BINANCE", "OKX")
 
 
-# Economically-motivated sector groups. Pairs are formed only WITHIN a group.
-# A coin may sit in more than one group (different economic lenses); duplicate
-# pairs are de-duplicated. Symbols not on the whitelist simply return no data
-# and are dropped, so an over-broad list here is harmless.
+def _sym(base: str, venue: str | None = None) -> str:
+    return f"{venue or VENUE}_PERP_{base}_USDT"
+
+
+# Groups by ECONOMIC DRIVER. Pairs are formed only WITHIN a group, and that
+# restriction is itself a multiple-testing correction -- the one that carries
+# economic meaning -- so we never test blind all-vs-all combinations. A symbol
+# may sit in more than one group (different lenses); duplicate pairs are
+# de-duplicated.
+#
+# The non-crypto groups arrived 2026-09-11 and are the point of this file now.
+# Every crypto perp shares BTC beta, which is why the 09-09 scan failed all 55
+# pairs at once on split-half and crossings: a single factor trending takes the
+# whole set down together. Crude, equities and an index are driven by different
+# things, so the probability that SOMETHING is mean-reverting at a given moment
+# is structurally higher.
+#
+# A note on gaps, since it cuts the other way from the obvious worry: these
+# perps trade 24/7 while their underlyings do not, so a weekend move arrives as
+# a jump -- which the z-stop handles worst. But WITHIN a driver both legs jump
+# together, so the SPREAD is largely insulated. The gap risk lands on
+# cross-driver pairs, which this grouping already excludes on economic grounds.
+NON_CRYPTO = ("energy", "megacap_equity", "index_vs_member", "ags")
+
 SECTOR_GROUPS: dict[str, list[str]] = {
+    # WTI and Brent: two grades of the same physical commodity, arbitraged
+    # against each other for decades. Spot-checked 2026-09-11 at 96.63 / 100.83
+    # -- a $4.20 differential, which is where that spread actually lives. This
+    # is the strongest economic prior in the whole file and nothing in crypto
+    # comes close to it.
+    "energy": ["CL", "BZ"],
+    # The asset class this framework was WRITTEN for. The reference backtest is
+    # 31 DJIA names at 0.36 net Sharpe OOS; we have been running an equity
+    # statarb engine on crypto for eight weeks because that is what the Phase I
+    # whitelist contained.
+    "megacap_equity": ["AAPL", "MSFT", "NVDA", "TSLA"],
+    # An index against its own large constituents is cointegrated close to by
+    # construction, since each is a material weight of the other.
+    "index_vs_member": ["SPX", "AAPL", "MSFT", "NVDA", "TSLA"],
+    # ZS (soybeans) has no partner on Binance, so it forms no pair. Listed so
+    # the manifest check reports it rather than leaving it invisible.
+    "ags": ["ZS"],
     # The two largest assets. Omitted until 2026-09-09, which silently dropped
     # ETH/BTC from the CURRENT-universe comparison -- the pair that passed the
     # gate on six of the eight refits before that date. The scan reported
@@ -82,6 +143,39 @@ SECTOR_GROUPS: dict[str, list[str]] = {
     "l2_eth": ["ARB", "OP", "STRK"],
     "exchange": ["BNB", "OKB"],
 }
+
+
+MANIFESTS = ("universe_manifest.json", "universe_manifest_nc.json")
+
+
+def live_symbols() -> set[str] | None:
+    """Symbols confirmed live by `universe_discover.py`, or None if unprobed.
+
+    There is no listing endpoint -- all 53 RapidX capabilities take a symbol as
+    input -- so "is this tradeable" is only answerable by probing, and the
+    manifests are that probe's output. Read here so an unlisted name is NAMED
+    below rather than vanishing into `fetch_panel`'s silent drop, which is how
+    ETH/BTC went untested for a day and would have hidden every non-crypto
+    symbol just as quietly.
+
+    Returns None rather than an empty set when no manifest exists: "not probed"
+    and "probed and found nothing" must not look alike.
+    """
+    here = Path(__file__).resolve().parent
+    out: set[str] = set()
+    found = False
+    for name in MANIFESTS:
+        path = here / name
+        if not path.exists():
+            continue
+        found = True
+        try:
+            blob = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+        out |= {r["symbol"] for r in blob.get("symbols", [])
+                if r.get("state") == "live"}
+    return out if found else None
 
 
 def _sel_cfg(cfg: AgentConfig) -> SelectionConfig:
@@ -113,6 +207,89 @@ def _report(table, label: str) -> int:
         rej = table.loc[~table.passed, "reject_reason"].value_counts().to_dict()
         print(f"   rejects: {rej}")
     return len(passed)
+
+
+def _cost_z(panel, a: str, b: str, cfg: AgentConfig) -> float | None:
+    """Round-trip cost measured in units of the spread's OWN sigma.
+
+    "Cointegrates" and "is tradeable" are different claims and this scan
+    conflated them until 2026-09-11. It matters most for the cross-venue pairs
+    added that day: the same underlying priced on two venues is the purest
+    cointegration in the universe -- one asset, one price, the spread is
+    nothing but venue basis -- and it is precisely that purity which makes the
+    spread tiny. A few bps of basis against ~7-14 bps of round trip (two legs,
+    each way, at the measured taker fee) leaves nothing. `optimal_bands` is
+    entitled to say no, and this number is why it would.
+    """
+    try:
+        m = fit_spread_model(panel[a].values, panel[b].values)
+    except Exception:                                        # noqa: BLE001
+        return None
+    if not np.isfinite(m.ou.sigma_eq) or m.ou.sigma_eq <= 0:
+        return None
+    return (2.0 * cfg.taker_fee * (1.0 + abs(m.beta))) / m.ou.sigma_eq
+
+
+def _stratified_diagnostic(panel, groups: dict, sel, pooled_pass: int) -> None:
+    """What FDR *within* each pre-declared stratum would yield. A DIAGNOSTIC.
+
+    Nothing here changes selection. `CLAUDE.md` invariant 3 stands: the live
+    gate applies FDR across every test run, and it still does.
+
+    This exists because the 2026-09-11 review owes a decision on stratified
+    correction, and that decision was deferred with a pre-committed test --
+    "run it both ways on the same panel and compare what ELSE passes, not just
+    whether CL/BZ does." Producing that comparison is not making the change.
+    The distinction matters: CL/BZ passed every economic and statistical gate
+    (hurst 0.35, hl 23.9h, beta +0.95) and died only to Benjamini-Hochberg at
+    m=66, so the temptation to re-cut the family is real and is exactly why the
+    decision needs evidence about the junk it would also admit.
+    """
+    print("\n" + "=" * 60)
+    print("STRATIFIED DIAGNOSTIC — FDR within each stratum, NOT the live gate")
+    print("=" * 60)
+    print(f"   pooled (live behaviour, invariant 3): {pooled_pass} pass\n")
+    total = 0
+    for name, pairs in sorted(groups.items()):
+        if len(pairs) < 1:
+            continue
+        table = select_pairs(panel, candidates=sorted(pairs), cfg=sel)
+        passed = table[table.passed]
+        total += len(passed)
+        if len(passed):
+            names = ", ".join(f"{_base(r.a)}/{_base(r.b)}"
+                              for _, r in passed.iterrows())
+            print(f"   {name:<18}{len(passed)}/{len(pairs):<4} {names}")
+    print(f"\n   stratified total: {total} pass vs {pooled_pass} pooled")
+    print("   READ THE DIFFERENCE AS THE PRICE, not as the prize: every extra")
+    print("   pass here is a hypothesis the pooled correction was refusing.")
+
+
+def _report_group(table, bases: set[str], label: str) -> None:
+    """EVERY pair in a set, passing or not, with the gate that rejected it.
+
+    Added 2026-09-11, because the first driver-grouped run printed only the
+    passing rows and so could not answer the question it existed to ask.
+
+    CL/BZ is WTI against Brent -- two grades of one physical commodity, a
+    $4.20 differential spot-checked the same day. It is as close to a known
+    true positive as this project will ever get, which makes it a **control on
+    the gates** rather than merely a candidate. A pipeline that rejects it is
+    telling us something about itself, and an aggregate reject tally cannot say
+    which gate did it. `half-life out of band` and `too few mean crossings`
+    would mean the 6h-168h band -- chosen for hourly crypto -- excludes
+    commodity spreads for being SLOW, not for failing to revert. That is a
+    very different finding from `fails split-half cointegration`, which would
+    mean the relationship genuinely broke inside the window.
+    """
+    rows = [r for _, r in table.iterrows()
+            if _base(r.a) in bases and _base(r.b) in bases]
+    print(f"\n== {label}: {sum(1 for r in rows if r.passed)}/{len(rows)} pass ==")
+    for r in sorted(rows, key=lambda r: r.adf_pvalue):
+        verdict = "PASS" if r.passed else f"rejected: {r.reject_reason}"
+        print(f"   {_base(r.a)}/{_base(r.b):<9} adf_p={r.adf_pvalue:.4f} "
+              f"hurst={r.hurst:.2f} hl={r.half_life:>7.1f}h beta={r.beta:+.2f} "
+              f"cross={int(r.crossings):>3}  {verdict}")
 
 
 def _return_vol(panel, sym: str) -> float:
@@ -162,6 +339,13 @@ def compare_orientations(panel, unordered: list[tuple[str, str]], sel) -> None:
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser(description="breadth diagnostic, no trading")
+    ap.add_argument("--venues", default=",".join(VENUES))
+    ap.add_argument("--no-cross-venue", action="store_true",
+                    help="skip same-underlying-two-venue pairs")
+    args = ap.parse_args()
+    venues = [v.strip().upper() for v in args.venues.split(",") if v.strip()]
+
     cfg = AgentConfig()
     broker = RapidXBroker()
     sel = _sel_cfg(cfg)
@@ -169,14 +353,30 @@ def main() -> int:
     # Union, deliberately. The sector groups define the EXPANDED search; the
     # live CANDIDATES define what the book actually trades. Fetching only the
     # first silently narrows the second, which is how ETH/BTC went untested.
-    sector_syms = {_sym(b) for g in SECTOR_GROUPS.values() for b in g}
+    all_bases = sorted({b for g in SECTOR_GROUPS.values() for b in g}
+                       | {s.split("_")[2] for p in CANDIDATES for s in p})
+    sector_syms = {_sym(b, v) for b in all_bases for v in venues}
     cand_syms = {s for p in CANDIDATES for s in p}
     all_syms = sorted(sector_syms | cand_syms)
-    if cand_syms - sector_syms:
-        print(f"note: {sorted(_base(s) for s in cand_syms - sector_syms)} are "
-              f"traded but not in any sector group — fetched for the CURRENT "
-              f"comparison, not paired in the EXPANDED scan")
-    print(f"fetching {len(all_syms)} candidate symbols "
+
+    known_live = live_symbols()
+    if known_live is None:
+        print("note: no manifest found — run deploy/universe_discover.py first "
+              "so unlisted symbols are named rather than silently dropped")
+    else:
+        # Probe-confirmed absences, named per venue. An unlisted symbol that
+        # merely vanishes into fetch_panel looks identical to a market with
+        # nothing in it, which is the wrong conclusion to hand a reader.
+        all_syms = [s for s in all_syms if s in known_live or s in cand_syms]
+        for group, bases in SECTOR_GROUPS.items():
+            for v in venues:
+                absent = [b for b in bases if _sym(b, v) not in known_live]
+                if absent:
+                    left = len(bases) - len(absent)
+                    tag = "  <- forms no pair" if left < 2 else ""
+                    print(f"  {group:<18} not live on {v:<8}: {absent}{tag}")
+
+    print(f"fetching {len(all_syms)} symbols across {venues} "
           f"({cfg.lookback_bars} bars each; this takes a couple minutes) ...")
     panel = fetch_panel(broker, all_syms, cfg)
     if panel.empty:
@@ -184,15 +384,39 @@ def main() -> int:
         return 1
 
     available = set(panel.columns)
-    missing = sorted(_base(s) for s in all_syms if s not in available)
-    print(f"\navailable on whitelist: {len(available)}/{len(all_syms)}")
+    missing = sorted(s for s in all_syms if s not in available)
+    print(f"\navailable: {len(available)}/{len(all_syms)}")
     print(f"dropped (no data): {missing}")
 
-    # within-group pairs among available symbols, de-duplicated
+    # Pairs are formed WITHIN a driver and WITHIN a venue. Cross-driver pairs
+    # have no economic prior; cross-venue pairs of DIFFERENT underlyings add
+    # execution risk (two venues, two fills) without adding economic content,
+    # so they are deliberately not formed.
+    groups: dict[str, set[tuple[str, str]]] = {}
+    for name, bases in SECTOR_GROUPS.items():
+        for v in venues:
+            syms = sorted(_sym(b, v) for b in bases if _sym(b, v) in available)
+            if len(syms) >= 2:
+                groups.setdefault(f"{name}@{v}", set()).update(
+                    combinations(syms, 2))
+
+    # The exception, and it is a real one: the SAME underlying on two venues.
+    # One asset, priced twice -- the purest cointegration available anywhere in
+    # this universe, and for exactly that reason the spread is only venue basis
+    # and may not clear the toll. See `_cost_z`.
+    if len(venues) >= 2 and not args.no_cross_venue:
+        cross: set[tuple[str, str]] = set()
+        for b in all_bases:
+            syms = sorted(_sym(b, v) for v in venues if _sym(b, v) in available)
+            cross.update(combinations(syms, 2))
+        if cross:
+            groups["cross_venue"] = cross
+            print(f"\ncross-venue: {len(cross)} same-underlying pairs "
+                  f"(purest cointegration here; watch cost_z, not adf_p)")
+
     pairs: set[tuple[str, str]] = set()
-    for group in SECTOR_GROUPS.values():
-        syms = sorted(_sym(b) for b in group if _sym(b) in available)
-        pairs.update(combinations(syms, 2))
+    for g in groups.values():
+        pairs |= g
     pairs_list = sorted(pairs)
 
     expanded = select_pairs(panel, candidates=pairs_list, cfg=sel)
@@ -221,6 +445,40 @@ def main() -> int:
     print("ORIENTATION SENSITIVITY (Engle-Granger is not symmetric)")
     print("=" * 60)
     compare_orientations(panel, pairs_list, sel)
+
+    # The whole point of the 09-11 expansion: did anything OUTSIDE crypto's
+    # single factor pass? A breadth result driven entirely by crypto is the
+    # 09-09 finding again, and should not be read as a new one.
+    nc_bases = {b for g in NON_CRYPTO for b in SECTOR_GROUPS.get(g, [])}
+    print("\n" + "=" * 60)
+    print("NON-CRYPTO — every pair, with the gate that rejected it")
+    print("=" * 60)
+    _report_group(expanded, nc_bases, "outside crypto's single factor")
+
+    # cost_z for the rows worth costing: the non-crypto set and anything that
+    # actually passed. A pair that cointegrates and cannot pay the toll is a
+    # different result from one that does neither, and the scan said nothing
+    # about the difference until now.
+    interesting = [(r.a, r.b) for _, r in expanded.iterrows()
+                   if r.passed or (_base(r.a) in nc_bases
+                                   and _base(r.b) in nc_bases)]
+    cross_pairs = groups.get("cross_venue", set())
+    interesting += [ab for ab in sorted(cross_pairs)][:12]
+    if interesting:
+        print("\n   cost_z = round-trip cost in units of the spread's own "
+              "sigma.\n   Above ~1 there is no edge left to capture after "
+              "fees, whatever\n   the statistics say.")
+        for a, b in dict.fromkeys(interesting):
+            cz = _cost_z(panel, a, b, cfg)
+            venue_tag = "" if a.split("_")[0] == b.split("_")[0] else "  [cross-venue]"
+            print(f"   {_base(a)}/{_base(b):<9} cost_z="
+                  f"{'n/a' if cz is None else f'{cz:6.3f}'}{venue_tag}")
+    print(f"\n   agent half-life band: {cfg.min_half_life:.0f}h to "
+          f"{cfg.max_half_life:.0f}h. A commodity or equity spread rejected "
+          f"for being SLOW\n   is a statement about that band, which was set "
+          f"for hourly crypto, not about\n   whether the relationship exists.")
+
+    _stratified_diagnostic(panel, groups, sel, n_expanded)
 
     print("\n" + "=" * 60)
     if n_expanded > n_current and n_expanded >= 3:

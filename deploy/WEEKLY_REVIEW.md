@@ -1777,6 +1777,12 @@ section existed; that is what it is for.
 | **Rule out a data cause for the 0/54**, before "regime" is written down as fact. ETH\|BTC passed 09-07, then 0/15 and 0/54 within 36h — coinciding exactly with the host change. Compare klines from `api.liquiditytech.com` against a known 09-07 fit | 2026-09-09 | before any decision rests on the regime verdict |
 | ~~**Enumerate the orderable instrument set**~~ **PROBED 2026-09-10.** No listing action exists in any of the 53 capabilities — enumeration is a name-by-name probing exercise with `get-symbol-info` as the oracle. `OKX_PERP_CL_USDT` (WTI crude) is **live and reachable** | 2026-09-10 | closed as a question; the blocker below replaces it |
 | ~~**Chase `market.klines` for the OKX adapter**~~ **RESOLVED 2026-09-10** — we were on CLI **1.0.41**, three versions stale. `npm install -g @liquiditytech/rapidx-cli@latest` → 1.0.44, OKX klines return data. Binance path verified unchanged before restart | 2026-09-10 | closed |
+| ~~**DECIDE: stratified FDR**~~ **REJECTED 2026-09-12** on the evidence its own pre-committed test produced: `energy@BINANCE` is a stratum of ONE, where BH reduces to `p <= q` and applies no correction at all, while `memes` gets a genuine 6x. Stratifying by these groups chooses how much scrutiny each hypothesis faces. Invariant 3 stands | 2026-09-11 | closed. Re-opening needs an argument that survives the stratum-of-one objection |
+| **Strengthen CL/BZ's evidence instead of weakening the bar.** Fails FDR at m=112 with p=0.0085, but stable across venues and runs and tradeable at cost_z 0.167. Two honest routes: (1) more history — 960 bars is 40 days and pagination shipped in CLI 1.0.45; (2) out-of-sample validation on a window that did not select it | 2026-09-12 | **top research item.** Try the longer lookback first |
+| ~~**DECIDE: stratified FDR, or keep one pooled family.**~~ CL/BZ (WTI/Brent) passes every economic and statistical gate — hurst 0.35, hl 23.9h, beta +0.95, 54 crossings, adf p=0.026 — and is rejected **only** by Benjamini-Hochberg at m=66. Correcting within pre-declared economic strata is standard where hypotheses are not exchangeable, and the driver groups predate these p-values. **But we would be restructuring the family because a result we liked got rejected** | 2026-09-11 | **Sun 2026-09-13 review.** Pre-committed test: run both ways on the same panel and compare what ELSE passes, not just whether CL/BZ does. One pair clearing a looser correction is not evidence. Invariant 3 stands until a written decision says otherwise |
+| **Check whether the SPX contract tracks its underlying.** Four non-crypto pairs died on `beta out of range`, all SPX, including MSFT/SPX at adf p=0.0133 — the best p-value of the eleven — with beta +0.03. An index against its largest constituents should not have a hedge ratio of 0.03, and the fit is on log prices so raw scale is not the cause | 2026-09-11 | before anything is built on SPX. One correlation check against AAPL/MSFT/NVDA returns |
+| ~~**Ask whether the portfolio may trade BOTH venues**~~ **ANSWERED 2026-09-11: both, one portfolio, perpetuals only.** No venue decision to make; take the union, 62 bases. NG joins energy (1 pair -> 3) and ~52 same-underlying cross-venue pairs become formable | 2026-09-11 | closed |
+| **Two-venue execution is unmodelled.** A cross-venue pair has legs on two venues; a fill on one without the other leaves a naked directional position, and the maintenance-window guard reasons about one venue's blackout. The scan can now find such pairs before the agent can trade them safely | 2026-09-11 | **before any cross-venue pair reaches `CANDIDATES`.** Not urgent while cost_z likely refuses them anyway |
 | **Chase the OKX 300-bar klines cap.** Binance returns 1000 on an identical request; OKX returns 300 for symbols with years of history. `KlinesInput` is `additionalProperties: false` with only symbol/interval/limit, so pagination cannot be expressed, and `limit` carries no documented maximum — a bug, not a feature request. Raised 2026-09-10 | 2026-09-10 | **still blocks the universe scan.** 300 bars = 12.5 days, which silently narrows the effective half-life band to ~6–48h. **Do not scan OKX at 300 bars and report the result as a regime measurement.** Re-test on each RapidX release |
 | **Verify OKX instruments are actually ORDERABLE**, not merely readable. `symbol-info` succeeding is not proof; the organizer's test is "any instrument you are able to place orders on". The check is `order place-preview`, classed **TRADE_WRITE** — decide it deliberately at a review, not casually against live capital | 2026-09-10 | Sun 2026-09-13 review |
 | **Scan the full Phase II universe, grouped by DRIVER not venue.** The top-50 whitelist is gone and the organizer confirmed (2026-09-09) that **any orderable instrument counts, crypto or not** — commodity and tokenised-equity perps score identically. The 0/55 result is a **one-factor** problem: every crypto perp shares BTC beta, so widening within crypto cannot fix it. Non-crypto breaks the factor | 2026-09-09, reshaped 2026-09-10 | highest-priority research item. Hedges recorded in the 09-10 entry: liquidity, weekend gaps in the underlying, corporate actions, FDR, 960-bar data depth |
@@ -3227,6 +3233,282 @@ cleared it with negative returns; Phase II is scored on rank.
 entries into that is how Quantech reached −460% annualised and 4.7% MDD on day
 two. The legitimate lever is the universe question, and it is blocked on LTP's
 300-bar cap rather than on our judgement. Nothing to do but wait and build.
+
+---
+
+## 2026-09-11 — WTI/Brent is cointegrated, and our own correction rejected it
+
+The universe opened, the scan ran across economic drivers for the first time,
+and it returned **0 of 66**. The headline is not the zero. It is one row:
+
+```
+BZ/CL   adf_p=0.0257  hurst=0.35  hl=23.9h  beta=+0.95  cross=54
+        rejected: fails FDR correction
+```
+
+**That pair passes every economic and statistical gate we have.** Hurst 0.35 is
+strongly anti-persistent. A 23.9h half-life sits comfortably inside the 6–168h
+band. Beta +0.95 is what two grades of the same crude should give. 54 crossings.
+ADF p = 0.026, significant at 5%. It was rejected by the **multiple-testing
+correction and nothing else.**
+
+### Why, and the tension it exposes
+
+Benjamini-Hochberg's threshold scales with the size of the test family. At
+m = 66 and q = 0.10 a pair needs p ≤ 0.0015 to clear at rank 1 and ≤ 0.015 at
+rank 10; at p = 0.026 CL/BZ needs roughly 17 pairs below it, and **only 2 pairs
+in the whole run reached the FDR stage at all.** Tested alone — or within its
+own energy group — p = 0.026 passes trivially.
+
+**It failed for the company it was keeping.** Fifty-five crypto pairs we have
+strong prior reason to believe are junk right now were in the same family.
+
+So: **breadth and per-pair significance trade off directly.** Every symbol added
+to the scan makes it harder for any individual pair to clear. *Widening the
+universe hurt the best pair in it.* That is the multiple-testing tax working as
+designed, and `CLAUDE.md` invariant 3 exists precisely to stop us dodging it.
+
+### The option, and why it is NOT being taken today
+
+Stratified FDR — correcting **within** pre-declared economic strata instead of
+pooling hypotheses with wildly different priors — is standard practice where
+families are not exchangeable, and a physical arbitrage relationship and a
+meme-coin pair are not exchangeable hypotheses. Our driver groups were defined
+on the morning of 09-11, before any of these p-values existed.
+
+**It is still not being changed now, and the reason is the one this project
+keeps writing down: we would be restructuring the test family because a result
+we liked got rejected.** That is the garden of forking paths, and "what did
+this fit to?" is the first question the repo demands of any change that
+improves a number.
+
+**Decision deferred to the Sun 2026-09-13 review, with a pre-committed test:**
+if we stratify, does junk also get through? Run it both ways on the same panel
+and compare what *else* passes, not just whether CL/BZ does. One pair passing
+under a looser correction is not evidence; it is the thing we are trying not
+to fool ourselves with.
+
+### A second finding, possibly a defect in an instrument
+
+Four of eleven non-crypto pairs died on **`beta out of range`** — all involving
+SPX, including the lowest p-value in the entire non-crypto set:
+
+```
+MSFT/SPX   adf_p=0.0133  beta=+0.03    <- best p-value of all 11
+NVDA/SPX   adf_p=0.0269  beta=+0.03
+AAPL/SPX   adf_p=0.2673  beta=+0.06
+```
+
+A hedge ratio of 0.03 between an index and its largest constituents is
+economically implausible; they should move close to together. The spread is
+fitted on **log** prices, so raw scale (SPX quotes at 0.5017 against AAPL's
+334) should not cause it. Either the SPX contract tracks its underlying poorly
+or something about that instrument is off. **One correlation check before
+anything is built on SPX.**
+
+### What survives untouched
+
+**The crypto regime finding.** 49 of the 66 rejections were split-half or
+crossings — before FDR entered into it at all. That conclusion is independent
+of everything above, and **the flat book remains correct.**
+
+### Data depth, and a prediction I got wrong
+
+`ZS` (soybeans) was excluded with **224 bars** against the 960 required, and
+named in the output rather than silently dropped — the fix from 09-09 doing its
+job on its first real test. `OKB` is not live on Binance and forms no pair.
+
+And for the record: I predicted CL/BZ would fail on **half-life out of band or
+too few mean crossings**, reasoning that the Brent-WTI differential reverts on
+a scale of weeks and our band was tuned for hourly crypto. Wrong on both. Its
+half-life is 23.9h and it crossed 54 times. The band is fine; the *family* was
+the problem. Recorded because the wrong hypothesis was plausible enough that a
+future session might reach for it again.
+
+---
+
+## 2026-09-11 (late) — both venues, and a new kind of pair
+
+**Organizer, Telegram:** *"You can place orders on both Binance and OKX for a
+single RapidX portfolio but only on perpetuals for Phase II."*
+
+**There is no venue decision.** The `VENUE = "BINANCE"` choice recorded earlier
+the same day is superseded — we take the union, 62 unique bases. OKX
+contributes exactly two things Binance lacks and one of them matters:
+
+- **`NG` joins energy**, taking the group from one pair to three: CL/BZ, CL/NG,
+  BZ/NG. Crude against natural gas is a weaker prior than crude against crude,
+  but it triples the group that produced our best row.
+- `OKB`, which pairs with nothing.
+
+### The same underlying, priced twice
+
+~52 bases are live on both venues, so `BINANCE_PERP_BTC_USDT` against
+`OKX_PERP_BTC_USDT` is now formable. **That is the purest cointegration
+available anywhere in this universe** — not two grades of crude, not two tech
+stocks, one asset with a spread that is nothing but venue basis.
+
+**And that purity is exactly why it probably will not trade.** Basis between
+major venues on a liquid perp runs a few bps; our round trip is two legs each
+way at the measured taker fee, call it 7–14 bps. `cost_z = roundtrip / sigma_eq`
+will be large and `optimal_bands` is entitled to refuse. The scan now prints
+`cost_z` per interesting pair, because **"cointegrates" and "is tradeable" are
+different claims and this scan conflated them until today.**
+
+### This makes the FDR problem worse, not better
+
+Adding cross-venue pairs takes the family from 66 to past 120. At m=120, q=0.10,
+rank 10 needs p ≤ 0.008 — **CL/BZ at p=0.026 moves further from passing.** Every
+expansion of breadth penalises the individual pairs we most believe in.
+
+That strengthens the stratification case from an independent direction: a
+universe containing a physical-arbitrage pair, a venue-basis spread and a
+meme-coin pair is not an exchangeable family in any defensible sense. **It is
+still not a change made today.** Noticing that an argument improved is not a
+licence to act on it mid-week, and the improvement does not touch the forking
+path: we would still be re-cutting the family after seeing which result it
+killed.
+
+**What was built instead is the evidence.** `_stratified_diagnostic()` runs FDR
+within each stratum and prints what each would pass, alongside the pooled
+result, labelled `NOT the live gate`. That is precisely the pre-committed test
+Sunday was promised — *"run both ways on the same panel and compare what ELSE
+passes"* — and producing a comparison is not making a decision. The live gate
+is untouched; invariant 3 stands. The output frames extra passes as **the
+price, not the prize**: every one is a hypothesis the pooled correction was
+refusing.
+
+### An execution gap, before any of this reaches the agent
+
+A cross-venue pair has **legs on two venues**. A fill on one without the other
+leaves a naked directional position, and `parse_maintenance_windows` reasons
+about a single venue's order-API blackout. The scan finding such a pair is not
+the same as being able to trade it, and nothing in `ltp_agent.py` currently
+models two-venue execution. Recorded now so it is a known gap rather than a
+discovery made with money on the table.
+
+---
+
+## 2026-09-12 — the three passes were mine, not the market's
+
+The dual-venue scan returned **3 of 162** and a verdict of *"breadth helps."*
+It was wrong, and the cause was the fifty cross-venue pairs **I added the day
+before.**
+
+### What happened
+
+A control run with `--no-cross-venue` removes them and the result collapses:
+
+```
+with cross-venue     (m=162)   3 pass   BZ/CL x2, 1000SHIB/DOGE
+without cross-venue  (m=112)   0 pass   BZ/CL "fails FDR correction", both venues
+```
+
+Same panel, same gates, same p-values (0.0085 / 0.0101). **Only the family
+changed.**
+
+The mechanism: a cross-venue pair is the *same asset priced twice*, so its ADF
+p-value is ~0 by construction rather than by discovery. Fifty of them occupy
+the top fifty Benjamini-Hochberg ranks, lifting the threshold at rank ~51 to
+roughly `(51/162) x 0.10 = 0.031` — and CL/BZ at 0.0085 sails under it.
+Invariant 3 puts every test in the ranking, including ones later rejected by
+other gates, so all fifty counted even though **all fifty were themselves
+rejected** (`half-life out of band`, 0.5-1.5h) and all fifty are untradeable
+(`cost_z` 1.28-4.93).
+
+In strict BH terms this is not cheating — they are true positives and the FDR
+is still controlled. **It is still indefensible here**, because we bought
+statistical power for the pair we wanted using fifty hypotheses we would never
+act on. That is exactly what "what did this fit to?" is for, and the answer was:
+my own family construction.
+
+**The 2026-09-11 (late) verdict and its "stratified equals pooled" observation
+are both corrected by this.** They were wrong in the flattering direction.
+
+### Stratification answered itself, against itself
+
+With the tautologies gone the comparison finally poses the real question:
+
+```
+pooled:            0 pass
+energy@BINANCE     1/1    BZ/CL
+energy@OKX         1/1    BZ/CL
+memes@BINANCE      1/6    1000SHIB/DOGE
+stratified total:  3 vs 0 pooled
+```
+
+**`energy@BINANCE` is a stratum of size one.** BH at m=1 reduces to `p <= q` —
+CL/BZ tested at 0.0085 against 0.10, with **no correction whatsoever**. Meanwhile
+`memes` gets a genuine 6x correction.
+
+So stratifying by these groups applies wildly different rigour depending on how
+many symbols happen to sit in each — **none at all to the pair we care most
+about, precisely because we grouped it tightly.** That is not a principled
+family; it is a mechanism for choosing how much scrutiny each hypothesis faces.
+
+**DECISION: stratified FDR is REJECTED.** Not deferred — rejected, on the
+evidence its own pre-committed test produced. Invariant 3 stands unchanged.
+Re-opening it needs an argument that survives the stratum-of-one objection.
+
+### What is actually solid about CL/BZ
+
+| | |
+|---|---|
+| ADF p | 0.0085 / 0.0101 across two venues; 0.0080 / 0.0098 the previous day — **stable** |
+| hurst | 0.37 |
+| half-life | 23h — comfortably inside the 6-168h band |
+| beta | +0.94 |
+| crossings | ~75 |
+| **cost_z** | **0.167** — six times more spread sigma than the round trip |
+
+**The relationship looks real and is genuinely tradeable. The statistical
+evidence is simply not strong enough to clear a 112-test correction.** Those
+are different problems and only one has an honest fix.
+
+### Two routes that strengthen evidence instead of weakening the bar
+
+1. **More history.** 960 bars is 40 days; pagination shipped in CLI 1.0.45. If
+   CL/BZ's p falls toward ~0.001 on 2,000+ bars it clears FDR at m=112 **on its
+   own merits**. Try this first — it may be a single flag.
+2. **Out-of-sample validation.** Fit on one window, test on a later one. A
+   relationship that holds on data which did not select it is evidence no
+   amount of family-cutting can manufacture.
+
+### Everything else from the run
+
+- `cost_z` worked exactly as designed: cross-venue 1.28-4.93 (no edge after
+  fees, as predicted), CL/BZ 0.167, equity pairs cheap at 0.015-0.03 but
+  failing the statistics.
+- **Mega-cap equities are not mean-reverting on this window.** AAPL/MSFT at
+  hurst 0.50, half-life 155h. The asset class this engine was built for is,
+  right now, trending.
+- **The SPX beta anomaly persists** — +0.02 to +0.06 against its own largest
+  constituents. Still unexplained; still blocks four pairs.
+- `BINANCE_PERP_ZS_USDT` (248 bars) and `OKX_PERP_FET_USDT` (183) excluded and
+  named — the 09-09 silent-drop fix working on a second real case.
+- **The crypto regime finding is unchanged.** 0 of 112, split-half and
+  crossings dominant. The flat book stays correct.
+
+### A git incident, recorded because it nearly cost the record
+
+Partway through this session the container's checkout **silently reset to
+`origin/main`**, which carried a merged PR plus CI `track_record` commits but
+was missing the four most recent branch commits — including the two that hold
+the 09-11 entries. The 09-12 entry above was first written against that stale
+file. Committing it would have **deleted both 09-11 entries** while appearing
+to add one.
+
+Caught by `git log --oneline -4 -- deploy/WEEKLY_REVIEW.md` showing `ea1d120`
+as the newest commit touching the file, when two later commits should have.
+Recovery: save the working tree, confirm `61aa92e` was reachable from
+`origin/main` so nothing was lost, `git checkout -B <branch> origin/<branch>`,
+re-apply.
+
+**The lesson for a future session: after any environment interruption, check
+`git log` against `origin` before editing the record.** The remote is
+authoritative; a local checkout that looks fine can be an older line of
+history, and an append to a stale file is indistinguishable from a deletion
+once it is pushed.
 
 ---
 
