@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from deploy.ltp_agent import CANDIDATES                      # noqa: E402
 from deploy.universe_scan import (                           # noqa: E402
-    NON_CRYPTO, SECTOR_GROUPS, VENUE, _sym, live_symbols,
+    NON_CRYPTO, SECTOR_GROUPS, VENUE, VENUES, _sym, live_symbols,
 )
 
 
@@ -108,3 +108,69 @@ def test_groups_too_small_to_pair_are_still_declared():
     symbol being invisible in both the groups and the output."""
     assert SECTOR_GROUPS["ags"] == ["ZS"]
     assert len(SECTOR_GROUPS["ags"]) < 2
+
+
+# --------------------------------------------------------------------------
+# 2026-09-11, organizer: "You can place orders on both Binance and OKX for a
+# single RapidX portfolio but only on perpetuals for Phase II."
+#
+# So there is no venue to choose -- we take the union -- and a new pair type
+# exists that did not before: the SAME underlying priced on two venues.
+# --------------------------------------------------------------------------
+
+def test_both_venues_are_in_scope():
+    assert set(VENUES) == {"BINANCE", "OKX"}
+    # VENUE stays the default for the live agent, whose CANDIDATES are Binance.
+    assert VENUE in VENUES
+
+
+def test_cost_z_separates_cointegrating_from_tradeable():
+    """The scan conflated these until today, and cross-venue pairs make the
+    distinction load-bearing: one asset priced twice is the purest
+    cointegration available, and for exactly that reason the spread is only
+    venue basis and may not clear the toll."""
+    import numpy as np
+    import pandas as pd
+    from deploy.ltp_agent import AgentConfig
+    from deploy.universe_scan import _cost_z
+
+    rng = np.random.default_rng(7)
+    n = 600
+    # A wide spread: plenty of sigma for the fee to come out of.
+    base = np.cumsum(rng.normal(0, 0.01, n)) + 10.0
+    wide = pd.DataFrame({"A": base + rng.normal(0, 0.05, n),
+                         "B": base + rng.normal(0, 0.05, n)})
+    # A near-identical pair: the cross-venue shape, almost no sigma at all.
+    tight = pd.DataFrame({"A": base + rng.normal(0, 0.00005, n),
+                          "B": base + rng.normal(0, 0.00005, n)})
+    cfg = AgentConfig()
+    cz_wide = _cost_z(wide, "A", "B", cfg)
+    cz_tight = _cost_z(tight, "A", "B", cfg)
+    assert cz_wide is not None and cz_tight is not None
+    assert cz_tight > cz_wide, (
+        "a spread with almost no sigma must show a HIGHER cost in units of "
+        "its own sigma -- that is the whole point of the measure")
+
+
+def test_cost_z_returns_none_rather_than_a_number_it_cannot_justify():
+    import pandas as pd
+    from deploy.ltp_agent import AgentConfig
+    from deploy.universe_scan import _cost_z
+    flat = pd.DataFrame({"A": [1.0] * 50, "B": [1.0] * 50})
+    assert _cost_z(flat, "A", "B", AgentConfig()) is None
+
+
+def test_the_stratified_pass_is_a_diagnostic_and_says_so():
+    """Invariant 3 stands: the live gate applies FDR across every test run.
+    This function exists to produce the evidence Sunday's decision needs --
+    'what ELSE passes' -- and building that comparison is not making the
+    change. If the labelling ever drifts, someone reads a diagnostic as a
+    result."""
+    import inspect
+    from deploy.universe_scan import _stratified_diagnostic
+    src = inspect.getsource(_stratified_diagnostic)
+    assert "NOT the live gate" in src
+    assert "invariant 3" in src.lower()
+    assert "not making the change" in src.lower()
+    # ...and it must frame extra passes as a cost, not a win.
+    assert "PRICE, not as the prize" in src

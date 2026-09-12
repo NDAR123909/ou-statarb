@@ -1779,7 +1779,8 @@ section existed; that is what it is for.
 | ~~**Chase `market.klines` for the OKX adapter**~~ **RESOLVED 2026-09-10** — we were on CLI **1.0.41**, three versions stale. `npm install -g @liquiditytech/rapidx-cli@latest` → 1.0.44, OKX klines return data. Binance path verified unchanged before restart | 2026-09-10 | closed |
 | **DECIDE: stratified FDR, or keep one pooled family.** CL/BZ (WTI/Brent) passes every economic and statistical gate — hurst 0.35, hl 23.9h, beta +0.95, 54 crossings, adf p=0.026 — and is rejected **only** by Benjamini-Hochberg at m=66. Correcting within pre-declared economic strata is standard where hypotheses are not exchangeable, and the driver groups predate these p-values. **But we would be restructuring the family because a result we liked got rejected** | 2026-09-11 | **Sun 2026-09-13 review.** Pre-committed test: run both ways on the same panel and compare what ELSE passes, not just whether CL/BZ does. One pair clearing a looser correction is not evidence. Invariant 3 stands until a written decision says otherwise |
 | **Check whether the SPX contract tracks its underlying.** Four non-crypto pairs died on `beta out of range`, all SPX, including MSFT/SPX at adf p=0.0133 — the best p-value of the eleven — with beta +0.03. An index against its largest constituents should not have a hedge ratio of 0.03, and the fit is on log prices so raw scale is not the cause | 2026-09-11 | before anything is built on SPX. One correlation check against AAPL/MSFT/NVDA returns |
-| **Ask whether the portfolio may trade BOTH venues**, or must pick one. NG is OKX-only and would turn energy from one pair into three; XAUT/PAXG are Binance-only and are our gold pair. The answer changes the universe either way | 2026-09-11 | raised with Zach 2026-09-11 |
+| ~~**Ask whether the portfolio may trade BOTH venues**~~ **ANSWERED 2026-09-11: both, one portfolio, perpetuals only.** No venue decision to make; take the union, 62 bases. NG joins energy (1 pair -> 3) and ~52 same-underlying cross-venue pairs become formable | 2026-09-11 | closed |
+| **Two-venue execution is unmodelled.** A cross-venue pair has legs on two venues; a fill on one without the other leaves a naked directional position, and the maintenance-window guard reasons about one venue's blackout. The scan can now find such pairs before the agent can trade them safely | 2026-09-11 | **before any cross-venue pair reaches `CANDIDATES`.** Not urgent while cost_z likely refuses them anyway |
 | **Chase the OKX 300-bar klines cap.** Binance returns 1000 on an identical request; OKX returns 300 for symbols with years of history. `KlinesInput` is `additionalProperties: false` with only symbol/interval/limit, so pagination cannot be expressed, and `limit` carries no documented maximum — a bug, not a feature request. Raised 2026-09-10 | 2026-09-10 | **still blocks the universe scan.** 300 bars = 12.5 days, which silently narrows the effective half-life band to ~6–48h. **Do not scan OKX at 300 bars and report the result as a regime measurement.** Re-test on each RapidX release |
 | **Verify OKX instruments are actually ORDERABLE**, not merely readable. `symbol-info` succeeding is not proof; the organizer's test is "any instrument you are able to place orders on". The check is `order place-preview`, classed **TRADE_WRITE** — decide it deliberately at a review, not casually against live capital | 2026-09-10 | Sun 2026-09-13 review |
 | **Scan the full Phase II universe, grouped by DRIVER not venue.** The top-50 whitelist is gone and the organizer confirmed (2026-09-09) that **any orderable instrument counts, crypto or not** — commodity and tokenised-equity perps score identically. The 0/55 result is a **one-factor** problem: every crypto perp shares BTC beta, so widening within crypto cannot fix it. Non-crypto breaks the factor | 2026-09-09, reshaped 2026-09-10 | highest-priority research item. Hedges recorded in the 09-10 entry: liquidity, weekend gaps in the underlying, corporate actions, FDR, 960-bar data depth |
@@ -3321,6 +3322,68 @@ a scale of weeks and our band was tuned for hourly crypto. Wrong on both. Its
 half-life is 23.9h and it crossed 54 times. The band is fine; the *family* was
 the problem. Recorded because the wrong hypothesis was plausible enough that a
 future session might reach for it again.
+
+---
+
+## 2026-09-11 (late) — both venues, and a new kind of pair
+
+**Organizer, Telegram:** *"You can place orders on both Binance and OKX for a
+single RapidX portfolio but only on perpetuals for Phase II."*
+
+**There is no venue decision.** The `VENUE = "BINANCE"` choice recorded earlier
+the same day is superseded — we take the union, 62 unique bases. OKX
+contributes exactly two things Binance lacks and one of them matters:
+
+- **`NG` joins energy**, taking the group from one pair to three: CL/BZ, CL/NG,
+  BZ/NG. Crude against natural gas is a weaker prior than crude against crude,
+  but it triples the group that produced our best row.
+- `OKB`, which pairs with nothing.
+
+### The same underlying, priced twice
+
+~52 bases are live on both venues, so `BINANCE_PERP_BTC_USDT` against
+`OKX_PERP_BTC_USDT` is now formable. **That is the purest cointegration
+available anywhere in this universe** — not two grades of crude, not two tech
+stocks, one asset with a spread that is nothing but venue basis.
+
+**And that purity is exactly why it probably will not trade.** Basis between
+major venues on a liquid perp runs a few bps; our round trip is two legs each
+way at the measured taker fee, call it 7–14 bps. `cost_z = roundtrip / sigma_eq`
+will be large and `optimal_bands` is entitled to refuse. The scan now prints
+`cost_z` per interesting pair, because **"cointegrates" and "is tradeable" are
+different claims and this scan conflated them until today.**
+
+### This makes the FDR problem worse, not better
+
+Adding cross-venue pairs takes the family from 66 to past 120. At m=120, q=0.10,
+rank 10 needs p ≤ 0.008 — **CL/BZ at p=0.026 moves further from passing.** Every
+expansion of breadth penalises the individual pairs we most believe in.
+
+That strengthens the stratification case from an independent direction: a
+universe containing a physical-arbitrage pair, a venue-basis spread and a
+meme-coin pair is not an exchangeable family in any defensible sense. **It is
+still not a change made today.** Noticing that an argument improved is not a
+licence to act on it mid-week, and the improvement does not touch the forking
+path: we would still be re-cutting the family after seeing which result it
+killed.
+
+**What was built instead is the evidence.** `_stratified_diagnostic()` runs FDR
+within each stratum and prints what each would pass, alongside the pooled
+result, labelled `NOT the live gate`. That is precisely the pre-committed test
+Sunday was promised — *"run both ways on the same panel and compare what ELSE
+passes"* — and producing a comparison is not making a decision. The live gate
+is untouched; invariant 3 stands. The output frames extra passes as **the
+price, not the prize**: every one is a hypothesis the pooled correction was
+refusing.
+
+### An execution gap, before any of this reaches the agent
+
+A cross-venue pair has **legs on two venues**. A fill on one without the other
+leaves a naked directional position, and `parse_maintenance_windows` reasons
+about a single venue's order-API blackout. The scan finding such a pair is not
+the same as being able to trade it, and nothing in `ltp_agent.py` currently
+models two-venue execution. Recorded now so it is a known gap rather than a
+discovery made with money on the table.
 
 ---
 
