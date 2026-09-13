@@ -1791,7 +1791,7 @@ section existed; that is what it is for.
 | ~~**Watch `bad_read`**~~ **CLOSED 2026-09-08** — frozen at 307 across seven hours on the production host. The guard fired every bar through the dead-credential window and has not fired since | 2026-09-08 | closed |
 | **`status.py` prints times with no date** in the `recent` list, so five refits on five different days render as five identical `19:00 refit` lines. This misled the 2026-09-08 session into chasing a discrepancy that did not exist — the **fifth** cosmetic defect in this file to cost a real inference. Show the date, or a relative age | 2026-09-08 | build window. The glance is the instrument we steer by |
 | ~~**Probe the news/feeds path against `api.liquiditytech.com`**~~ **CLOSED 2026-09-13** — the first Phase II entry passed through it: `screened: true`, `news_status: ok`, both legs rated, `news_age_h 0.0`. `news_assessment` 577 → 612. `ltp_stream.py`'s hardcoded WS host is still untested separately, but the journal reports `news stream: live` | 2026-09-08 | closed |
-| **Entry depth is unbounded and unsized.** Entries are permitted anywhere in `entry_z < |z| < stop_z` and size does not depend on z; on 2026-09-12 we entered at z=+3.41 against a 3.5 stop, a 0.09σ buffer. `optimal_bands` is stop-blind by design. **Do not add a control until task 04 measures whether depth predicts stop-outs** — our one observation is favourable, which is the dangerous kind | 2026-09-13 | **task 04, GATE.** Arithmetic fix if justified, not an AI sizing lever |
+| ~~**Entry depth is unbounded and unsized**~~ **MEASURED 2026-09-13, DECISION: DO NOTHING.** Stop rate is flat past |z|=1 (44/50/43%, Fisher p=1.0000); the damage is in the MIDDLE bucket, where all five worst trades entered (1.19-2.33); both candidate controls cost real money and one makes drawdown worse. Deep-relative entries stopped LESS often (1 of 5). Do not re-propose without new evidence | 2026-09-13 | closed. If reopened, use the first-passage probability in `thresholds.py` scored on all 31 closes, not more trades |
 | ~~**Decide on the pending reboot**~~ **DONE 2026-09-09 16:22 UTC** — kernel 6.8.0-137 → 139, 0 updates pending, banner cleared, ~5 min downtime on a flat book. `NRestarts=0`; equity, peak, `bad_read` and **the bar counter** all survived, so the refit clock did not move. The "it re-phases the clock" note in this row was wrong and is corrected in the day-1 entry | 2026-09-08 | closed |
 | **Ask the organizers whether the Binance-vs-OKX venue choice is still open** now that Phase II has started, and whether the primary account is provisioned as a **Sub Portfolio** (if so the key can read but not trade it — `Edit API` fixes it in one click), and whether their side needs an IP whitelisted. The last two were asked of @LTP_Tracey on 2026-09-07 and **never answered** | 2026-09-07 / 2026-09-08 | next organizer contact — bundle with the CSV-export and AI-floor questions already owed |
 
@@ -3681,6 +3681,101 @@ entire P&L, and it is the first live test of the exit path on the production
 host. A `reverted` exit reconciled against the venue would also give us the
 first live-capital slippage measurement — Phase I's 0.57–0.91 bps was a sandbox
 number and the record says to treat it as a prior, not a fact.
+
+---
+
+## 2026-09-13 (late) — task 04: the gate closes NO, and the damage is in the middle
+
+Run the same evening it was written. Output at
+`deploy/research_queue/out/04-entry-depth-vs-stops.md`.
+
+### Depth does not predict stop-outs
+
+Past |z| = 1 the stop rate is **flat**: 44%, 50%, 43% across the 1–2, 2–3 and
+3+ buckets. Mid versus deep gives **Fisher exact p = 1.0000**. No signal, in
+either direction.
+
+**A denominator trap, caught.** Four `enter` records from 2026-07-20 carry
+`notional: 0` with no legs in the fills — day-one `maxNotional` failures that
+never became positions — and **all four sit in the deepest bucket**. Counting
+them puts the 3+ stop rate at 3/11 = 27% instead of **3/7 = 43%**, flattering
+precisely the bucket under test. Risk-bearing total 34; outcome-known 31; 22
+with venue-verified P&L.
+
+### Two effects run against the fear, and the second is arithmetic
+
+The 3+ bucket needs a mean of **0.28σ** of adverse movement to stop, against
+**2.19σ** for the 1–2 bucket — an eightfold smaller buffer — and stops out no
+more often.
+
+And among the eight stops, **depth and realised loss are inversely related**
+(Spearman ρ = +0.857 on depth vs P&L): mean loss given a stop is **−11.10** in
+the 1–2 bucket and **−3.51** in 3+. That is not luck. Loss ≈ rate-per-z ×
+buffer crossed, and a deep entry has almost no buffer to lose across.
+
+### The damage is in the middle
+
+```
+|z| < 1     +46.96
+|z| 1-3     -32.63
+|z| 3+      +22.97
+```
+
+**All five worst trades — including the worst at −18.52 — entered between 1.19
+and 2.33.** That is the opposite of the intuition that prompted this task.
+
+### Both proposed controls fail on their own terms
+
+| | cost | effect |
+|---|---|---|
+| refuse above \|z\| > 2.5 | **−25.86** (69% of realised profit) | avoids three of the *smallest* stops, keeps **all five worst trades**, and makes drawdown **worse** (2.23% → 2.26%) |
+| linear distance-to-stop taper | −12.94 | drawdown 2.23% → 1.60%, but a **flat size cut of identical P&L cost reaches 1.48%** — and the taper's mean weight is 0.739, i.e. mostly a blanket 26% reduction wearing a signal's clothes |
+
+### Verified independently, and one thing added
+
+**The band confound is real.** `entry_z` has only ever taken three values —
+**0.4, 0.6, 3.0** — and every 2026-07-20 entry used the 3.0 band. So the deep
+bucket is largely *entries at their own threshold*, not unusually deep ones.
+
+**So I cut it the other way: depth RELATIVE to the band.**
+
+```
+~1x (at the band)   23
+1.5-3x              10
+3-6x                 5
+6x+                  0
+```
+
+**The 2026-09-12 live entry is 8.5x its band (z=3.41 against 0.40) — outside
+the entire historical range.** The deepest ever recorded is 5.3x.
+
+Outcomes of the five deepest-relative entries, the closest analogue we have:
+
+```
+3.2x  KAS/ETC   -> refit_drop        3.9x  XLM/XRP   -> STOP
+3.1x  FIL/AR    -> reverted          5.3x  KAS/ETC   -> reverted, 5 bars
+4.2x  KAS/ETC   -> refit_drop
+```
+
+**One stop in five (20%), against ~44–50% in the middle buckets.** Deep-relative
+entries stopped *less* often, and the single deepest reverted for a profit in
+five bars — the same shape the 09-12 trade is currently tracing.
+
+### DECISION: do nothing
+
+No control is added. Entry depth stays unbounded below `stop_z` and sizing
+stays z-independent. **Recorded explicitly so the next session that sees a
+frightening entry does not re-propose this from scratch:** it was proposed,
+measured, and the measurement said the risk is not there — and that both
+candidate fixes would have cost real money while leaving the worst trades
+untouched.
+
+**The honest limit.** This answers *absolute* depth well and *relative* depth
+barely — n=5 at ≥3x band, none at 8.5x. If it is reopened, the cheap route is
+not more trades: it is the **first-passage probability already in
+`statarb/thresholds.py`**, computed per entry and scored against realised
+outcomes, which tests the hypothesis on all 31 closed trades rather than the
+seven that happen to be deep.
 
 ---
 
