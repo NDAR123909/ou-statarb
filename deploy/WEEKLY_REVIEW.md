@@ -1790,7 +1790,8 @@ section existed; that is what it is for.
 | ~~**Synthesise the ~3,400 deep reviews**~~ **DONE 2026-09-09** via Claude Cowork — `deploy/DEEP_REVIEW_SYNTHESIS.md` on branch `research/deep-review-synthesis`. Found the corpus's most convergent claim to be a prompt artefact of our own making; that bug is now fixed and pinned | 2026-08-12 | closed — but the surviving claims still need reading before Sunday |
 | ~~**Watch `bad_read`**~~ **CLOSED 2026-09-08** — frozen at 307 across seven hours on the production host. The guard fired every bar through the dead-credential window and has not fired since | 2026-09-08 | closed |
 | **`status.py` prints times with no date** in the `recent` list, so five refits on five different days render as five identical `19:00 refit` lines. This misled the 2026-09-08 session into chasing a discrepancy that did not exist — the **fifth** cosmetic defect in this file to cost a real inference. Show the date, or a relative age | 2026-09-08 | build window. The glance is the instrument we steer by |
-| **Probe the news/feeds path against `api.liquiditytech.com`** with a hardcoded asset list, so `ltp_news.py`'s `FEEDS_BASE` and `ltp_stream.py`'s hardcoded `wss://feeds.ltp-contest.com` are tested **before** a live entry is the first thing to depend on them. With zero active pairs the sentinel is silent by design, so waiting does not answer it | 2026-09-08 | before the next pair passes the gate. Needs the operator's go |
+| ~~**Probe the news/feeds path against `api.liquiditytech.com`**~~ **CLOSED 2026-09-13** — the first Phase II entry passed through it: `screened: true`, `news_status: ok`, both legs rated, `news_age_h 0.0`. `news_assessment` 577 → 612. `ltp_stream.py`'s hardcoded WS host is still untested separately, but the journal reports `news stream: live` | 2026-09-08 | closed |
+| **Entry depth is unbounded and unsized.** Entries are permitted anywhere in `entry_z < |z| < stop_z` and size does not depend on z; on 2026-09-12 we entered at z=+3.41 against a 3.5 stop, a 0.09σ buffer. `optimal_bands` is stop-blind by design. **Do not add a control until task 04 measures whether depth predicts stop-outs** — our one observation is favourable, which is the dangerous kind | 2026-09-13 | **task 04, GATE.** Arithmetic fix if justified, not an AI sizing lever |
 | ~~**Decide on the pending reboot**~~ **DONE 2026-09-09 16:22 UTC** — kernel 6.8.0-137 → 139, 0 updates pending, banner cleared, ~5 min downtime on a flat book. `NRestarts=0`; equity, peak, `bad_read` and **the bar counter** all survived, so the refit clock did not move. The "it re-phases the clock" note in this row was wrong and is corrected in the day-1 entry | 2026-09-08 | closed |
 | **Ask the organizers whether the Binance-vs-OKX venue choice is still open** now that Phase II has started, and whether the primary account is provisioned as a **Sub Portfolio** (if so the key can read but not trade it — `Edit API` fixes it in one click), and whether their side needs an IP whitelisted. The last two were asked of @LTP_Tracey on 2026-09-07 and **never answered** | 2026-09-07 / 2026-09-08 | next organizer contact — bundle with the CSV-export and AI-floor questions already owed |
 
@@ -3509,6 +3510,177 @@ re-apply.
 authoritative; a local checkout that looks fine can be an older line of
 history, and an append to a stale file is indistinguishable from a deletion
 once it is pushed.
+
+---
+
+## Week 6 — Phase II days 1-5 (reviewed Sun 2026-09-13)
+
+**The first Phase II review, and the first week this agent has traded live
+capital.**
+
+### Position at review
+
+Reading **2026-09-13 22:06 UTC**. Equity **1007.86**, peak 1009.06, drawdown
+0.12%, kill switch 887.98 with 119.89 of headroom and 207.86 to the 800 floor.
+Service up since 09-11 17:08, restarts 0. `bad_read` still frozen at 307.
+
+**Leaderboard: 3rd of the visible ten**, score 81.4, +0.7% return, +7.01 PnL,
+MDD 0.2%, 3 trades.
+
+**Do not read that rank.** Our Sharpe of 8.54 is **√(365/5)** — the constant
+produced by five completed days with exactly one non-zero return, independent
+of how much was made. `tosprk` shows the identical 8.54 on the same 3 trades;
+`EQV UK` at 13.50 is still on the two-day constant documented on 09-10. It will
+move the instant a second distinguishable day lands, exactly as Phase I went
+9.30 → 5.66 on one −0.8% day.
+
+**This number is real, though:**
+
+| | return / MDD |
+|---|---|
+| **Team NDAR** | **3.50** (0.7% / 0.2%) |
+| NorthStar | 2.12 |
+| Krosus | 1.53 |
+| EQV UK | 1.00 |
+
+Best return-per-drawdown on the board, on 3 trades against their 41 and 48. In
+Phase I that ratio was our **documented weakness** — 1.03 against the top four's
+3.18 / 2.37 / 2.03, and the reason we finished 6th holding the best Sharpe. It
+is currently inverted. MDD is 15% of the score and monotone, so 0.2% banked at
+day 5 is an asset rather than noise.
+
+**AI-Adj PnL +6.94 against PnL +7.01** — the AI cost deduction is seven cents.
+The spend discipline costs us nothing visible.
+
+### THE NEWS GATE WORKS — commitment closed
+
+```
+news gate  ok — 2 assets rated @ 2026-09-13T22:00:09Z, 0.1h old
+enter 1000SHIB/DOGE  screened: true  news_status: ok
+                     1000SHIB=none, DOGE=none, news_age_h 0.0
+```
+
+`news_assessment` 577 → 612, `ai_spread_assessment` 543 → 578. `ltp_news.py`'s
+`FEEDS_BASE` works against `api.liquiditytech.com`, the sentinel refreshes
+hourly for the active pair's legs, and **the first Phase II entry was properly
+screened.** The commitment open since 09-08 — probe the feeds path before a
+live entry depends on it — is closed by the entry itself passing through it.
+
+`ltp_stream.py`'s hardcoded `wss://feeds.ltp-contest.com` remains untested
+separately, but the journal reports `news stream: live` at startup and
+`ltp-contest.com` is confirmed not decommissioned.
+
+### The trade, and what is uncomfortable about it
+
+```
+2026-09-12 12:01  enter 1000SHIB/DOGE  side -1  z = +3.41   stop 3.5
+                  entry_z 0.40  half_life 33.75h  beta 0.665  size_mult 1.0
+                  regime "stressed" (medium confidence)
+2026-09-13 22:06  z = +0.83  hold 34 of 101 bars  uPnL +7.92
+```
+
+**Our entire Phase II P&L is one open position that has not closed.** Third
+place is one unrealised memecoin spread, 34 bars into a 101-bar max hold.
+
+**We entered 0.09σ from our own stop.** `ltp_agent.py:881` permits entries
+anywhere in `entry_z < |z| < stop_z`, and sizing has no z-dependence — a trade
+at 0.41 and one at 3.41 get the same risk budget. The analyst rated the regime
+**stressed** and wrote *"proximity to the break-stop warrants elevated
+caution."* It was right, specifically, and **the architecture had nowhere to put
+that judgement**: `broken` vetoes, `critical` news vetoes, `watch` news halves,
+`stressed` does nothing.
+
+Underneath sits a gap this record already names: **`optimal_bands` is
+stop-blind**, maximising profit-per-hour assuming positions run to reversion,
+taking no stop parameter. *"The band should therefore be chosen on stop
+geometry, which it cannot see."*
+
+---
+
+## Decisions
+
+### 1. Entry-depth sizing — MEASURE FIRST, do not change
+
+The obvious response is a control. **Rejected for now**, and the reason matters:
+the single observation we have is **favourable** (+7.92), which is the more
+dangerous kind, because it feels like confirmation. A distance-to-stop taper
+would have cut that trade to ~3% of its size and captured almost none of it.
+
+And the theory cuts both ways — in OU terms a deeper entry means *more* expected
+reversion. Whether that or the stop-out risk dominates is **empirical**, and we
+have 39 lifetime entries with `z` on every one. The 8 stops entered at
+−3.31, −3.02, +3.08, −1.39, +1.74, +2.33, −1.37, +1.19 — three of eight beyond
+|3.0|, **denominator unknown**, and that denominator is the whole question.
+
+→ **Task 04** (`deploy/research_queue/04-entry-depth-vs-stops.md`), marked GATE.
+If depth predicts stop-outs the control should be **arithmetic** — distance to
+stop, ideally from `thresholds.py`'s existing first-passage machinery — and
+**not** a sizing lever handed to the model. Building AI influence on one
+favourable observation would manufacture exactly what the Reasoning Log claims
+we do not do.
+
+### 2. The intra-bar monitor — DROPPED
+
+Open since 2026-08-02, carried past two reviews. Task 01 settled it: −10.67 was
+frozen at five stops on the day it was written (the full record is −18.71), four
+of eight stops never reached 4.0σ so a 4.0–4.5σ monitor cannot touch them at any
+cadence, the ceiling on a perfect zero-latency monitor is **−6.30** with 69% of
+it in one event, and every stop crossed the band inside a single unobserved
+hourly interval so the recoverable fraction is bounded only by **[0, −6.30]**.
+`stop_analysis.py`'s own verdict flips on the complete record to *"the stop is
+doing its job; leave it alone."*
+
+Against a bounded benefit sits an **entirely unmeasured** false-positive cost —
+four of eight stops fired below 4.0σ and reverted — in a new code path that
+**closes live positions**.
+
+→ **Do not build it.** Build the instrumentation instead: sub-hourly z capture
+on open positions, read-only, which answers at the next stop what a month of
+re-reading this ledger cannot.
+
+### 3. Expanding `CANDIDATES` — NO, and the reason is new
+
+The live agent traded `1000SHIB/DOGE`. The 09-12 scan **rejected that same pair**
+under pooled FDR at m=112, passing it only within the 6-pair `memes` stratum.
+
+The live refit tests **15** pairs. The scan tests **112**. Same pair, same gates
+— the Benjamini-Hochberg correction is simply far weaker at m=15.
+
+**So expanding `CANDIDATES` to the 60-symbol universe would make the live gate
+STRICTER, not looser**, and could stop us trading pairs we currently trade. That
+is the direct practical consequence of the FDR finding, and it arrived from the
+opposite direction to the one the agenda expected. The agenda's instruction —
+*"widen the universe, do not weaken the screen"* — turns out to contain a
+tension it did not know about: **widening the universe IS tightening the
+screen.**
+
+→ **`CANDIDATES` stays at 15.** Any expansion must be argued against the m-inflation
+it causes, not just the breadth it adds.
+
+### 4. CL/BZ — strengthen the evidence, do not weaken the bar
+
+WTI/Brent passes every economic and statistical gate (hurst 0.37, hl 23h, beta
++0.94, ~75 crossings, `cost_z` 0.167 — six times more spread sigma than the
+round trip) and fails **only** FDR at m=112, stably, across two venues and two
+runs. Stratified FDR was **rejected** on 09-12 by its own pre-committed test.
+
+→ Longer lookback first — 960 bars is 40 days and pagination shipped in CLI
+1.0.45 — then out-of-sample validation on a window that did not select it.
+
+---
+
+## Next week
+
+Research queue order: **04 (GATE)** → 03 (frame drift) → 02 (`side_blocked`).
+Still unbuilt from the build window: the record split, `status.py` dated
+commitments and dated `recent` timestamps. The SPX beta anomaly (+0.02 against
+its own largest constituents) is still unexplained.
+
+**The thing to watch is the open position.** It is 34 bars into 101, it is our
+entire P&L, and it is the first live test of the exit path on the production
+host. A `reverted` exit reconciled against the venue would also give us the
+first live-capital slippage measurement — Phase I's 0.57–0.91 bps was a sandbox
+number and the record says to treat it as a prior, not a fact.
 
 ---
 

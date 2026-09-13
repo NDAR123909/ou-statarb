@@ -82,11 +82,13 @@ eventually be dispatched without being read.
 
 | # | task | status |
 |---|---|---|
-| 01 | `01-overshoot-recheck.md` — **GATE** on the intra-bar monitor decision | **done 2026-09-09** → `out/01-overshoot-recheck.md` |
+| 01 | `01-overshoot-recheck.md` — GATE on the intra-bar monitor | **done 2026-09-09** → `out/01-overshoot-recheck.md`; monitor **DROPPED** 09-13 |
+| 04 | `04-entry-depth-vs-stops.md` — **GATE** on entry-depth sizing | **open · run first** |
 | 03 | `03-frame-drift-cost.md` — what the moving `mu`/`sigma` frame has cost | **open · run next**, ahead of 02 |
 | 02 | `02-side-blocked-earned-its-keep.md` — nothing waits on it | open · after 03 |
 
-Run order is 01 → 03 → 02, not numeric. 03 jumped the queue because two
-independent analyses landed on the same mechanism within a day of each other
-without either looking for it, and it touches the accuracy of the record
-itself rather than only performance.
+Run order is **01 → 04 → 03 → 02**, not numeric. 04 jumped to the front on
+2026-09-13: it gates a live sizing decision, and the agent had just entered at
+0.09 sigma from its own stop. 03 came before 02 because two independent analyses
+landed on the same mechanism within a day of each other without either looking
+for it, and it touches the accuracy of the record rather than only performance.
