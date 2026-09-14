@@ -21,6 +21,48 @@ that it cannot be closed at this sample size.
    because re-entering a spread that just broke structurally is how a
    mean-reversion book turns one loss into several.
 
+## Updated 2026-09-13, after task 04 — read this before dispatching
+
+Task 04 asked a structurally identical question about a different control
+("does entry depth predict stop-outs?"), answered **no**, and produced three
+things this brief did not know when it was written on 09-11.
+
+**1. A method that found both candidate controls failing.** Counterfactuals
+were scored not only on the P&L sum but on **the worst trades and on maximum
+drawdown**, and that is what settled it: refusing entries above |z| 2.5 gives
+up 69% of realised profit, avoids three of the *smallest* stops, keeps **all
+five worst trades**, and makes drawdown slightly **worse**. A linear taper's
+drawdown benefit was beaten by a flat size cut of identical P&L cost. **Use the
+same cuts here.** A control that reduces total P&L can still be correct if it
+cuts the left tail, and one that raises P&L can still be wrong if it does not —
+MDD is 15% of the score and never heals.
+
+**2. A finding that bears on this question directly, and may invert it.** The
+losses are concentrated in the **middle**: |z| < 1 made +46.96, **|z| 1–3 lost
+−32.63**, |z| 3+ made +22.97, and **all five worst trades entered between 1.19
+and 2.33**.
+
+`side_blocked` refuses re-entry after a stop, while z is healing back toward
+the band — which routes it through **exactly that 1–3 region**. So the question
+may not be "did the block cost us the trades it refused?" but "**is the block
+the only thing standing between us and the zone where our money actually
+died?**" Measure where, in |z| terms, each refusal sat. If the ten refusals
+cluster in 1–3, that is the strongest argument for the control that exists, and
+it is one nobody has made.
+
+**3. A trap in the ledger.** Four `enter` records from 2026-07-20 carry
+`notional: 0` with no legs in the fills — day-one `maxNotional` failures that
+never became positions. Task 04 found all four sitting in the bucket under
+test, where counting them shifted a stop rate from 43% to 27%. **Exclude
+non-risk-bearing entries and say how many you excluded.** Risk-bearing total is
+34, outcome-known 31, of which 22 have venue-verified P&L.
+
+**And one caution about what "deep" means.** `entry_z` has only ever taken
+three values — **0.4, 0.6 and 3.0** — so an entry's absolute |z| conflates
+"chosen deep" with "the band happened to be 3.0 that week". Where depth matters
+to your analysis, cut on **|z| / entry_z** or on distance to the stop, not on
+|z| alone.
+
 ---
 
 ## PROMPT
@@ -59,6 +101,15 @@ that it cannot be closed at this sample size.
 >    notes that one block sat *directly in front of the best trade of the
 >    phase*, and a total driven by that single event is a different kind of
 >    evidence from ten consistent ones.
+>
+> 3b. **Where did the refusals sit in |z|?** Task 04 found the losses
+>    concentrated in |z| 1–3, with all five worst trades entering between 1.19
+>    and 2.33. A block that fires while z heals back toward the band routes
+>    through that region by construction. Report the |z| of each refusal, and
+>    whether the refused entries would have landed in the zone that has
+>    actually lost this book money. **If they cluster there, that is the
+>    strongest argument for the control that exists and nobody has made it
+>    yet.**
 >
 > 4. **THE QUESTION THAT ACTUALLY DECIDES THIS, and it is not total P&L.**
 >    This competition scores **40% on Sharpe**, 25% PnL, 20% return, 15% max

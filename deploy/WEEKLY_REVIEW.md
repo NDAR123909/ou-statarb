@@ -1791,8 +1791,12 @@ section existed; that is what it is for.
 | ~~**Watch `bad_read`**~~ **CLOSED 2026-09-08** — frozen at 307 across seven hours on the production host. The guard fired every bar through the dead-credential window and has not fired since | 2026-09-08 | closed |
 | **`status.py` prints times with no date** in the `recent` list, so five refits on five different days render as five identical `19:00 refit` lines. This misled the 2026-09-08 session into chasing a discrepancy that did not exist — the **fifth** cosmetic defect in this file to cost a real inference. Show the date, or a relative age | 2026-09-08 | build window. The glance is the instrument we steer by |
 | ~~**Probe the news/feeds path against `api.liquiditytech.com`**~~ **CLOSED 2026-09-13** — the first Phase II entry passed through it: `screened: true`, `news_status: ok`, both legs rated, `news_age_h 0.0`. `news_assessment` 577 → 612. `ltp_stream.py`'s hardcoded WS host is still untested separately, but the journal reports `news stream: live` | 2026-09-08 | closed |
-| **Entry depth is unbounded and unsized.** Entries are permitted anywhere in `entry_z < |z| < stop_z` and size does not depend on z; on 2026-09-12 we entered at z=+3.41 against a 3.5 stop, a 0.09σ buffer. `optimal_bands` is stop-blind by design. **Do not add a control until task 04 measures whether depth predicts stop-outs** — our one observation is favourable, which is the dangerous kind | 2026-09-13 | **task 04, GATE.** Arithmetic fix if justified, not an AI sizing lever |
+| ~~**Entry depth is unbounded and unsized**~~ **MEASURED 2026-09-13, DECISION: DO NOTHING.** Stop rate is flat past |z|=1 (44/50/43%, Fisher p=1.0000); the damage is in the MIDDLE bucket, where all five worst trades entered (1.19-2.33); both candidate controls cost real money and one makes drawdown worse. Deep-relative entries stopped LESS often (1 of 5). Do not re-propose without new evidence | 2026-09-13 | closed. If reopened, use the first-passage probability in `thresholds.py` scored on all 31 closes, not more trades |
 | ~~**Decide on the pending reboot**~~ **DONE 2026-09-09 16:22 UTC** — kernel 6.8.0-137 → 139, 0 updates pending, banner cleared, ~5 min downtime on a flat book. `NRestarts=0`; equity, peak, `bad_read` and **the bar counter** all survived, so the refit clock did not move. The "it re-phases the clock" note in this row was wrong and is corrected in the day-1 entry | 2026-09-08 | closed |
+| **Glance at `status.py` after 09:00 UTC on Tue 2026-09-15** — the overrun check on the RapidX maintenance window (08:05–08:20 UTC). The guard was deliberately **not** armed because no hourly tick falls inside the window; see the 2026-09-14 entry. Confirm the 09:00 tick went through, `bad_read` has not moved off 307, and the position is either still held or closed for a reason that is not an error. Costs nothing — it is the daily glance, done once after 09:00 instead of whenever | 2026-09-14 | **Tue 2026-09-15, after 09:00 UTC** (03:00 MDT — so in practice whenever the operator is up; the check is retrospective and does not expire) |
+| ~~**Push task 04's output**~~ **DONE 2026-09-14** — `origin/research/entry-depth`, commit `3428145`, 420 lines. Superseded by the row below, which is the same problem one level up | 2026-09-13 | closed |
+| **Land the three research outputs on the working branch.** `deploy/research_queue/out/` is **empty** on `claude/offline-competition-deploy-nuk5tz`, yet this log and `research_queue/README.md` both cite `out/01-…`, `out/03-…` and `out/04-…` as if they resolve. They exist only on `research/overshoot-recheck`, `research/frame-drift` and `research/entry-depth`. A cold session following the record opens three files that are not there. The decisions survive in prose; **the per-entry working tables that back the arithmetic do not.** Also create `deploy/research_queue/done/` and move 01, 03, 04 into it — README step 4 says to, and all three still sit beside the one open task | 2026-09-14 | next session with the operator's go. Merge or cherry-pick the three `out/` files; no other content from those branches is wanted |
+| **Disclose the `entry_beta` fix in `LTP_STRATEGY.md`** — ~~missing since 2026-09-09~~ **DONE 2026-09-14**, addendum written naming `entry_frame` and `entry_beta` | 2026-09-14 | closed |
 | **Ask the organizers whether the Binance-vs-OKX venue choice is still open** now that Phase II has started, and whether the primary account is provisioned as a **Sub Portfolio** (if so the key can read but not trade it — `Edit API` fixes it in one click), and whether their side needs an IP whitelisted. The last two were asked of @LTP_Tracey on 2026-09-07 and **never answered** | 2026-09-07 / 2026-09-08 | next organizer contact — bundle with the CSV-export and AI-floor questions already owed |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
@@ -3576,11 +3580,22 @@ separately, but the journal reports `news stream: live` at startup and
 2026-09-12 12:01  enter 1000SHIB/DOGE  side -1  z = +3.41   stop 3.5
                   entry_z 0.40  half_life 33.75h  beta 0.665  size_mult 1.0
                   regime "stressed" (medium confidence)
-2026-09-13 22:06  z = +0.83  hold 34 of 101 bars  uPnL +7.92
+2026-09-13 22:06  z = +0.83  hold 34 bars             uPnL +7.92
 ```
 
+> **CORRECTED 2026-09-14. This block originally read `hold 34 of 101 bars`, and
+> the "101" was mine — derived, then written down as though it were read.**
+> `status.py:345` renders `hold={n}b` with **no denominator at all**, so no
+> status output has ever printed a max-hold figure. I computed 3 × 33.75h from
+> the *entry* record. But `ltp_agent.py:1048` is
+> `stale = pair["hold"] >= cfg.max_hold_mult * pair["half_life"]` — the budget
+> follows the **current** half-life, re-estimated at every refit, not the one at
+> entry. The refit at bar 120 (≈11:43 UTC on 09-13) had already run *before*
+> this 22:06 reading, so the true denominator at the time was **71**, not 101.
+> The line should have read **34 of ~71**. See the 2026-09-14 entry.
+
 **Our entire Phase II P&L is one open position that has not closed.** Third
-place is one unrealised memecoin spread, 34 bars into a 101-bar max hold.
+place is one unrealised memecoin spread, ~half way through its max hold.
 
 **We entered 0.09σ from our own stop.** `ltp_agent.py:881` permits entries
 anywhere in `entry_z < |z| < stop_z`, and sizing has no z-dependence — a trade
@@ -3676,11 +3691,338 @@ Still unbuilt from the build window: the record split, `status.py` dated
 commitments and dated `recent` timestamps. The SPX beta anomaly (+0.02 against
 its own largest constituents) is still unexplained.
 
-**The thing to watch is the open position.** It is 34 bars into 101, it is our
+**The thing to watch is the open position.** It is ~34 bars into ~71 (**not
+101 — corrected 2026-09-14**, see the note in "The trade" above), it is our
 entire P&L, and it is the first live test of the exit path on the production
 host. A `reverted` exit reconciled against the venue would also give us the
 first live-capital slippage measurement — Phase I's 0.57–0.91 bps was a sandbox
 number and the record says to treat it as a prior, not a fact.
+
+---
+
+## 2026-09-13 (late) — task 04: the gate closes NO, and the damage is in the middle
+
+Run the same evening it was written. Output at
+`deploy/research_queue/out/04-entry-depth-vs-stops.md`.
+
+### Depth does not predict stop-outs
+
+Past |z| = 1 the stop rate is **flat**: 44%, 50%, 43% across the 1–2, 2–3 and
+3+ buckets. Mid versus deep gives **Fisher exact p = 1.0000**. No signal, in
+either direction.
+
+**A denominator trap, caught.** Four `enter` records from 2026-07-20 carry
+`notional: 0` with no legs in the fills — day-one `maxNotional` failures that
+never became positions — and **all four sit in the deepest bucket**. Counting
+them puts the 3+ stop rate at 3/11 = 27% instead of **3/7 = 43%**, flattering
+precisely the bucket under test. Risk-bearing total 34; outcome-known 31; 22
+with venue-verified P&L.
+
+### Two effects run against the fear, and the second is arithmetic
+
+The 3+ bucket needs a mean of **0.28σ** of adverse movement to stop, against
+**2.19σ** for the 1–2 bucket — an eightfold smaller buffer — and stops out no
+more often.
+
+And among the eight stops, **depth and realised loss are inversely related**
+(Spearman ρ = +0.857 on depth vs P&L): mean loss given a stop is **−11.10** in
+the 1–2 bucket and **−3.51** in 3+. That is not luck. Loss ≈ rate-per-z ×
+buffer crossed, and a deep entry has almost no buffer to lose across.
+
+### The damage is in the middle
+
+```
+|z| < 1     +46.96
+|z| 1-3     -32.63
+|z| 3+      +22.97
+```
+
+**All five worst trades — including the worst at −18.52 — entered between 1.19
+and 2.33.** That is the opposite of the intuition that prompted this task.
+
+### Both proposed controls fail on their own terms
+
+| | cost | effect |
+|---|---|---|
+| refuse above \|z\| > 2.5 | **−25.86** (69% of realised profit) | avoids three of the *smallest* stops, keeps **all five worst trades**, and makes drawdown **worse** (2.23% → 2.26%) |
+| linear distance-to-stop taper | −12.94 | drawdown 2.23% → 1.60%, but a **flat size cut of identical P&L cost reaches 1.48%** — and the taper's mean weight is 0.739, i.e. mostly a blanket 26% reduction wearing a signal's clothes |
+
+### Verified independently, and one thing added
+
+**The band confound is real.** `entry_z` has only ever taken three values —
+**0.4, 0.6, 3.0** — and every 2026-07-20 entry used the 3.0 band. So the deep
+bucket is largely *entries at their own threshold*, not unusually deep ones.
+
+**So I cut it the other way: depth RELATIVE to the band.**
+
+```
+~1x (at the band)   23
+1.5-3x              10
+3-6x                 5
+6x+                  0
+```
+
+**The 2026-09-12 live entry is 8.5x its band (z=3.41 against 0.40) — outside
+the entire historical range.** The deepest ever recorded is 5.3x.
+
+Outcomes of the five deepest-relative entries, the closest analogue we have:
+
+```
+3.2x  KAS/ETC   -> refit_drop        3.9x  XLM/XRP   -> STOP
+3.1x  FIL/AR    -> reverted          5.3x  KAS/ETC   -> reverted, 5 bars
+4.2x  KAS/ETC   -> refit_drop
+```
+
+**One stop in five (20%), against ~44–50% in the middle buckets.** Deep-relative
+entries stopped *less* often, and the single deepest reverted for a profit in
+five bars — the same shape the 09-12 trade is currently tracing.
+
+### DECISION: do nothing
+
+No control is added. Entry depth stays unbounded below `stop_z` and sizing
+stays z-independent. **Recorded explicitly so the next session that sees a
+frightening entry does not re-propose this from scratch:** it was proposed,
+measured, and the measurement said the risk is not there — and that both
+candidate fixes would have cost real money while leaving the worst trades
+untouched.
+
+**The honest limit.** This answers *absolute* depth well and *relative* depth
+barely — n=5 at ≥3x band, none at 8.5x. If it is reopened, the cheap route is
+not more trades: it is the **first-passage probability already in
+`statarb/thresholds.py`**, computed per entry and scored against realised
+outcomes, which tests the hypothesis on all 31 closed trades rather than the
+seven that happen to be deep.
+
+---
+
+## 2026-09-14 — task 04's findings folded into the task 02 brief
+
+Brief-only change, no behaviour. `deploy/research_queue/02-side-blocked-earned-its-keep.md`
+gained a section **"Updated 2026-09-13, after task 04 — read this before
+dispatching"** and a new question **3b** in its PROMPT block. Committed as
+`bac90fd`; suite still 249 green.
+
+Task 04 asked a structurally identical question about a different control and
+answered no, and it produced three things task 02 did not know when it was
+written on 09-11. Writing them into the brief rather than leaving them here is
+deliberate: the brief is what gets dispatched, and a finding that lives only in
+the review log will not be read by the session that runs the task.
+
+**1. The method that settled task 04.** Counterfactuals were scored on the
+worst trades and on drawdown, not on the P&L sum — and that is what decided it.
+Task 02 now carries the same instruction. A control that reduces total P&L can
+still be correct if it cuts the left tail; one that raises P&L can still be
+wrong if it does not.
+
+**2. The finding that may invert task 02's question.** The damage sits in the
+middle of the z range (|z|<1 +46.96, **1–3 −32.63**, 3+ +22.97, all five worst
+trades entered 1.19–2.33). `side_blocked` refuses re-entry while z is healing
+back toward the band — which routes it through **exactly that region**. So the
+question may not be "what did the block cost us?" but "**is the block the only
+thing standing between us and the zone where our money actually died?**" The
+brief now asks for the |z| of each refusal. If the ten refusals cluster in 1–3,
+that is the strongest argument for this control that exists, and nobody has
+made it.
+
+**3. The ledger trap, carried forward.** The four `enter` records from
+2026-07-20 with `notional: 0` and no legs in the fills are not positions.
+Counting them moved one of task 04's stop rates from 43% to 27%, in the bucket
+under test. Risk-bearing total **34**, outcome-known **31**, venue-verified
+**22** — stated in the brief so task 02 does not rediscover it.
+
+Plus the band confound: `entry_z` has only ever taken three values (0.4, 0.6,
+3.0), so absolute |z| conflates "chosen deep" with "the band was 3.0 that
+week". Cut on |z|/`entry_z` or on distance to the stop.
+
+**Still on the operator's laptop, not in the repo:** task 04's own output,
+`deploy/research_queue/out/04-entry-depth-vs-stops.md`, is uncommitted on
+`research/entry-depth`. The decision it produced is recorded here and in Open
+commitments, so nothing is lost if it never lands — but the working table that
+backs the arithmetic is, and that is the part a reader would want.
+
+---
+
+## 2026-09-14 — cold start, live reconciliation, and a figure I invented
+
+Context was compacted; the operator gave the cold-start trigger and then pasted
+`status.py` from the droplet. Both halves of that are in this entry: what is
+true right now, and what the record said that was not.
+
+### Live state, 2026-09-14 04:43:06 UTC
+
+| | 09-13 22:06 | 09-14 04:43 | |
+|---|---|---|---|
+| equity | 1007.86 | **1008.34** | +0.48 |
+| peak | 1009.06 | **1009.75** | new high |
+| drawdown | 0.12% | **0.14%** | |
+| kill switch | 887.98 | **888.58** | tracks peak |
+| hold | 34b | **40b** | bars are hourly |
+| z | +0.83 | **+0.64** | still reverting |
+| uPnL | +7.92 | **+8.35** | 11.49 − 3.14 |
+
+Service up since 09-11 17:08, restarts 0, not halted, `bad_read` still frozen at
+307. News gate ok, 2 assets rated 0.7h old. AI spend **$1.1630**, clears the
+floor. Bar 137; next refit in 7 bars.
+
+Every cross-check closes: 1009.75 × 0.88 = 888.58; headroom 119.76; 208.34 to
+the 800 floor. The legs hedge correctly — 364.09 short × beta 0.687 = 250.1
+against the 246.48 long. **Gross 610.57 on 1008.34 NAV = 0.61× leverage**,
+nowhere near the 2× rail.
+
+**The book is healthy and the position is working.** Nothing here needed action.
+
+### The figure I invented
+
+The week 6 entry said the position was *"34 bars into a 101-bar max hold."*
+Today's status shows `hl=23.6h`, which does not fit that at all.
+
+**No status output has ever printed a max-hold denominator.** `status.py:345`
+renders `hold={n}b` and nothing else. I computed 3 × 33.75h from the entry
+record and wrote the result into the permanent record in the shape of a
+reading — `hold 34 of 101 bars` — which is not a format this tool emits.
+
+And the derivation was wrong on its own terms. `ltp_agent.py:1048`:
+
+```python
+stale = pair["hold"] >= cfg.max_hold_mult * pair["half_life"]
+```
+
+The budget follows the **current** `half_life`, re-estimated at every refit, not
+the one at entry. The refit at bar 120 (≈11:43 UTC 09-13) ran *before* the 22:06
+reading, so the correct denominator was already 71.
+
+**What it means now.** At hl 23.6h the budget is 3 × 23.6 = 70.8, so the
+position is at **40 of ~71 — 56% through its max hold, not 34%.** Roughly **31
+hours of runway, not 67.** Corrected in place in the week 6 entry.
+
+Not alarming: a `max_hold` exit at +8.35 is a good outcome and z is still
+travelling toward the ±0.0 exit band. But this is the asset that *is* our entire
+Phase II P&L, and the record described it as having twice the room it has.
+
+**The lesson is narrow and worth keeping.** Two errors stacked. I derived a
+number and recorded it as observed — the format itself should have been the
+tell, since I had to invent `of 101` to write it. Then the derivation used the
+entry half-life where the code uses the live one. **A figure that did not come
+out of a tool must not be written in the shape of one.** Where a derived number
+earns its place in the record, mark it derived and name the line it came from.
+
+### Cross-check that passed
+
+`exit:19 + stop:8 + refit_drop:4 = 31` — exactly task 04's "outcome-known 31".
+That denominator is now independently confirmed against the live ledger.
+
+One loose thread, recorded rather than chased: `enter:39` − 31 closed − 1 open
+leaves **7 unaccounted**, where task 04's accounting implies 5 non-risk-bearing.
+Most likely because task 04 read the frozen `phase1_submission` ledger while
+these totals are lifetime including Phase II. Worth a minute at the next review
+so it is not rediscovered as a surprise.
+
+### Watch items
+
+**Next refit is bar 144, ≈11:43 UTC today.** It can move the half-life again in
+either direction (shifting the max-hold deadline), change beta/mu/sigma (moving
+z), or drop the pair outright. Worth a status glance after it.
+
+`*** System restart required ***` is back, 4 updates pending. The 09-09 kernel
+reboot cost ~5 min and equity, peak, `bad_read` and the bar counter all
+survived. **But we now hold an open position carrying all our P&L — wait for a
+flat book.**
+
+### Also closed and opened here
+
+Task 04's output is pushed at last: `origin/research/entry-depth`, commit
+`3428145`, 420 lines. That commitment is closed — and it immediately exposed a
+bigger version of itself, now open below: **all three research outputs live on
+throwaway branches and `deploy/research_queue/out/` is empty on the working
+branch**, while this log and the queue README both cite those paths as if they
+resolve.
+
+---
+
+## 2026-09-14 — an announced maintenance window, and the guard deliberately NOT armed
+
+RapidX posted to the updates channel:
+
+> **RapidX Scheduled Maintenance.** Time: Tuesday, September 15th, 2026 |
+> 16:05–16:20 HKT (UTC+8). Affected API: Websocket, Rest and Algo API, Trading
+> through API and dashboard.
+
+**Converted once, here, so nobody re-derives it under time pressure:**
+**08:05–08:20 UTC on 2026-09-15.** Fifteen minutes. HKT is UTC+8 year-round, no
+DST. That is **02:05–02:20 MDT** — the operator is asleep and nothing needs a
+human awake.
+
+### The guard exists and was not used
+
+`LTP_MAINTENANCE_WINDOWS` + `maintenance_lead_minutes = 30`
+(`ltp_agent.py:555–600`, pinned by `tests/test_ltp_maintenance.py`) flattens in
+the run-up to an announced window and opens nothing during it. This is the
+first real announced window since it was built. **It was deliberately left
+unarmed, and that decision is recorded here so it is never read as an
+oversight.**
+
+### Why — the tick arithmetic
+
+The agent wakes at `:00:05` each hour
+(`time.sleep(max(60.0, 3600 - (time.time() % 3600) + 5))`). Against this
+window, with lead 30 min:
+
+```
+07:00:05 -> clear
+08:00:05 -> prepare      <- the only tick the guard would touch
+09:00:05 -> clear
+
+ticks landing 'active': NONE
+```
+
+**No tick lands inside the window at all.** The maintenance sits entirely
+inside a gap the agent already has — it is blind from 08:00 to 09:00 every day
+of its life. An API being down while we make no calls costs nothing.
+
+**Arming the guard would therefore not protect anything; it would only act.**
+The 08:00:05 tick would read `prepare` and call `flatten_everything()`, closing
+`1000SHIB/DOGE` — the position that is our entire Phase II P&L, +8.35
+unrealised at the 09-14 04:43 reading — at an arbitrary moment, paying a full
+round trip on both legs and tagging the close `maintenance` rather than
+`reverted`.
+
+And it buys almost no time. At `hl` 23.6h the natural `max_hold` fires
+**~10:01 UTC on 09-15**, under two hours after the window closes. We would be
+pulling the exit forward by two hours to insure against an outage during an
+hour in which we do not trade — and losing the `reverted` exit that week 6
+named as our first live-capital slippage measurement.
+
+### The exposure this accepts, stated plainly
+
+It is not zero. `stream.urgent.wait()` can wake the agent mid-hour to
+`derisk()` on a critical news event. Fired between 08:05 and 08:20, that call
+hits a dead API and logs `de-risk error (positions retried next bar)`.
+**There is a real 15-minute hole in which an emergency exit would fail.**
+
+The news veto has never fired in this agent's life — that is still an open
+question in the commitments table precisely because it has never triggered. So
+arming the guard converts an *unlikely* 15-minute inability to de-risk into a
+**certain** forced exit. **That trade is bad, and that is the whole reasoning.**
+
+If the maintenance **overruns** past 09:00 the failure mode is benign and
+designed for: `RapidXError` → `log("bar error (will retry next bar)")`, the bar
+increments, state is saved, the next tick retries. No double order, no state
+corruption.
+
+Arming it would also have required editing `/root/ltp.env` **and restarting the
+service** — and the omitted restart step is a mistake this record already
+carries once, having left the agent down ten minutes.
+
+### The rule this establishes for the next window
+
+**Convert to UTC, then check which `:00:05` ticks the window actually covers
+before arming anything.** Arm the guard when a window (a) contains a tick, or
+(b) is long enough that `max_hold`, a stop or an exit could plausibly need to
+fire inside it. A window shorter than an hour that falls between ticks needs
+nothing. A multi-hour window almost certainly does.
+
+The instinct on reading the announcement was "arm the guard." The arithmetic
+says the opposite, and only the arithmetic shows why.
 
 ---
 
