@@ -1793,7 +1793,9 @@ section existed; that is what it is for.
 | ~~**Probe the news/feeds path against `api.liquiditytech.com`**~~ **CLOSED 2026-09-13** — the first Phase II entry passed through it: `screened: true`, `news_status: ok`, both legs rated, `news_age_h 0.0`. `news_assessment` 577 → 612. `ltp_stream.py`'s hardcoded WS host is still untested separately, but the journal reports `news stream: live` | 2026-09-08 | closed |
 | ~~**Entry depth is unbounded and unsized**~~ **MEASURED 2026-09-13, DECISION: DO NOTHING.** Stop rate is flat past |z|=1 (44/50/43%, Fisher p=1.0000); the damage is in the MIDDLE bucket, where all five worst trades entered (1.19-2.33); both candidate controls cost real money and one makes drawdown worse. Deep-relative entries stopped LESS often (1 of 5). Do not re-propose without new evidence | 2026-09-13 | closed. If reopened, use the first-passage probability in `thresholds.py` scored on all 31 closes, not more trades |
 | ~~**Decide on the pending reboot**~~ **DONE 2026-09-09 16:22 UTC** — kernel 6.8.0-137 → 139, 0 updates pending, banner cleared, ~5 min downtime on a flat book. `NRestarts=0`; equity, peak, `bad_read` and **the bar counter** all survived, so the refit clock did not move. The "it re-phases the clock" note in this row was wrong and is corrected in the day-1 entry | 2026-09-08 | closed |
-| **Push task 04's output.** `deploy/research_queue/out/04-entry-depth-vs-stops.md` was written by Cowork on the operator's laptop and is uncommitted on `research/entry-depth`. The DECISION it produced is recorded in the 09-13 entry and above, so the finding is safe — but the per-entry working table that backs the arithmetic exists in one place, on one machine. `git add` / `git commit` / `git push -u origin research/entry-depth` | 2026-09-13 | next time the operator is at the laptop; before anything re-opens entry-depth sizing |
+| ~~**Push task 04's output**~~ **DONE 2026-09-14** — `origin/research/entry-depth`, commit `3428145`, 420 lines. Superseded by the row below, which is the same problem one level up | 2026-09-13 | closed |
+| **Land the three research outputs on the working branch.** `deploy/research_queue/out/` is **empty** on `claude/offline-competition-deploy-nuk5tz`, yet this log and `research_queue/README.md` both cite `out/01-…`, `out/03-…` and `out/04-…` as if they resolve. They exist only on `research/overshoot-recheck`, `research/frame-drift` and `research/entry-depth`. A cold session following the record opens three files that are not there. The decisions survive in prose; **the per-entry working tables that back the arithmetic do not.** Also create `deploy/research_queue/done/` and move 01, 03, 04 into it — README step 4 says to, and all three still sit beside the one open task | 2026-09-14 | next session with the operator's go. Merge or cherry-pick the three `out/` files; no other content from those branches is wanted |
+| **Disclose the `entry_beta` fix in `LTP_STRATEGY.md`** — ~~missing since 2026-09-09~~ **DONE 2026-09-14**, addendum written naming `entry_frame` and `entry_beta` | 2026-09-14 | closed |
 | **Ask the organizers whether the Binance-vs-OKX venue choice is still open** now that Phase II has started, and whether the primary account is provisioned as a **Sub Portfolio** (if so the key can read but not trade it — `Edit API` fixes it in one click), and whether their side needs an IP whitelisted. The last two were asked of @LTP_Tracey on 2026-09-07 and **never answered** | 2026-09-07 / 2026-09-08 | next organizer contact — bundle with the CSV-export and AI-floor questions already owed |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
@@ -3577,11 +3579,22 @@ separately, but the journal reports `news stream: live` at startup and
 2026-09-12 12:01  enter 1000SHIB/DOGE  side -1  z = +3.41   stop 3.5
                   entry_z 0.40  half_life 33.75h  beta 0.665  size_mult 1.0
                   regime "stressed" (medium confidence)
-2026-09-13 22:06  z = +0.83  hold 34 of 101 bars  uPnL +7.92
+2026-09-13 22:06  z = +0.83  hold 34 bars             uPnL +7.92
 ```
 
+> **CORRECTED 2026-09-14. This block originally read `hold 34 of 101 bars`, and
+> the "101" was mine — derived, then written down as though it were read.**
+> `status.py:345` renders `hold={n}b` with **no denominator at all**, so no
+> status output has ever printed a max-hold figure. I computed 3 × 33.75h from
+> the *entry* record. But `ltp_agent.py:1048` is
+> `stale = pair["hold"] >= cfg.max_hold_mult * pair["half_life"]` — the budget
+> follows the **current** half-life, re-estimated at every refit, not the one at
+> entry. The refit at bar 120 (≈11:43 UTC on 09-13) had already run *before*
+> this 22:06 reading, so the true denominator at the time was **71**, not 101.
+> The line should have read **34 of ~71**. See the 2026-09-14 entry.
+
 **Our entire Phase II P&L is one open position that has not closed.** Third
-place is one unrealised memecoin spread, 34 bars into a 101-bar max hold.
+place is one unrealised memecoin spread, ~half way through its max hold.
 
 **We entered 0.09σ from our own stop.** `ltp_agent.py:881` permits entries
 anywhere in `entry_z < |z| < stop_z`, and sizing has no z-dependence — a trade
@@ -3677,7 +3690,8 @@ Still unbuilt from the build window: the record split, `status.py` dated
 commitments and dated `recent` timestamps. The SPX beta anomaly (+0.02 against
 its own largest constituents) is still unexplained.
 
-**The thing to watch is the open position.** It is 34 bars into 101, it is our
+**The thing to watch is the open position.** It is ~34 bars into ~71 (**not
+101 — corrected 2026-09-14**, see the note in "The trade" above), it is our
 entire P&L, and it is the first live test of the exit path on the production
 host. A `reverted` exit reconciled against the venue would also give us the
 first live-capital slippage measurement — Phase I's 0.57–0.91 bps was a sandbox
@@ -3824,6 +3838,103 @@ week". Cut on |z|/`entry_z` or on distance to the stop.
 `research/entry-depth`. The decision it produced is recorded here and in Open
 commitments, so nothing is lost if it never lands — but the working table that
 backs the arithmetic is, and that is the part a reader would want.
+
+---
+
+## 2026-09-14 — cold start, live reconciliation, and a figure I invented
+
+Context was compacted; the operator gave the cold-start trigger and then pasted
+`status.py` from the droplet. Both halves of that are in this entry: what is
+true right now, and what the record said that was not.
+
+### Live state, 2026-09-14 04:43:06 UTC
+
+| | 09-13 22:06 | 09-14 04:43 | |
+|---|---|---|---|
+| equity | 1007.86 | **1008.34** | +0.48 |
+| peak | 1009.06 | **1009.75** | new high |
+| drawdown | 0.12% | **0.14%** | |
+| kill switch | 887.98 | **888.58** | tracks peak |
+| hold | 34b | **40b** | bars are hourly |
+| z | +0.83 | **+0.64** | still reverting |
+| uPnL | +7.92 | **+8.35** | 11.49 − 3.14 |
+
+Service up since 09-11 17:08, restarts 0, not halted, `bad_read` still frozen at
+307. News gate ok, 2 assets rated 0.7h old. AI spend **$1.1630**, clears the
+floor. Bar 137; next refit in 7 bars.
+
+Every cross-check closes: 1009.75 × 0.88 = 888.58; headroom 119.76; 208.34 to
+the 800 floor. The legs hedge correctly — 364.09 short × beta 0.687 = 250.1
+against the 246.48 long. **Gross 610.57 on 1008.34 NAV = 0.61× leverage**,
+nowhere near the 2× rail.
+
+**The book is healthy and the position is working.** Nothing here needed action.
+
+### The figure I invented
+
+The week 6 entry said the position was *"34 bars into a 101-bar max hold."*
+Today's status shows `hl=23.6h`, which does not fit that at all.
+
+**No status output has ever printed a max-hold denominator.** `status.py:345`
+renders `hold={n}b` and nothing else. I computed 3 × 33.75h from the entry
+record and wrote the result into the permanent record in the shape of a
+reading — `hold 34 of 101 bars` — which is not a format this tool emits.
+
+And the derivation was wrong on its own terms. `ltp_agent.py:1048`:
+
+```python
+stale = pair["hold"] >= cfg.max_hold_mult * pair["half_life"]
+```
+
+The budget follows the **current** `half_life`, re-estimated at every refit, not
+the one at entry. The refit at bar 120 (≈11:43 UTC 09-13) ran *before* the 22:06
+reading, so the correct denominator was already 71.
+
+**What it means now.** At hl 23.6h the budget is 3 × 23.6 = 70.8, so the
+position is at **40 of ~71 — 56% through its max hold, not 34%.** Roughly **31
+hours of runway, not 67.** Corrected in place in the week 6 entry.
+
+Not alarming: a `max_hold` exit at +8.35 is a good outcome and z is still
+travelling toward the ±0.0 exit band. But this is the asset that *is* our entire
+Phase II P&L, and the record described it as having twice the room it has.
+
+**The lesson is narrow and worth keeping.** Two errors stacked. I derived a
+number and recorded it as observed — the format itself should have been the
+tell, since I had to invent `of 101` to write it. Then the derivation used the
+entry half-life where the code uses the live one. **A figure that did not come
+out of a tool must not be written in the shape of one.** Where a derived number
+earns its place in the record, mark it derived and name the line it came from.
+
+### Cross-check that passed
+
+`exit:19 + stop:8 + refit_drop:4 = 31` — exactly task 04's "outcome-known 31".
+That denominator is now independently confirmed against the live ledger.
+
+One loose thread, recorded rather than chased: `enter:39` − 31 closed − 1 open
+leaves **7 unaccounted**, where task 04's accounting implies 5 non-risk-bearing.
+Most likely because task 04 read the frozen `phase1_submission` ledger while
+these totals are lifetime including Phase II. Worth a minute at the next review
+so it is not rediscovered as a surprise.
+
+### Watch items
+
+**Next refit is bar 144, ≈11:43 UTC today.** It can move the half-life again in
+either direction (shifting the max-hold deadline), change beta/mu/sigma (moving
+z), or drop the pair outright. Worth a status glance after it.
+
+`*** System restart required ***` is back, 4 updates pending. The 09-09 kernel
+reboot cost ~5 min and equity, peak, `bad_read` and the bar counter all
+survived. **But we now hold an open position carrying all our P&L — wait for a
+flat book.**
+
+### Also closed and opened here
+
+Task 04's output is pushed at last: `origin/research/entry-depth`, commit
+`3428145`, 420 lines. That commitment is closed — and it immediately exposed a
+bigger version of itself, now open below: **all three research outputs live on
+throwaway branches and `deploy/research_queue/out/` is empty on the working
+branch**, while this log and the queue README both cite those paths as if they
+resolve.
 
 ---
 

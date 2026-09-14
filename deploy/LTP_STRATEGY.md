@@ -976,6 +976,101 @@ here, and it means every measurement in this document taken in the sandbox is
 now a **prior, not a fact**: slippage of 0.57–0.91 bps and funding as a rounding
 error were sandbox numbers, and should be expected to worsen.
 
+## Addendum — the entry frame was measuring itself against the wrong beta (2026-09-09, disclosed 2026-09-14)
+
+No change to what the agent trades. A change to what it reports about every
+position it closes — and a correction to a figure this project quoted publicly
+as evidence of its own honesty.
+
+**Disclosed five days late.** The fix shipped on 2026-09-09 as commit `da7aadb`
+and this document's newest addendum was still 2026-09-08. That is the
+close-out rule in `CLAUDE.md` failing exactly where it was written to hold, and
+it is recorded here rather than quietly backdated.
+
+### What was wrong
+
+The 2026-08-06 addendum above shipped `entry_mu` and `entry_sigma`, snapshotted
+at open and carried across refits, with `entry_frame()` reporting
+`z_in_entry_coords` on every `exit` and `stop`. The point was to be able to say
+whether a position labelled `reverted` had actually come back, or whether the
+equilibrium had walked to meet it.
+
+It carried `mu` and `sigma` but **not the beta they were fitted against.**
+`mu` and `sigma` are not free-standing constants; they are estimated *on a
+spread series*, and the spread is `log_a − beta × log_b`. A refit changes beta.
+So `entry_frame()` was dividing a **live-beta** spread into an **entry-beta**
+`mu`/`sigma` — a hybrid coordinate belonging to no series at all.
+
+It only bit when a refit moved beta during a hold, which is why most closes in
+the field's five-week life (2026-08-06 to 2026-09-09) look clean and nobody
+noticed.
+
+### The case where it bit, and the retraction
+
+On the 2026-08-20 KAS/ETC stop it logged `z_in_entry_coords = +3.597` where the
+truth is **−3.283** — wrong in sign and in magnitude:
+
+```
+entry beta    0.97212 -> spread -5.46357 -> z_in_entry_coords = -3.2833  (truth)
+refitted beta 0.93266 -> spread -5.38887 -> z_in_entry_coords = +3.5970  (logged)
+```
+
+The true frame was recovered from the five in-epoch price prints: all ten
+point-pairs give `sigma0 = 0.01085687` and `mu0 = −5.42792565`, reproducing
+every logged z reading to six decimals. Making the logged +3.597 true would
+require `sigma0 = −0.0099`, which is not a standard deviation.
+
+**That +3.597 is quoted in our Reasoning Log as evidence of honest frame
+accounting.** It is withdrawn here. The stop did not overshoot in its own
+coordinates; it fired at −3.283 against a 3.5 threshold, which is early, not
+late. Any reading of the archive should treat **every `z_in_entry_coords` value
+logged before 2026-09-09 as untrustworthy** — not merely imprecise, but capable
+of being wrong in sign.
+
+The mechanism was also mis-attributed before it was understood. An earlier
+session derived a sigma collapse from three logged fields that agreed with each
+other, and declared it solved; going back to the price prints falsified it.
+`sigma_live/sigma0` is **2.047** — sigma roughly doubled, it did not collapse.
+mu moved away and tripled the raw deviation; sigma doubling damped it back.
+Fields being mutually consistent is not evidence they are right when they share
+an upstream error.
+
+### What ships
+
+Additive instrumentation, no change to entry, exit, sizing or stop logic:
+
+- `entry_beta` is snapshotted alongside `entry_mu` / `entry_sigma` when a
+  position opens (`ltp_agent.py`, in the block that sets `pair["entry_mu"]`),
+  and carried across refits in the `state["pairs"]` rebuild beside them.
+- `entry_frame(pair, spread, log_a, log_b)` now **rebuilds** the spread itself
+  as `log_a − entry_beta × log_b` rather than trusting the caller's live-beta
+  value, and **returns `{}`** when `entry_beta` or either leg price is missing.
+  Refusing is deliberate: the old silent fallback to the live-beta spread *is*
+  the bug, and it failed plausibly. Absence reads as *unknown*, never as *the
+  frame held*.
+- `reversion_note()` now applies a directional test and stays silent when the
+  position would have exited in its own frame anyway, instead of appending a
+  drift sentence wherever `|mu_shift_sigma| >= 0.10`. The old form asserted the
+  spread was "not inside ±exit_z", borrowing a symmetric `abs(z) < exit_z` test
+  that the exit rule itself had already abandoned as unable to express
+  `exit_z = 0` — so it never actually checked its own claim. **A second
+  retraction follows from that:** the record's single confession of frame drift,
+  on FIL/AR, was a false alarm attached to a **+6.03 winner**.
+
+Pinned by `tests/test_ltp_entry_frame.py` —
+`test_the_frame_is_rebuilt_on_the_entry_beta_not_the_live_one`,
+`test_the_stop_did_not_overshoot_in_its_own_coordinates` (which asserts the
+KAS/ETC numbers above directly), `test_the_entry_snapshot_survives_a_refit`,
+and `test_the_note_tests_its_own_claim_instead_of_asserting_it`.
+
+### What does NOT ship
+
+Nothing is back-filled. The pre-09-09 `z_in_entry_coords` values stay in the
+ledger as logged, because the ledger is an append-only record of what the agent
+actually believed at the time; the correction lives here and in
+`deploy/WEEKLY_REVIEW.md` instead. Freezing `mu` at entry for the life of a
+position remains **not** shipped, for the reasons in the 2026-08-06 addendum.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;
