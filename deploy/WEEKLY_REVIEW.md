@@ -1793,6 +1793,7 @@ section existed; that is what it is for.
 | ~~**Probe the news/feeds path against `api.liquiditytech.com`**~~ **CLOSED 2026-09-13** — the first Phase II entry passed through it: `screened: true`, `news_status: ok`, both legs rated, `news_age_h 0.0`. `news_assessment` 577 → 612. `ltp_stream.py`'s hardcoded WS host is still untested separately, but the journal reports `news stream: live` | 2026-09-08 | closed |
 | ~~**Entry depth is unbounded and unsized**~~ **MEASURED 2026-09-13, DECISION: DO NOTHING.** Stop rate is flat past |z|=1 (44/50/43%, Fisher p=1.0000); the damage is in the MIDDLE bucket, where all five worst trades entered (1.19-2.33); both candidate controls cost real money and one makes drawdown worse. Deep-relative entries stopped LESS often (1 of 5). Do not re-propose without new evidence | 2026-09-13 | closed. If reopened, use the first-passage probability in `thresholds.py` scored on all 31 closes, not more trades |
 | ~~**Decide on the pending reboot**~~ **DONE 2026-09-09 16:22 UTC** — kernel 6.8.0-137 → 139, 0 updates pending, banner cleared, ~5 min downtime on a flat book. `NRestarts=0`; equity, peak, `bad_read` and **the bar counter** all survived, so the refit clock did not move. The "it re-phases the clock" note in this row was wrong and is corrected in the day-1 entry | 2026-09-08 | closed |
+| **Push task 04's output.** `deploy/research_queue/out/04-entry-depth-vs-stops.md` was written by Cowork on the operator's laptop and is uncommitted on `research/entry-depth`. The DECISION it produced is recorded in the 09-13 entry and above, so the finding is safe — but the per-entry working table that backs the arithmetic exists in one place, on one machine. `git add` / `git commit` / `git push -u origin research/entry-depth` | 2026-09-13 | next time the operator is at the laptop; before anything re-opens entry-depth sizing |
 | **Ask the organizers whether the Binance-vs-OKX venue choice is still open** now that Phase II has started, and whether the primary account is provisioned as a **Sub Portfolio** (if so the key can read but not trade it — `Edit API` fixes it in one click), and whether their side needs an IP whitelisted. The last two were asked of @LTP_Tracey on 2026-09-07 and **never answered** | 2026-09-07 / 2026-09-08 | next organizer contact — bundle with the CSV-export and AI-floor questions already owed |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
@@ -3776,6 +3777,53 @@ not more trades: it is the **first-passage probability already in
 `statarb/thresholds.py`**, computed per entry and scored against realised
 outcomes, which tests the hypothesis on all 31 closed trades rather than the
 seven that happen to be deep.
+
+---
+
+## 2026-09-14 — task 04's findings folded into the task 02 brief
+
+Brief-only change, no behaviour. `deploy/research_queue/02-side-blocked-earned-its-keep.md`
+gained a section **"Updated 2026-09-13, after task 04 — read this before
+dispatching"** and a new question **3b** in its PROMPT block. Committed as
+`bac90fd`; suite still 249 green.
+
+Task 04 asked a structurally identical question about a different control and
+answered no, and it produced three things task 02 did not know when it was
+written on 09-11. Writing them into the brief rather than leaving them here is
+deliberate: the brief is what gets dispatched, and a finding that lives only in
+the review log will not be read by the session that runs the task.
+
+**1. The method that settled task 04.** Counterfactuals were scored on the
+worst trades and on drawdown, not on the P&L sum — and that is what decided it.
+Task 02 now carries the same instruction. A control that reduces total P&L can
+still be correct if it cuts the left tail; one that raises P&L can still be
+wrong if it does not.
+
+**2. The finding that may invert task 02's question.** The damage sits in the
+middle of the z range (|z|<1 +46.96, **1–3 −32.63**, 3+ +22.97, all five worst
+trades entered 1.19–2.33). `side_blocked` refuses re-entry while z is healing
+back toward the band — which routes it through **exactly that region**. So the
+question may not be "what did the block cost us?" but "**is the block the only
+thing standing between us and the zone where our money actually died?**" The
+brief now asks for the |z| of each refusal. If the ten refusals cluster in 1–3,
+that is the strongest argument for this control that exists, and nobody has
+made it.
+
+**3. The ledger trap, carried forward.** The four `enter` records from
+2026-07-20 with `notional: 0` and no legs in the fills are not positions.
+Counting them moved one of task 04's stop rates from 43% to 27%, in the bucket
+under test. Risk-bearing total **34**, outcome-known **31**, venue-verified
+**22** — stated in the brief so task 02 does not rediscover it.
+
+Plus the band confound: `entry_z` has only ever taken three values (0.4, 0.6,
+3.0), so absolute |z| conflates "chosen deep" with "the band was 3.0 that
+week". Cut on |z|/`entry_z` or on distance to the stop.
+
+**Still on the operator's laptop, not in the repo:** task 04's own output,
+`deploy/research_queue/out/04-entry-depth-vs-stops.md`, is uncommitted on
+`research/entry-depth`. The decision it produced is recorded here and in Open
+commitments, so nothing is lost if it never lands — but the working table that
+backs the arithmetic is, and that is the part a reader would want.
 
 ---
 
