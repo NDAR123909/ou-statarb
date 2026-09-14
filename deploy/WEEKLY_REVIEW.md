@@ -1795,7 +1795,7 @@ section existed; that is what it is for.
 | ~~**Decide on the pending reboot**~~ **DONE 2026-09-09 16:22 UTC** — kernel 6.8.0-137 → 139, 0 updates pending, banner cleared, ~5 min downtime on a flat book. `NRestarts=0`; equity, peak, `bad_read` and **the bar counter** all survived, so the refit clock did not move. The "it re-phases the clock" note in this row was wrong and is corrected in the day-1 entry | 2026-09-08 | closed |
 | **Glance at `status.py` after 09:00 UTC on Tue 2026-09-15** — the overrun check on the RapidX maintenance window (08:05–08:20 UTC). The guard was deliberately **not** armed because no hourly tick falls inside the window; see the 2026-09-14 entry. Confirm the 09:00 tick went through, `bad_read` has not moved off 307, and the position is either still held or closed for a reason that is not an error. Costs nothing — it is the daily glance, done once after 09:00 instead of whenever | 2026-09-14 | **Tue 2026-09-15, after 09:00 UTC** (03:00 MDT — so in practice whenever the operator is up; the check is retrospective and does not expire) |
 | ~~**Push task 04's output**~~ **DONE 2026-09-14** — `origin/research/entry-depth`, commit `3428145`, 420 lines. Superseded by the row below, which is the same problem one level up | 2026-09-13 | closed |
-| **Land the three research outputs on the working branch.** `deploy/research_queue/out/` is **empty** on `claude/offline-competition-deploy-nuk5tz`, yet this log and `research_queue/README.md` both cite `out/01-…`, `out/03-…` and `out/04-…` as if they resolve. They exist only on `research/overshoot-recheck`, `research/frame-drift` and `research/entry-depth`. A cold session following the record opens three files that are not there. The decisions survive in prose; **the per-entry working tables that back the arithmetic do not.** Also create `deploy/research_queue/done/` and move 01, 03, 04 into it — README step 4 says to, and all three still sit beside the one open task | 2026-09-14 | next session with the operator's go. Merge or cherry-pick the three `out/` files; no other content from those branches is wanted |
+| ~~**Land the three research outputs on the working branch**~~ **DONE 2026-09-14.** All three `out/` files (1,322 lines) taken file-by-file off their research branches; `done/` created and tasks 01, 03, 04 moved into it, leaving 02 alone in the queue. Scope audit while the branches were in hand: one new file each, nothing else. README step 4 rewritten so "pushed the branch" is no longer mistaken for finished | 2026-09-14 | closed |
 | **Disclose the `entry_beta` fix in `LTP_STRATEGY.md`** — ~~missing since 2026-09-09~~ **DONE 2026-09-14**, addendum written naming `entry_frame` and `entry_beta` | 2026-09-14 | closed |
 | **Ask the organizers whether the Binance-vs-OKX venue choice is still open** now that Phase II has started, and whether the primary account is provisioned as a **Sub Portfolio** (if so the key can read but not trade it — `Edit API` fixes it in one click), and whether their side needs an IP whitelisted. The last two were asked of @LTP_Tracey on 2026-09-07 and **never answered** | 2026-09-07 / 2026-09-08 | next organizer contact — bundle with the CSV-export and AI-floor questions already owed |
 
@@ -4023,6 +4023,61 @@ nothing. A multi-hour window almost certainly does.
 
 The instinct on reading the announcement was "arm the guard." The arithmetic
 says the opposite, and only the arithmetic shows why.
+
+---
+
+## 2026-09-14 (later) — the research outputs are on the working branch at last
+
+The gap found at this morning's cold start is closed. All three completed
+research answers now live on `claude/offline-competition-deploy-nuk5tz`:
+
+```
+deploy/research_queue/out/01-overshoot-recheck.md      431 lines
+deploy/research_queue/out/03-frame-drift-cost.md       471 lines
+deploy/research_queue/out/04-entry-depth-vs-stops.md   420 lines
+```
+
+Taken file-by-file off their research branches with
+`git checkout origin/research/<br> -- <path>`, so nothing else from those
+branches came across. `deploy/research_queue/done/` now exists and holds tasks
+01, 03 and 04, leaving **02 alone in the queue directory** — which is the whole
+point of the convention. It had been in the README since the queue was created
+and was never once followed.
+
+**Why this mattered.** The decisions all survived in prose here, so nothing was
+lost that drives a trade. What was missing is the layer underneath: 1,322 lines
+of per-entry working tables, bucket denominators and arithmetic that exist so a
+conclusion can be *checked* rather than believed. This project's stated value is
+that its record can be audited by a stranger. A stranger following
+`out/04-entry-depth-vs-stops.md` from the review log would have found nothing
+there.
+
+### Scope audit — the rules held
+
+Since all three branches were in hand, they were diffed against their merge
+bases:
+
+```
+research/overshoot-recheck   1 file changed, 431 insertions(+)
+research/frame-drift         1 file changed, 471 insertions(+)
+research/entry-depth         1 file changed, 420 insertions(+)
+```
+
+**Exactly one new file each, its own answer, nothing else.** No edits to
+`WEEKLY_REVIEW.md` or `LTP_STRATEGY.md`, no stray files, no changes to agent
+code — across three independent dispatches to a tool with write access to the
+repo folder. The mechanism that did that is the scope block copied into every
+PROMPT rather than living only in the README, and it is now recorded in the
+README as evidence that the duplication earns its keep.
+
+### One honest limitation of this fix
+
+The ~7 references to `deploy/research_queue/NN-*.md` in older entries of this
+log now point at files that moved to `done/`. **They were deliberately left
+alone.** This log is append-only, and rewriting old entries to match later file
+moves is exactly the tampering the record's credibility depends on not doing.
+The README carries a note saying where to look instead. A stale path in a dated
+entry is a far smaller defect than a record that gets edited.
 
 ---
 
