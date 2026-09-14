@@ -1793,6 +1793,7 @@ section existed; that is what it is for.
 | ~~**Probe the news/feeds path against `api.liquiditytech.com`**~~ **CLOSED 2026-09-13** — the first Phase II entry passed through it: `screened: true`, `news_status: ok`, both legs rated, `news_age_h 0.0`. `news_assessment` 577 → 612. `ltp_stream.py`'s hardcoded WS host is still untested separately, but the journal reports `news stream: live` | 2026-09-08 | closed |
 | ~~**Entry depth is unbounded and unsized**~~ **MEASURED 2026-09-13, DECISION: DO NOTHING.** Stop rate is flat past |z|=1 (44/50/43%, Fisher p=1.0000); the damage is in the MIDDLE bucket, where all five worst trades entered (1.19-2.33); both candidate controls cost real money and one makes drawdown worse. Deep-relative entries stopped LESS often (1 of 5). Do not re-propose without new evidence | 2026-09-13 | closed. If reopened, use the first-passage probability in `thresholds.py` scored on all 31 closes, not more trades |
 | ~~**Decide on the pending reboot**~~ **DONE 2026-09-09 16:22 UTC** — kernel 6.8.0-137 → 139, 0 updates pending, banner cleared, ~5 min downtime on a flat book. `NRestarts=0`; equity, peak, `bad_read` and **the bar counter** all survived, so the refit clock did not move. The "it re-phases the clock" note in this row was wrong and is corrected in the day-1 entry | 2026-09-08 | closed |
+| **Glance at `status.py` after 09:00 UTC on Tue 2026-09-15** — the overrun check on the RapidX maintenance window (08:05–08:20 UTC). The guard was deliberately **not** armed because no hourly tick falls inside the window; see the 2026-09-14 entry. Confirm the 09:00 tick went through, `bad_read` has not moved off 307, and the position is either still held or closed for a reason that is not an error. Costs nothing — it is the daily glance, done once after 09:00 instead of whenever | 2026-09-14 | **Tue 2026-09-15, after 09:00 UTC** (03:00 MDT — so in practice whenever the operator is up; the check is retrospective and does not expire) |
 | ~~**Push task 04's output**~~ **DONE 2026-09-14** — `origin/research/entry-depth`, commit `3428145`, 420 lines. Superseded by the row below, which is the same problem one level up | 2026-09-13 | closed |
 | **Land the three research outputs on the working branch.** `deploy/research_queue/out/` is **empty** on `claude/offline-competition-deploy-nuk5tz`, yet this log and `research_queue/README.md` both cite `out/01-…`, `out/03-…` and `out/04-…` as if they resolve. They exist only on `research/overshoot-recheck`, `research/frame-drift` and `research/entry-depth`. A cold session following the record opens three files that are not there. The decisions survive in prose; **the per-entry working tables that back the arithmetic do not.** Also create `deploy/research_queue/done/` and move 01, 03, 04 into it — README step 4 says to, and all three still sit beside the one open task | 2026-09-14 | next session with the operator's go. Merge or cherry-pick the three `out/` files; no other content from those branches is wanted |
 | **Disclose the `entry_beta` fix in `LTP_STRATEGY.md`** — ~~missing since 2026-09-09~~ **DONE 2026-09-14**, addendum written naming `entry_frame` and `entry_beta` | 2026-09-14 | closed |
@@ -3935,6 +3936,93 @@ bigger version of itself, now open below: **all three research outputs live on
 throwaway branches and `deploy/research_queue/out/` is empty on the working
 branch**, while this log and the queue README both cite those paths as if they
 resolve.
+
+---
+
+## 2026-09-14 — an announced maintenance window, and the guard deliberately NOT armed
+
+RapidX posted to the updates channel:
+
+> **RapidX Scheduled Maintenance.** Time: Tuesday, September 15th, 2026 |
+> 16:05–16:20 HKT (UTC+8). Affected API: Websocket, Rest and Algo API, Trading
+> through API and dashboard.
+
+**Converted once, here, so nobody re-derives it under time pressure:**
+**08:05–08:20 UTC on 2026-09-15.** Fifteen minutes. HKT is UTC+8 year-round, no
+DST. That is **02:05–02:20 MDT** — the operator is asleep and nothing needs a
+human awake.
+
+### The guard exists and was not used
+
+`LTP_MAINTENANCE_WINDOWS` + `maintenance_lead_minutes = 30`
+(`ltp_agent.py:555–600`, pinned by `tests/test_ltp_maintenance.py`) flattens in
+the run-up to an announced window and opens nothing during it. This is the
+first real announced window since it was built. **It was deliberately left
+unarmed, and that decision is recorded here so it is never read as an
+oversight.**
+
+### Why — the tick arithmetic
+
+The agent wakes at `:00:05` each hour
+(`time.sleep(max(60.0, 3600 - (time.time() % 3600) + 5))`). Against this
+window, with lead 30 min:
+
+```
+07:00:05 -> clear
+08:00:05 -> prepare      <- the only tick the guard would touch
+09:00:05 -> clear
+
+ticks landing 'active': NONE
+```
+
+**No tick lands inside the window at all.** The maintenance sits entirely
+inside a gap the agent already has — it is blind from 08:00 to 09:00 every day
+of its life. An API being down while we make no calls costs nothing.
+
+**Arming the guard would therefore not protect anything; it would only act.**
+The 08:00:05 tick would read `prepare` and call `flatten_everything()`, closing
+`1000SHIB/DOGE` — the position that is our entire Phase II P&L, +8.35
+unrealised at the 09-14 04:43 reading — at an arbitrary moment, paying a full
+round trip on both legs and tagging the close `maintenance` rather than
+`reverted`.
+
+And it buys almost no time. At `hl` 23.6h the natural `max_hold` fires
+**~10:01 UTC on 09-15**, under two hours after the window closes. We would be
+pulling the exit forward by two hours to insure against an outage during an
+hour in which we do not trade — and losing the `reverted` exit that week 6
+named as our first live-capital slippage measurement.
+
+### The exposure this accepts, stated plainly
+
+It is not zero. `stream.urgent.wait()` can wake the agent mid-hour to
+`derisk()` on a critical news event. Fired between 08:05 and 08:20, that call
+hits a dead API and logs `de-risk error (positions retried next bar)`.
+**There is a real 15-minute hole in which an emergency exit would fail.**
+
+The news veto has never fired in this agent's life — that is still an open
+question in the commitments table precisely because it has never triggered. So
+arming the guard converts an *unlikely* 15-minute inability to de-risk into a
+**certain** forced exit. **That trade is bad, and that is the whole reasoning.**
+
+If the maintenance **overruns** past 09:00 the failure mode is benign and
+designed for: `RapidXError` → `log("bar error (will retry next bar)")`, the bar
+increments, state is saved, the next tick retries. No double order, no state
+corruption.
+
+Arming it would also have required editing `/root/ltp.env` **and restarting the
+service** — and the omitted restart step is a mistake this record already
+carries once, having left the agent down ten minutes.
+
+### The rule this establishes for the next window
+
+**Convert to UTC, then check which `:00:05` ticks the window actually covers
+before arming anything.** Arm the guard when a window (a) contains a tick, or
+(b) is long enough that `max_hold`, a stop or an exit could plausibly need to
+fire inside it. A window shorter than an hour that falls between ticks needs
+nothing. A multi-hour window almost certainly does.
+
+The instinct on reading the announcement was "arm the guard." The arithmetic
+says the opposite, and only the arithmetic shows why.
 
 ---
 
