@@ -50,11 +50,23 @@ glance. The procedure is five minutes of typing.
 2. Open Claude Desktop → Cowork, point it at the repo folder, and give it
    **one line** — Cowork can read the task file itself, so the prompt never
    needs copying:
-   > Read `deploy/research_queue/01-overshoot-recheck.md` and carry out the
-   > task in its PROMPT block exactly as written.
+   > Read `deploy/research_queue/02-side-blocked-earned-its-keep.md` and carry
+   > out the task in its PROMPT block exactly as written.
 3. When it finishes: `git status`, confirm it created only the output file the
    task names, then commit and push the branch.
-4. Move the task file to `done/` in the same commit and note the output path.
+4. **Land the output on the working branch and move the task file to `done/`.**
+   Pushing the throwaway branch is not finishing — on 2026-09-14 all three
+   completed outputs turned out to exist *only* on their research branches,
+   while this README and `WEEKLY_REVIEW.md` cited `out/` paths that did not
+   resolve on `claude/offline-competition-deploy-*`. The decisions survived in
+   prose; the per-entry working tables that back the arithmetic did not. Three
+   commands do it:
+   ```powershell
+   git checkout claude/offline-competition-deploy-nuk5tz
+   git checkout origin/research/<task-name> -- deploy/research_queue/out/<file>.md
+   git mv deploy/research_queue/<task>.md deploy/research_queue/done/
+   ```
+   then update the tables below and commit.
 
 The scope rules live inside each PROMPT block, so a task dispatched this way
 carries them whether or not anyone remembers to repeat them.
@@ -78,17 +90,36 @@ eventually be dispatched without being read.
   corpus, and it exists because that corpus turned out to contain a confident,
   widely-repeated claim that was fabricated by our own prompt.
 
+**These held.** Audited 2026-09-14 across all three completed dispatches: each
+branch contains exactly one new file, its own `out/` answer, and nothing else —
+no edits to the records, no stray files, no changes to agent code. The rules
+travelling inside each PROMPT block is what did that, so keep copying them.
+
 ## Open
 
 | # | task | status |
 |---|---|---|
-| 01 | `01-overshoot-recheck.md` — GATE on the intra-bar monitor | **done 2026-09-09** → `out/01-overshoot-recheck.md`; monitor **DROPPED** 09-13 |
-| 04 | `04-entry-depth-vs-stops.md` — GATE on entry-depth sizing | **done 2026-09-13** → `out/`; decision **DO NOTHING** |
-| 03 | `03-frame-drift-cost.md` — what the moving `mu`/`sigma` frame has cost | **done 2026-09-11** → `out/` on `research/frame-drift` |
-| 02 | `02-side-blocked-earned-its-keep.md` — nothing waits on it | **open · run next** |
+| 02 | `02-side-blocked-earned-its-keep.md` — nothing waits on it | **open · run next** (Wed 2026-09-16) |
 
-Run order is **01 → 04 → 03 → 02**, not numeric. 04 jumped to the front on
+## Done
+
+Task file in `done/`, answer in `out/`. **Both are on this branch** — read them
+here, not on the research branches.
+
+| # | task | answer | decision |
+|---|---|---|---|
+| 01 | `done/01-overshoot-recheck.md` | `out/01-overshoot-recheck.md` | **2026-09-09.** −10.67 reproduces but is stale and an upper bound; recoverable fraction unmeasurable. Intra-bar monitor **DROPPED** 09-13 |
+| 03 | `done/03-frame-drift-cost.md` | `out/03-frame-drift-cost.md` | **2026-09-11.** Mislabelling cost nothing, drift cost one stop; n=9 closes, not enough to act on. **Falsified its own brief's anchor case**, which found the `entry_beta` bug |
+| 04 | `done/04-entry-depth-vs-stops.md` | `out/04-entry-depth-vs-stops.md` | **2026-09-13.** Depth does not predict stop-outs (Fisher p=1.00); damage is in the middle bucket. **DO NOTHING** |
+
+Run order was **01 → 04 → 03 → 02**, not numeric. 04 jumped to the front on
 2026-09-13: it gates a live sizing decision, and the agent had just entered at
 0.09 sigma from its own stop. 03 came before 02 because two independent analyses
 landed on the same mechanism within a day of each other without either looking
 for it, and it touches the accuracy of the record rather than only performance.
+
+> **Paths in older `WEEKLY_REVIEW.md` entries.** Entries written before
+> 2026-09-14 refer to these task files at their original
+> `deploy/research_queue/NN-*.md` location, because that log is append-only and
+> is not rewritten to match later moves. If a path from an old entry does not
+> resolve, look in `done/`.

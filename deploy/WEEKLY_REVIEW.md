@@ -1793,9 +1793,12 @@ section existed; that is what it is for.
 | ~~**Probe the news/feeds path against `api.liquiditytech.com`**~~ **CLOSED 2026-09-13** — the first Phase II entry passed through it: `screened: true`, `news_status: ok`, both legs rated, `news_age_h 0.0`. `news_assessment` 577 → 612. `ltp_stream.py`'s hardcoded WS host is still untested separately, but the journal reports `news stream: live` | 2026-09-08 | closed |
 | ~~**Entry depth is unbounded and unsized**~~ **MEASURED 2026-09-13, DECISION: DO NOTHING.** Stop rate is flat past |z|=1 (44/50/43%, Fisher p=1.0000); the damage is in the MIDDLE bucket, where all five worst trades entered (1.19-2.33); both candidate controls cost real money and one makes drawdown worse. Deep-relative entries stopped LESS often (1 of 5). Do not re-propose without new evidence | 2026-09-13 | closed. If reopened, use the first-passage probability in `thresholds.py` scored on all 31 closes, not more trades |
 | ~~**Decide on the pending reboot**~~ **DONE 2026-09-09 16:22 UTC** — kernel 6.8.0-137 → 139, 0 updates pending, banner cleared, ~5 min downtime on a flat book. `NRestarts=0`; equity, peak, `bad_read` and **the bar counter** all survived, so the refit clock did not move. The "it re-phases the clock" note in this row was wrong and is corrected in the day-1 entry | 2026-09-08 | closed |
-| **Glance at `status.py` after 09:00 UTC on Tue 2026-09-15** — the overrun check on the RapidX maintenance window (08:05–08:20 UTC). The guard was deliberately **not** armed because no hourly tick falls inside the window; see the 2026-09-14 entry. Confirm the 09:00 tick went through, `bad_read` has not moved off 307, and the position is either still held or closed for a reason that is not an error. Costs nothing — it is the daily glance, done once after 09:00 instead of whenever | 2026-09-14 | **Tue 2026-09-15, after 09:00 UTC** (03:00 MDT — so in practice whenever the operator is up; the check is retrospective and does not expire) |
+| ~~**Fix `constraint_prompt()` in `ai_deep_review.py`**~~ **DONE 2026-09-15**, same evening. The defect: `days_left()` counted to `PHASE_I_END` so it said **"0 days remain"** when 50 did; `KILL_SWITCH = 916.25` was frozen at the Phase I peak x 0.88 against a live 889.46; the 3.7% drawdown and "Phase I advancement is assured" were **string literals**. The model acted on it and recommended halting all trading on day 6 of 57. **Mine** — I added `PHASE_II_START/END`, `phase_days()` and `live_peak()` on 09-13 and never wired this function to them. The fix: `days_left()` repointed to `PHASE_II_END`; `kill_switch_level()` derives the halt from the live peak and the agent's own `AgentConfig.dd_halt`; `drawdown_pct()` measures it; an unreadable peak is labelled rather than guessed; the "advancement is assured" clause replaced by two scoring facts that cut opposite ways. Seven tests, suite 249 → 255. Disclosed in `LTP_STRATEGY.md`. **Not back-filled** — the 09-09 → 09-15 reviews stay as written, and any reading of that window must discount the constraint follow-up | 2026-09-15 | closed |
+| **Re-read task 03's answer beside the 2026-09-15 stop.** That task closed with *"nine closes and two drift events … not enough to act on."* Close number ten carries `mu_shift_sigma` **13.24** (132× material), σ widening **4.87×** in 13 bars, and a stop that fired **0.49σ late** in its own entry coordinates. The conclusion has weakened; it has not been overturned, and no change is proposed | 2026-09-15 | Sun 2026-09-20 review, with `out/03-frame-drift-cost.md` open beside it |
+| ~~**Glance at `status.py` after 09:00 UTC on Tue 2026-09-15**~~ **CLOSED 2026-09-15, clean.** The RapidX window (08:05–08:20 UTC) passed with **zero impact**, as the tick arithmetic predicted: `news_assessment` +40 over 40 bars means **every bar ticked**, `bad_read` unmoved at 307, restarts 0, trading continued normally through 08:00 and 09:00. Not arming the guard is now verified rather than argued — and had it been armed it would have flattened a position for nothing | 2026-09-14 | closed |
+| **A near-miss worth not re-deriving: `OKX_PERP_ICX_USDT` delists 2026-09-17 06:00 UTC. Not us.** ICX is ICON on OKX; we hold `BINANCE_PERP_ICP_USDT` (Internet Computer, Binance) via the `NEAR/ICP` pair. `grep -rn "ICX"` returns **nothing** anywhere in the repo. Two independent reasons it cannot touch us — but the symbols are one character apart and the ICP position opened hours before the notice. **The general exposure is real though:** RapidX auto-liquidates **120 min before** an exchange delisting, or immediately on short notice, which for a pairs book means one leg force-settled and the other left naked. We are not unguarded (`ltp_news.py` rates delisting `critical`; `reconcile_positions` handles the half-open case) but there is no *scheduled*-delisting guard the way there is a maintenance-window guard | 2026-09-15 | no action while no held symbol is listed. Revisit if a delisting notice ever names a symbol in `CANDIDATES` |
 | ~~**Push task 04's output**~~ **DONE 2026-09-14** — `origin/research/entry-depth`, commit `3428145`, 420 lines. Superseded by the row below, which is the same problem one level up | 2026-09-13 | closed |
-| **Land the three research outputs on the working branch.** `deploy/research_queue/out/` is **empty** on `claude/offline-competition-deploy-nuk5tz`, yet this log and `research_queue/README.md` both cite `out/01-…`, `out/03-…` and `out/04-…` as if they resolve. They exist only on `research/overshoot-recheck`, `research/frame-drift` and `research/entry-depth`. A cold session following the record opens three files that are not there. The decisions survive in prose; **the per-entry working tables that back the arithmetic do not.** Also create `deploy/research_queue/done/` and move 01, 03, 04 into it — README step 4 says to, and all three still sit beside the one open task | 2026-09-14 | next session with the operator's go. Merge or cherry-pick the three `out/` files; no other content from those branches is wanted |
+| ~~**Land the three research outputs on the working branch**~~ **DONE 2026-09-14.** All three `out/` files (1,322 lines) taken file-by-file off their research branches; `done/` created and tasks 01, 03, 04 moved into it, leaving 02 alone in the queue. Scope audit while the branches were in hand: one new file each, nothing else. README step 4 rewritten so "pushed the branch" is no longer mistaken for finished | 2026-09-14 | closed |
 | **Disclose the `entry_beta` fix in `LTP_STRATEGY.md`** — ~~missing since 2026-09-09~~ **DONE 2026-09-14**, addendum written naming `entry_frame` and `entry_beta` | 2026-09-14 | closed |
 | **Ask the organizers whether the Binance-vs-OKX venue choice is still open** now that Phase II has started, and whether the primary account is provisioned as a **Sub Portfolio** (if so the key can read but not trade it — `Edit API` fixes it in one click), and whether their side needs an IP whitelisted. The last two were asked of @LTP_Tracey on 2026-09-07 and **never answered** | 2026-09-07 / 2026-09-08 | next organizer contact — bundle with the CSV-export and AI-floor questions already owed |
 
@@ -4023,6 +4026,278 @@ nothing. A multi-hour window almost certainly does.
 
 The instinct on reading the announcement was "arm the guard." The arithmetic
 says the opposite, and only the arithmetic shows why.
+
+---
+
+## 2026-09-14 (later) — the research outputs are on the working branch at last
+
+The gap found at this morning's cold start is closed. All three completed
+research answers now live on `claude/offline-competition-deploy-nuk5tz`:
+
+```
+deploy/research_queue/out/01-overshoot-recheck.md      431 lines
+deploy/research_queue/out/03-frame-drift-cost.md       471 lines
+deploy/research_queue/out/04-entry-depth-vs-stops.md   420 lines
+```
+
+Taken file-by-file off their research branches with
+`git checkout origin/research/<br> -- <path>`, so nothing else from those
+branches came across. `deploy/research_queue/done/` now exists and holds tasks
+01, 03 and 04, leaving **02 alone in the queue directory** — which is the whole
+point of the convention. It had been in the README since the queue was created
+and was never once followed.
+
+**Why this mattered.** The decisions all survived in prose here, so nothing was
+lost that drives a trade. What was missing is the layer underneath: 1,322 lines
+of per-entry working tables, bucket denominators and arithmetic that exist so a
+conclusion can be *checked* rather than believed. This project's stated value is
+that its record can be audited by a stranger. A stranger following
+`out/04-entry-depth-vs-stops.md` from the review log would have found nothing
+there.
+
+### Scope audit — the rules held
+
+Since all three branches were in hand, they were diffed against their merge
+bases:
+
+```
+research/overshoot-recheck   1 file changed, 431 insertions(+)
+research/frame-drift         1 file changed, 471 insertions(+)
+research/entry-depth         1 file changed, 420 insertions(+)
+```
+
+**Exactly one new file each, its own answer, nothing else.** No edits to
+`WEEKLY_REVIEW.md` or `LTP_STRATEGY.md`, no stray files, no changes to agent
+code — across three independent dispatches to a tool with write access to the
+repo folder. The mechanism that did that is the scope block copied into every
+PROMPT rather than living only in the README, and it is now recorded in the
+README as evidence that the duplication earns its keep.
+
+### One honest limitation of this fix
+
+The ~7 references to `deploy/research_queue/NN-*.md` in older entries of this
+log now point at files that moved to `done/`. **They were deliberately left
+alone.** This log is append-only, and rewriting old entries to match later file
+moves is exactly the tampering the record's credibility depends on not doing.
+The README carries a note saying where to look instead. A stale path in a dated
+entry is a far smaller defect than a record that gets edited.
+
+---
+
+## 2026-09-15 — a 13.24-sigma frame drift, a late stop, and a prompt that told our own AI the phase was over
+
+Equity **999.35** at 20:48 UTC (peak 1010.75, dd **1.13%**, kill switch 889.46).
+Below 1,000 for the first time in Phase II. Nothing needed action on the
+droplet; three things needed writing down.
+
+### 1. The stop of 2026-09-15 20:00 carries the largest frame drift on record
+
+`1000SHIB/DOGE`, entered LONG at z = −0.957 at 07:00, stopped 13 bars later:
+
+```
+z                    -3.5415   refitted frame -- what fired the stop
+z_in_entry_coords    -3.9908   the frame the position was opened in
+mu_shift_sigma       13.2421
+hold_bars            13
+nav                  999.41
+```
+
+**`mu_shift_sigma` is 13.24 against a materiality threshold of 0.10 — 132x
+material.** Task 03's entire instrumented sample topped out around 1σ.
+
+Two consequences, both measured rather than asserted:
+
+**The stop fired 0.49σ late.** In its own entry coordinates the position stood
+at **−3.99** when the 3.5 stop finally triggered at −3.54 refitted. It was
+already past its own stop and still running.
+
+**Sigma nearly quintupled during the 13-bar hold.** From the two logged z
+readings and the drift:
+
+```
+s - mu_live, in sigma0 = z_entry - mu_shift = -3.991 - 13.242 = -17.233
+sigma_live / sigma0    = 17.233 / 3.541     = 4.87x
+```
+
+Cross-checked against the 12:00 refit's own print (σ_eq = 0.01742, mean
+−3.436), that implies **σ₀ ≈ 0.00358** and μ moving **0.047 in log-spread
+units — a 4.7% shift in the equilibrium** while the position was open. The
+12:00 refit fell inside the hold, so this is one refit's worth of movement.
+
+**This bears directly on task 03, which is already answered.** That task
+concluded *"mislabelling cost nothing and frame drift cost one stop. The sample
+is nine closes and two drift events, which is not enough to act on."* This is
+close **number ten**, it is an order of magnitude larger than anything in that
+sample, and it is attached to a **late** stop — the failure mode that matters,
+because MDD is monotone and 1.13% is now banked.
+
+**No change is proposed here.** The point for the record is narrower and it is
+this: **task 03's "not enough data" has materially weakened on one
+observation**, and the next session to read that answer should read this entry
+beside it rather than treating the question as closed.
+
+### 2. `constraint_prompt()` told the deep review the phase was over — my defect
+
+Round 5 of the 17:24 deep review recommended *"halt new entries immediately …
+The phase is won. Stop trading."* On day 6 of a 57-day phase, holding live
+capital.
+
+The model was not reasoning badly. It was fed this, reproduced verbatim from
+the repo by calling the function with today's date:
+
+> **0 days remain in the phase.** Equity is 1006.05 USDT against a competition
+> elimination floor of 800 … Our own kill switch sits higher, at **916.25** …
+> Max drawdown is **already banked at 3.7%**, and **Phase I advancement is
+> assured** regardless of rank.
+
+Every one of those is Phase I:
+
+| what it says | why | live truth |
+|---|---|---|
+| "0 days remain" | `days_left()` counts to `PHASE_I_END` = 2026-08-21 | **50 days** remain in Phase II |
+| kill switch 916.25 | `KILL_SWITCH` module constant = Phase I peak 1041.19 × 0.88 | **889.46** |
+| "drawdown banked at 3.7%" | **hardcoded string literal** | **1.13%** |
+| "Phase I advancement is assured" | hardcoded; Phase I closed 08-21 | Phase II is the live phase |
+
+**This is mine.** On 2026-09-13 I added `PHASE_II_START`, `PHASE_II_END`,
+`phase_days()` and `live_peak()` to `ai_deep_review.py` — and never wired
+`constraint_prompt()` to any of them. I fixed the fact-gathering and left the
+function that consumes it on Phase I constants. `live_peak()` reads the live
+`peak_equity`; `constraint_prompt` ignores it and uses the frozen number.
+
+**It did not reach trading.** Deep review is advisory. Entries route through
+`ai_spread_assessment` and the news gate, both of which were fed live data and
+behaved correctly all day — the 20:00 assessment rated the regime `stressed`
+and flagged the acceleration honestly. The blast radius is the corpus, not the
+book.
+
+But this is **the second time our own prompt has fabricated a premise the model
+then reasoned confidently from**, and the first time is already a lesson in this
+record. The competition audit reads this corpus for *logical depth*; a Phase II
+reasoning log containing "0 days remain" and "Phase I advancement is assured"
+is wrong in a way an auditor can see.
+
+Fix is in Open commitments and needs the operator's go: it changes what the AI
+layer is told, so it is a behavioural change and wants disclosure in
+`LTP_STRATEGY.md` plus a test, since a prompt that rots silently is exactly what
+this keeps costing us.
+
+### 3. The churn, and a re-entry shape `side_blocked` does not cover
+
+The `day_trades` review — fed correct data, and right — found this in the
+24 hours to 17:39:
+
+```
+01:00  exit  short 1000SHIB/DOGE  z=-0.293
+02:00  enter long                 z=-0.701
+05:00  exit  long                 z=+0.051   (3-bar hold)
+07:00  enter long                 z=-0.957   <- the one that stopped at 20:00
+12:01  enter short NEAR/ICP       z=+2.371
+```
+
+Three round trips on one pair in six hours. Its verdict: *"the entry gate is not
+actually gating — it's being re-triggered by the same pair's noise."*
+
+**Note the 05:00 → 07:00 pair: exit long, re-enter long two bars later.**
+`side_blocked` does not cover that — it blocks only after a **stop**. A
+reverted exit followed by an immediate same-side re-entry passes straight
+through. That is a gap in the exact control task 02 dispatches against
+tomorrow, and it is now in task 02's brief.
+
+`blocked=1` is live on `1000SHIB/DOGE` as of the 20:00 stop.
+
+### Position and watch
+
+```
+NEAR/ICP  SHORT-SPREAD  z=+3.14  stop±3.5  hold=8b  net uPnL -4.55
+```
+
+Entered at z = +2.371 at 12:01 and has moved **against us the whole way** to
++3.14 — **0.36σ from its stop.** No action: the stop is the control, and task 04
+measured and rejected depth-based intervention two days ago. Recorded so the
+next reading is not a surprise.
+
+Also still true: 4 updates and a pending reboot, which wants a flat book and
+will not get one while this position is open.
+
+---
+
+## 2026-09-15 (late) — `constraint_prompt` fixed, and what the rendering proves
+
+Shipped the same evening it was found. Disclosed in `LTP_STRATEGY.md`; suite
+**249 → 255**.
+
+### The fix, and the check that it is a fix
+
+The prompt now renders, against the live state:
+
+```
+50 days remain in the phase. Equity is 999.35 USDT against a competition
+elimination floor of 800 -- 199.35 USDT of headroom. Our own kill switch sits
+higher, at 889.46, only 109.89 away, ... Max drawdown off the peak is 1.13%.
+This phase is live and scored from zero: every team reset to 1,000 USDT,
+elimination below the floor is in force, and nothing is already banked in our
+favour.
+```
+
+**All three derived numbers now agree with `status.py` exactly** — 50 days,
+889.46, 1.13% — which is the point: the briefing and the daily glance are
+reading the same world. Before, they disagreed on every one.
+
+What changed, mechanically: `days_left()` counts to `PHASE_II_END`;
+`kill_switch_level()` derives the halt from the live peak and the agent's own
+`AgentConfig.dd_halt` rather than a constant; `drawdown_pct()` measures;
+`followups()` threads `peak` through; `live_peak()` moved above the
+import-time `FOLLOWUPS` construction that calls the prompt.
+
+### Two judgement calls worth recording
+
+**The replacement clause is deliberately two-sided.** The old one — *"Phase I
+advancement is assured regardless of rank"* — pushed toward inaction, and that
+is what the reviewer acted on. **Replacing it with something that pushes toward
+action would be the same defect mirrored.** So it now states two scoring rules
+that cut opposite ways: MDD is monotone (caution) and Sharpe counts only
+completed days, so an idle day enters the mean as a zero (against idling). Both
+are facts; the model weighs them. Pinned by
+`test_the_closing_facts_cut_both_ways`, which exists specifically so a later
+session cannot quietly delete one side.
+
+**An unreadable peak is announced, not guessed.** With no state file the prompt
+says the kill-switch level "may be stale" and instructs the reviewer to "treat
+the drawdown as unknown rather than as zero" — the discipline `EQUITY_AS_OF`
+already enforced for equity, extended to the two new numbers. That path is what
+CI actually exercises, since there is no `ltp_state.json` in the repo.
+
+### The lesson is narrower than "don't hardcode"
+
+`days_left()` **was already derived.** It was written in August precisely to
+kill a typed-in "nine days remain", and the constant block above it already
+warned that a stale number in a prompt is *"indistinguishable, to whoever reads
+the output, from a lie."* The derivation worked. **The date it derived FROM went
+stale**, and no amount of deriving catches that.
+
+So: **a derived number is only as honest as its reference point, and phase
+boundaries are where reference points die.** That failure is now written into
+`days_left`'s own docstring rather than only here, so the next phase change is a
+known hazard instead of a fresh surprise.
+
+### One thing I got wrong while fixing it
+
+The first version of `test_the_prompt_never_again_says_the_live_phase_is_over`
+asserted `"0 days remain" not in prompt` — and **failed on correct output**,
+because "50 days remain" contains that substring. Anchored at the start of the
+string with a regex and the day count compared as an integer. Noted because the
+test that guards a fabrication is exactly the one that must not be quietly
+loosened when it goes red.
+
+### Not back-filled
+
+The reviews generated 2026-09-09 → 09-15 stay in the ledger as written,
+including the "stop trading" recommendation, because the ledger records what the
+agent actually believed at the time. **Any reading of the deep-review corpus
+from that window must discount every constraint-conditioned answer** — that is
+the fifth follow-up of each run, and it is now the second known contaminated
+region of that corpus.
 
 ---
 
