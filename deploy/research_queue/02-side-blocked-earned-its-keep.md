@@ -65,6 +65,45 @@ to your analysis, cut on **|z| / entry_z** or on distance to the stop, not on
 
 ---
 
+## Updated 2026-09-15 — a live block, and a re-entry shape the block does not cover
+
+**The control is firing right now.** The 2026-09-15 20:00 stop on
+`1000SHIB/DOGE` set `blocked=1`, so for the first time this task can be
+answered partly against a block that is live rather than only archived ones.
+
+**And the day that produced it contains the more interesting finding.** Our own
+`day_trades` deep review, working from the 24-hour ledger, found this:
+
+```
+01:00  exit  short 1000SHIB/DOGE  z=-0.293
+02:00  enter long                 z=-0.701
+05:00  exit  long                 z=+0.051   (3-bar hold)
+07:00  enter long                 z=-0.957   <- stopped at 20:00, -3.54
+12:01  enter short NEAR/ICP       z=+2.371
+```
+
+Three round trips on one pair in six hours, and its verdict was *"the entry
+gate is not actually gating — it's being re-triggered by the same pair's
+noise."*
+
+**Look at 05:00 → 07:00: exit long, re-enter LONG two bars later.**
+`side_blocked` does not cover that. It blocks a side only after a **stop**; a
+*reverted* exit followed by an immediate same-side re-entry passes straight
+through, and on this day that re-entry is the one that went on to stop out.
+
+So the task now has a second question beside its original one. The original:
+*did the block cost us the trades it refused?* The new one: **is the block
+scoped too narrowly — does the damage come from re-entries it was never
+designed to catch?** Both are answerable from the same ledger, and the second
+may matter more, because a control that fires rarely and correctly is cheap
+while a gap that fires often is not.
+
+Two cautions on the second question. A cooldown is **not** in the stated
+methodology, and adding one would suppress genuine signals on the most active
+pair — the deep review argued both sides of exactly this and landed on "the
+ledger alone cannot separate them." And three round trips is n=3. **Measure the
+rate across the whole record before treating one day as a pattern.**
+
 ## PROMPT
 
 > You are testing whether a risk control paid for itself. Work from primary
@@ -110,6 +149,19 @@ to your analysis, cut on **|z| / entry_z** or on distance to the stop, not on
 >    actually lost this book money. **If they cluster there, that is the
 >    strongest argument for the control that exists and nobody has made it
 >    yet.**
+>
+> 3c. **Count the re-entries the block does NOT cover.** `side_blocked` fires
+>    only after a stop. Count every case where a pair **exited** (any reason
+>    other than a stop) and was re-entered **on the same side** within a short
+>    window — report the counts at 1, 3 and 6 bars, across the whole record,
+>    not just the 2026-09-15 cluster. For each, what happened next: reverted,
+>    stopped, or dropped at a refit? **Then compare that population's outcomes
+>    against the stop-then-blocked population the rest of this task is about.**
+>    If the uncovered re-entries lose more often or more deeply than the
+>    covered ones, the block is scoped too narrowly and that is a bigger
+>    finding than whether it earned its keep. Give the base rate too — how
+>    often does same-side re-entry happen at all — so "three in six hours" can
+>    be read against the norm rather than as an anecdote.
 >
 > 4. **THE QUESTION THAT ACTUALLY DECIDES THIS, and it is not total P&L.**
 >    This competition scores **40% on Sharpe**, 25% PnL, 20% return, 15% max
