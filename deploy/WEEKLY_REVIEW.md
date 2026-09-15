@@ -1793,7 +1793,7 @@ section existed; that is what it is for.
 | ~~**Probe the news/feeds path against `api.liquiditytech.com`**~~ **CLOSED 2026-09-13** — the first Phase II entry passed through it: `screened: true`, `news_status: ok`, both legs rated, `news_age_h 0.0`. `news_assessment` 577 → 612. `ltp_stream.py`'s hardcoded WS host is still untested separately, but the journal reports `news stream: live` | 2026-09-08 | closed |
 | ~~**Entry depth is unbounded and unsized**~~ **MEASURED 2026-09-13, DECISION: DO NOTHING.** Stop rate is flat past |z|=1 (44/50/43%, Fisher p=1.0000); the damage is in the MIDDLE bucket, where all five worst trades entered (1.19-2.33); both candidate controls cost real money and one makes drawdown worse. Deep-relative entries stopped LESS often (1 of 5). Do not re-propose without new evidence | 2026-09-13 | closed. If reopened, use the first-passage probability in `thresholds.py` scored on all 31 closes, not more trades |
 | ~~**Decide on the pending reboot**~~ **DONE 2026-09-09 16:22 UTC** — kernel 6.8.0-137 → 139, 0 updates pending, banner cleared, ~5 min downtime on a flat book. `NRestarts=0`; equity, peak, `bad_read` and **the bar counter** all survived, so the refit clock did not move. The "it re-phases the clock" note in this row was wrong and is corrected in the day-1 entry | 2026-09-08 | closed |
-| **Fix `constraint_prompt()` in `ai_deep_review.py` — it briefs the deep review entirely on Phase I.** `days_left()` counts to `PHASE_I_END` so it says **"0 days remain"** when 50 do; `KILL_SWITCH = 916.25` is a frozen constant (Phase I peak 1041.19 × 0.88) against a live 889.46; the 3.7% drawdown and "Phase I advancement is assured" are **string literals**. On 2026-09-15 the model acted on it and recommended halting all trading on day 6 of 57. **My defect**: I added `PHASE_II_START/END`, `phase_days()` and `live_peak()` on 09-13 and never wired this function to them. Fix = read the peak from `live_peak()`, days from `PHASE_II_END`, drawdown measured rather than typed, drop the advancement clause — **plus a test**, because a prompt that rots silently is what this keeps costing us. Advisory only: it never reached trading (entries route through `ai_spread_assessment` + the news gate) | 2026-09-15 | **needs the operator's go.** Behavioural change to what the AI layer is told, so it also wants an `LTP_STRATEGY.md` disclosure |
+| ~~**Fix `constraint_prompt()` in `ai_deep_review.py`**~~ **DONE 2026-09-15**, same evening. The defect: `days_left()` counted to `PHASE_I_END` so it said **"0 days remain"** when 50 did; `KILL_SWITCH = 916.25` was frozen at the Phase I peak x 0.88 against a live 889.46; the 3.7% drawdown and "Phase I advancement is assured" were **string literals**. The model acted on it and recommended halting all trading on day 6 of 57. **Mine** — I added `PHASE_II_START/END`, `phase_days()` and `live_peak()` on 09-13 and never wired this function to them. The fix: `days_left()` repointed to `PHASE_II_END`; `kill_switch_level()` derives the halt from the live peak and the agent's own `AgentConfig.dd_halt`; `drawdown_pct()` measures it; an unreadable peak is labelled rather than guessed; the "advancement is assured" clause replaced by two scoring facts that cut opposite ways. Seven tests, suite 249 → 255. Disclosed in `LTP_STRATEGY.md`. **Not back-filled** — the 09-09 → 09-15 reviews stay as written, and any reading of that window must discount the constraint follow-up | 2026-09-15 | closed |
 | **Re-read task 03's answer beside the 2026-09-15 stop.** That task closed with *"nine closes and two drift events … not enough to act on."* Close number ten carries `mu_shift_sigma` **13.24** (132× material), σ widening **4.87×** in 13 bars, and a stop that fired **0.49σ late** in its own entry coordinates. The conclusion has weakened; it has not been overturned, and no change is proposed | 2026-09-15 | Sun 2026-09-20 review, with `out/03-frame-drift-cost.md` open beside it |
 | ~~**Glance at `status.py` after 09:00 UTC on Tue 2026-09-15**~~ **CLOSED 2026-09-15, clean.** The RapidX window (08:05–08:20 UTC) passed with **zero impact**, as the tick arithmetic predicted: `news_assessment` +40 over 40 bars means **every bar ticked**, `bad_read` unmoved at 307, restarts 0, trading continued normally through 08:00 and 09:00. Not arming the guard is now verified rather than argued — and had it been armed it would have flattened a position for nothing | 2026-09-14 | closed |
 | **A near-miss worth not re-deriving: `OKX_PERP_ICX_USDT` delists 2026-09-17 06:00 UTC. Not us.** ICX is ICON on OKX; we hold `BINANCE_PERP_ICP_USDT` (Internet Computer, Binance) via the `NEAR/ICP` pair. `grep -rn "ICX"` returns **nothing** anywhere in the repo. Two independent reasons it cannot touch us — but the symbols are one character apart and the ICP position opened hours before the notice. **The general exposure is real though:** RapidX auto-liquidates **120 min before** an exchange delisting, or immediately on short notice, which for a pairs book means one leg force-settled and the other left naked. We are not unguarded (`ltp_news.py` rates delisting `critical`; `reconcile_positions` handles the half-open case) but there is no *scheduled*-delisting guard the way there is a maintenance-window guard | 2026-09-15 | no action while no held symbol is listed. Revisit if a delisting notice ever names a symbol in `CANDIDATES` |
@@ -4219,6 +4219,85 @@ next reading is not a surprise.
 
 Also still true: 4 updates and a pending reboot, which wants a flat book and
 will not get one while this position is open.
+
+---
+
+## 2026-09-15 (late) — `constraint_prompt` fixed, and what the rendering proves
+
+Shipped the same evening it was found. Disclosed in `LTP_STRATEGY.md`; suite
+**249 → 255**.
+
+### The fix, and the check that it is a fix
+
+The prompt now renders, against the live state:
+
+```
+50 days remain in the phase. Equity is 999.35 USDT against a competition
+elimination floor of 800 -- 199.35 USDT of headroom. Our own kill switch sits
+higher, at 889.46, only 109.89 away, ... Max drawdown off the peak is 1.13%.
+This phase is live and scored from zero: every team reset to 1,000 USDT,
+elimination below the floor is in force, and nothing is already banked in our
+favour.
+```
+
+**All three derived numbers now agree with `status.py` exactly** — 50 days,
+889.46, 1.13% — which is the point: the briefing and the daily glance are
+reading the same world. Before, they disagreed on every one.
+
+What changed, mechanically: `days_left()` counts to `PHASE_II_END`;
+`kill_switch_level()` derives the halt from the live peak and the agent's own
+`AgentConfig.dd_halt` rather than a constant; `drawdown_pct()` measures;
+`followups()` threads `peak` through; `live_peak()` moved above the
+import-time `FOLLOWUPS` construction that calls the prompt.
+
+### Two judgement calls worth recording
+
+**The replacement clause is deliberately two-sided.** The old one — *"Phase I
+advancement is assured regardless of rank"* — pushed toward inaction, and that
+is what the reviewer acted on. **Replacing it with something that pushes toward
+action would be the same defect mirrored.** So it now states two scoring rules
+that cut opposite ways: MDD is monotone (caution) and Sharpe counts only
+completed days, so an idle day enters the mean as a zero (against idling). Both
+are facts; the model weighs them. Pinned by
+`test_the_closing_facts_cut_both_ways`, which exists specifically so a later
+session cannot quietly delete one side.
+
+**An unreadable peak is announced, not guessed.** With no state file the prompt
+says the kill-switch level "may be stale" and instructs the reviewer to "treat
+the drawdown as unknown rather than as zero" — the discipline `EQUITY_AS_OF`
+already enforced for equity, extended to the two new numbers. That path is what
+CI actually exercises, since there is no `ltp_state.json` in the repo.
+
+### The lesson is narrower than "don't hardcode"
+
+`days_left()` **was already derived.** It was written in August precisely to
+kill a typed-in "nine days remain", and the constant block above it already
+warned that a stale number in a prompt is *"indistinguishable, to whoever reads
+the output, from a lie."* The derivation worked. **The date it derived FROM went
+stale**, and no amount of deriving catches that.
+
+So: **a derived number is only as honest as its reference point, and phase
+boundaries are where reference points die.** That failure is now written into
+`days_left`'s own docstring rather than only here, so the next phase change is a
+known hazard instead of a fresh surprise.
+
+### One thing I got wrong while fixing it
+
+The first version of `test_the_prompt_never_again_says_the_live_phase_is_over`
+asserted `"0 days remain" not in prompt` — and **failed on correct output**,
+because "50 days remain" contains that substring. Anchored at the start of the
+string with a regex and the day count compared as an integer. Noted because the
+test that guards a fabrication is exactly the one that must not be quietly
+loosened when it goes red.
+
+### Not back-filled
+
+The reviews generated 2026-09-09 → 09-15 stay in the ledger as written,
+including the "stop trading" recommendation, because the ledger records what the
+agent actually believed at the time. **Any reading of the deep-review corpus
+from that window must discount every constraint-conditioned answer** — that is
+the fifth follow-up of each run, and it is now the second known contaminated
+region of that corpus.
 
 ---
 

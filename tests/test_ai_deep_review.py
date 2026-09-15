@@ -14,6 +14,7 @@ import json
 import os
 import re
 import sys
+import pytest
 from datetime import date, datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -32,7 +33,8 @@ from deploy.ai_deep_review import (AI_SPEND_FLOOR, ANGLES,  # noqa: E402
                                    recent_events, strategy_prompts,
                                    RECORD_FALLBACK, hold_clause, last_refit,
                                    _record_block, live_peak, stop_facts,
-                                   phase_days, PHASE_II_START)
+                                   phase_days, PHASE_II_START,
+                                   PHASE_II_END)
 
 
 def test_the_reviewer_is_told_to_attack_not_approve():
@@ -197,15 +199,96 @@ def test_the_constraint_prompt_does_not_confuse_the_two_floors():
     assert not any("100 USDT of drawdown headroom" in f for f in FOLLOWUPS)
 
 
-def test_days_remaining_is_derived_rather_than_typed():
-    """"Nine days remain" was written into the prompt on 2026-08-12 and would
-    have been silently wrong on the 13th. Three tests rotted on the calendar in
-    week 3 and failed loudly; a prompt rots in silence, so derive it."""
-    assert days_left(date(2026, 8, 12)) == 9
-    assert days_left(date(2026, 8, 20)) == 1
-    assert days_left(PHASE_I_END) == 0
-    assert days_left(date(2026, 9, 1)) == 0          # never negative
-    assert "9 days remain" in constraint_prompt(date(2026, 8, 12))
+def test_days_remaining_counts_to_the_phase_that_is_actually_running():
+    """"Nine days remain" was typed into the prompt on 2026-08-12 and would
+    have been silently wrong on the 13th, so it was derived instead. Then the
+    thing it was derived FROM went stale.
+
+    `days_left` counted to `PHASE_I_END` (2026-08-21). From 2026-09-09, when
+    Phase II opened, it returned a clamped 0 and the constraint prompt opened
+    with "0 days remain in the phase". On 2026-09-15 a reviewer read that,
+    concluded the phase was over, and recommended halting all trading -- on day
+    6 of 57, holding live capital.
+
+    Deriving a number is only half the job; the reference point rots too.
+    """
+    assert days_left(date(2026, 9, 15)) == 50
+    assert days_left(date(2026, 11, 3)) == 1
+    assert days_left(PHASE_II_END) == 0
+    assert days_left(date(2026, 12, 1)) == 0         # never negative
+    assert "50 days remain" in constraint_prompt(date(2026, 9, 15))
+
+
+def test_the_prompt_never_again_says_the_live_phase_is_over():
+    """The exact regression, stated as the sentence that caused the damage.
+
+    Matched at the start of the string rather than as a substring: "50 days
+    remain" contains "0 days remain", and the first version of this test failed
+    on correct output for that reason.
+    """
+    for day in (date(2026, 9, 9), date(2026, 9, 15), date(2026, 10, 20)):
+        m = re.match(r"^(\d+) days remain in the phase\.",
+                     constraint_prompt(day))
+        assert m, "the prompt must still open with a day count"
+        assert int(m.group(1)) > 0, f"told the reviewer the phase is over on {day}"
+
+
+def test_the_phase_one_reassurances_are_gone():
+    """Three Phase I claims outlived Phase I inside this prompt: a banked
+    drawdown of 3.7%, and advancement being assured regardless of rank. Both
+    told a reviewer the outcome was already secured. Phase II resets every
+    score to zero and the elimination floor is live."""
+    p = constraint_prompt(date(2026, 9, 15), equity=999.35, peak=1010.75)
+    assert "3.7%" not in p
+    assert "advancement" not in p.lower()
+    assert "assured" not in p.lower()
+    # ...and it must say the opposite, so the reviewer cannot infer safety.
+    assert "scored from zero" in p
+    assert "nothing is already banked in our favour" in p
+
+
+def test_the_closing_facts_cut_both_ways():
+    """The clause removed here pushed toward inaction ("advancement is
+    assured"). Replacing it with one that pushes toward action would be the
+    same defect mirrored -- a prompt that argues for a conclusion rather than
+    supplying the constraints. Both scoring rules, or neither."""
+    p = constraint_prompt(date(2026, 9, 15), equity=999.35, peak=1010.75)
+    assert "monotonically non-decreasing" in p      # argues for caution
+    assert "idle day enters the mean as a zero" in p  # argues against idling
+
+
+def test_the_kill_switch_is_derived_from_the_live_peak():
+    """916.25 is the Phase I peak (1041.19) x 0.88. Phase II reset the book and
+    the constant stayed, so on 2026-09-15 the prompt described a halt 27 USDT
+    above where the agent would actually halt."""
+    from deploy.ai_deep_review import kill_switch_level
+    from deploy.ltp_agent import AgentConfig
+    assert kill_switch_level(1010.75) == pytest.approx(889.46, abs=0.01)
+    # Coupled to the agent's own setting, not retyped: if dd_halt moves, this
+    # moves with it, which is the whole reason it is derived.
+    assert kill_switch_level(1000.0) == pytest.approx(
+        1000.0 * (1 - AgentConfig().dd_halt))
+    assert kill_switch_level(0) is None and kill_switch_level(None) in (
+        None, pytest.approx(kill_switch_level(None)))
+
+
+def test_an_unreadable_peak_is_labelled_rather_than_guessed():
+    """A fallback the reviewer cannot tell is a fallback is worse than no
+    number -- the same discipline EQUITY_AS_OF already enforces for equity."""
+    p = constraint_prompt(date(2026, 9, 15), equity=999.35, peak=None)
+    if "889.46" not in p:                  # no state file: fallback path
+        assert f"{KILL_SWITCH:.2f}" in p
+        assert "may be stale" in p
+        assert "treat the drawdown as unknown rather than as zero" in p
+
+
+def test_drawdown_is_measured_not_typed():
+    from deploy.ai_deep_review import drawdown_pct
+    assert drawdown_pct(999.35, 1010.75) == pytest.approx(1.128, abs=0.01)
+    assert drawdown_pct(1010.75, 1010.75) == 0.0
+    assert drawdown_pct(1020.0, 1010.75) == 0.0      # never negative
+    assert drawdown_pct(999.35, None) in (None, pytest.approx(
+        drawdown_pct(999.35, None)))
 
 
 def test_the_risk_budget_is_read_live_rather_than_hardcoded():

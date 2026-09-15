@@ -1071,6 +1071,100 @@ actually believed at the time; the correction lives here and in
 `deploy/WEEKLY_REVIEW.md` instead. Freezing `mu` at entry for the life of a
 position remains **not** shipped, for the reasons in the 2026-08-06 addendum.
 
+## Addendum — the review prompt told our own AI the phase was over (2026-09-15)
+
+No change to what the agent trades. A change to what its analytical layer is
+told about the world — and the second time a claim this project relied on
+turned out to have been manufactured by our own prompt.
+
+### What was wrong
+
+`constraint_prompt()` in `deploy/ai_deep_review.py` briefs every deep review on
+the risk budget. Three of its numbers were Phase I, and stayed there for 25 days
+after Phase I closed:
+
+| the prompt said | source | live truth on 2026-09-15 |
+|---|---|---|
+| "**0 days remain** in the phase" | `days_left()` counted to `PHASE_I_END` = 2026-08-21, clamped at 0 | **50 days** remain in Phase II |
+| kill switch at **916.25** | `KILL_SWITCH` constant = Phase I peak 1041.19 × 0.88 | **889.46** |
+| "max drawdown **already banked at 3.7%**" | **string literal** | **1.13%** |
+| "**Phase I advancement is assured** regardless of rank" | string literal | Phase I closed; Phase II scores from zero |
+
+The irony is exact. The constant block above these lines already warned that
+*"a number written out by hand goes stale in silence, and a stale number inside
+a prompt is indistinguishable, to whoever reads the output, from a lie."*
+`days_left()` was written to fix precisely that — and then the date it counted
+**to** went stale, which the derivation could not catch.
+
+### What it caused
+
+On 2026-09-15 at 17:24 the reviewer, reasoning correctly from what it was
+given, concluded the phase was won and recommended **halting all trading**:
+
+> "with 89.80 USDT to a self-imposed kill switch … the highest-EV action is to
+> stop opening new positions" … "The phase is won. Stop trading."
+
+Day 6 of 57, holding live capital. Its own round-7 self-critique flagged the
+premise as the weakest link without being able to see that it was false.
+
+**It never reached trading.** Deep review is advisory; entries route through
+`ai_spread_assessment` and the news gate, both of which were fed live data and
+behaved correctly throughout — the 20:00 assessment rated the regime `stressed`
+and described the acceleration honestly. The blast radius is the corpus the
+audit reads for logical depth, not the book.
+
+### What ships
+
+Instrumentation and prompt text only. No entry, exit, sizing or stop logic
+changes:
+
+- **`days_left()` repointed to `PHASE_II_END`** and documented as the live
+  phase, with the failure written into its docstring so the next phase boundary
+  is a known hazard rather than a fresh surprise.
+- **`kill_switch_level(peak)`** derives our halt from the live high-water mark
+  and the agent's **own** `AgentConfig.dd_halt`, so the briefing cannot describe
+  a level the agent would not halt at. Same principle as `stop_facts()`
+  delegating to `stop_analysis`: the briefing and the mechanism must not be able
+  to drift apart. `KILL_SWITCH` survives as a **labelled fallback** only.
+- **`drawdown_pct(equity, peak)`** measures the drawdown instead of quoting a
+  literal.
+- **An unreadable peak is announced, not guessed.** The prompt then says the
+  level "may be stale" and instructs the reviewer to "treat the drawdown as
+  unknown rather than as zero" — the discipline `EQUITY_AS_OF` already enforced
+  for equity.
+- **The closing clause is replaced with two facts that cut opposite ways.** The
+  old one ("advancement is assured") pushed toward inaction. Replacing it with
+  one that pushes toward action would be the same defect mirrored, so the prompt
+  now states that MDD is monotonically non-decreasing (caution) *and* that
+  Sharpe counts only completed days, so an idle day enters the mean as a zero
+  (against idling). Both are scoring rules. The model weighs them.
+- `followups()` threads `peak` through alongside `equity`.
+
+`live_peak()` moved above the module-level `FOLLOWUPS` construction, which
+calls `constraint_prompt()` at import.
+
+Pinned by seven tests in `tests/test_ai_deep_review.py`
+(the suite goes 249 -> 255: seven added, one Phase I test replaced):
+`test_days_remaining_counts_to_the_phase_that_is_actually_running`,
+`test_the_prompt_never_again_says_the_live_phase_is_over` (matched at the start
+of the string — "50 days remain" contains "0 days remain", and the first
+version of that test failed on correct output for exactly that reason),
+`test_the_phase_one_reassurances_are_gone`,
+`test_the_closing_facts_cut_both_ways`,
+`test_the_kill_switch_is_derived_from_the_live_peak`,
+`test_an_unreadable_peak_is_labelled_rather_than_guessed` and
+`test_drawdown_is_measured_not_typed`.
+
+### What does NOT ship
+
+Nothing is back-filled. Reviews generated between 2026-09-09 and 2026-09-15
+remain in the ledger as written, including the "stop trading" recommendation,
+because the ledger records what the agent actually believed at the time. The
+correction lives here and in `deploy/WEEKLY_REVIEW.md`. **Any reading of the
+deep-review corpus from that window must discount every constraint-conditioned
+answer**, which is the whole of the fifth follow-up in each run.
+
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;
