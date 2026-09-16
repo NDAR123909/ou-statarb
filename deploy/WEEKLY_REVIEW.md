@@ -4583,6 +4583,80 @@ reconstructed again.
 
 ---
 
+## 2026-09-16 (late) — reboot done on the flat book, and a nuance about the bar counter
+
+Second half of the same maintenance window. Both items that had been parked
+behind "wait for a flat book" since 09-15 are now closed.
+
+### Clean, and faster than last time
+
+`24.04.4 → 24.04.5`; perl, libsqlite3, libaom, base-files; kernel stayed
+**6.8.0-139** ("Running kernel seems to be up-to-date" — the pending-restart
+banner was from an earlier update, not a new kernel). Banner cleared, **0
+updates pending**.
+
+**Agent downtime ~30 seconds** — stopped 21:29:30, started 21:29:48, fully up
+by 21:30:00. The 2026-09-09 reboot took ~5 minutes; this one benefited from
+having no kernel to install.
+
+Everything survived:
+
+```
+service     active, pid 752, restarts 0
+equity      995.21    peak 1010.75    dd 1.54%    kill switch 889.46
+bad_read    307, unmoved
+bar         204  (not 0)
+journal     drawdown peak anchored at 1010.75 · self-check PASS
+            news stream: live · automation session ras_69d3b913-...
+```
+
+`--force-confold` was used deliberately on the dist-upgrade. If dpkg had
+replaced `/etc/ssh/sshd_config` with a version disabling root login, the droplet
+would have been unreachable by the only route we have to it. Worth keeping in
+the procedure.
+
+### The nuance: the counter survives, but the refit HOUR drifts
+
+The 2026-09-09 entry says the bar counter surviving means *"the refit clock did
+not move."* That is right about **state** and slightly too strong about
+**schedule**.
+
+On restart the agent ticks immediately and only then sleeps to the top of the
+next hour, so **every restart adds one off-cycle bar**. The refit fires on
+`state["bar"] % refit_every_bars == 0` (`ltp_agent.py:1186`), so the counter is
+intact — but the wall-clock time at which the next multiple of 24 arrives moves
+**one hour earlier per restart**.
+
+Today had two restarts (the key rotation at 20:57, the reboot at 21:29), so:
+
+```
+refits have landed at 12:00 UTC on 09-13, 09-14, 09-15, 09-16
+next refit is bar 216, projected ~09:00 UTC on 09-17 -- about two hours earlier
+```
+
+**Harmless in itself** — the hour a refit happens is arbitrary. But two things
+follow. The standing advice to avoid running things near the refit goes stale
+whenever this drifts, so read `status.py`'s "next in N bars" rather than
+assuming 12:00. And a future session should not repeat the 09-09 phrasing as
+though restarts are schedule-neutral; they are state-neutral, which is the part
+that matters, and schedule-mobile, which is the part that surprises.
+
+`bars_to_refit`'s own docstring already records a related bruise — a restart
+landing on bar 432 cost a round of debugging on 2026-08-14 — so restart/bar
+interactions have bitten before and are worth stating precisely.
+
+### Where the evening leaves us
+
+Both flat-book items are done: key rotated onto a clean credential with the old
+keys deleted, and the droplet fully patched. Neither touched trading logic and
+the agent was down for under a minute in total.
+
+Still open and unchanged in priority: **the GitHub deploy key**, which is the
+only item whose failure mode is losing the Phase II record entirely, and the AI
+gateway key, which is low impact.
+
+---
+
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
 
 > **STATUS 2026-09-08, read this before the list.** The build window closed and
@@ -5046,7 +5120,13 @@ Carried from week 1. Do these in order; the analysis gates the tuning.
   flagged it earlier. Until that pattern appears in the ledger, leave it alone.
 - `get_leverage` readback parses a dict but the API returns a list, so
   `set_leverage.py` prints `Nonex` (cosmetic only — the sets succeeded).
-- Droplet has pending Ubuntu security updates; safe to apply and reboot (the
-  service auto-starts and state survives).
+- ~~Droplet has pending Ubuntu security updates~~ **APPLIED 2026-09-16**,
+  24.04.4 → 24.04.5, 0 pending, banner cleared, ~30s of agent downtime on a flat
+  book. The service does auto-start and state does survive, as this said — with
+  one correction recorded in that day's entry: each restart adds an off-cycle
+  bar, so the refit **hour** drifts an hour earlier per restart even though the
+  counter is intact. Use `--force-confold` on the dist-upgrade; a replaced
+  `sshd_config` would lock us out of the only route to the box. Three ESM
+  updates remain and need Ubuntu Pro — not taken.
 - `deploy/ltp_state.test.json` / `ltp_ledger.test.jsonl` are archived
   pre-competition shakeout data, kept for the post-mortem.
