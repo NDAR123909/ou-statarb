@@ -4346,6 +4346,13 @@ net                          ~ -3.5   ~0.34% of NAV
 nothing, and the honest reading is that the P&L question cannot be closed at
 this sample size.
 
+Two measurement bases, both reported rather than averaged away: on a single
+consistent **decision-price** basis the net is **−3.69**; using the **venue**
+figure where one exists, **−3.46**. The output calls it −3.5 and says why.
+Worth keeping because the 0.23 gap between them is the live-vs-decision
+slippage question in miniature, on a book where that has never been measured
+in Phase II.
+
 ### The drawdown result is the one the brief said to judge on
 
 ```
@@ -4363,6 +4370,13 @@ trades and the drawdown rather than the P&L sum — the method task 04
 established — and on that test the answer is clear.
 
 **VERDICT: `side_blocked` earns its keep. No change. Invariant 4 stands.**
+
+**That verdict is ours, not the task's, and the distinction is the standing
+rule.** The output's own bottom line is *"unproven on P&L, favourable on risk,
+and the sample is two — not ten"*; it issues no recommendation, which is
+correct — research output is evidence, not orders. The step from "removed both
+tails, 28% off a monotone drawdown" to "keep it" is the human decision the
+queue exists to inform.
 
 Not converted to a score delta, correctly: Sharpe over ~20 daily returns cannot
 resolve a two-episode perturbation, and inventing that number would have been
