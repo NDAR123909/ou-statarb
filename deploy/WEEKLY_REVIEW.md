@@ -1753,7 +1753,8 @@ section existed; that is what it is for.
 | Decide whether the sentinel should gain **macro-event awareness** (Fed/CPI/GDP are market-wide; our prompt is asset-specific and would rate them `none`) | 2026-07-28 | Sunday review; design question is whether market-wide risk should shrink size across all pairs, or whether the hedge already handles it |
 | ~~**Sample the AI rationales for genuine depth**~~ **CLOSED 2026-08-04, nothing to fix** — `ai_spread_assessment` n=300, median 54 words, `max_tokens` never binding; the sampled rationales cite the z path, half-life and band. The "~22 tokens per call" that raised this divided a rolling-window count by a lifetime count | 2026-07-27 | closed |
 | ~~Reboot the droplet~~ **DONE 2026-08-06** — 19s down, hwm/bar counter/crontab all survived, first ever test. Kernel packages were kept back; `dist-upgrade` + the second reboot completed 2026-08-09 | 2026-07-28 | closed |
-| **Rotate credentials — now four, not two.** (1) the July LTP + AI keys pasted in chat; (2) **the Phase II production key AND secret**, pasted in chat at the 2026-09-08 cutover — the same mistake, made again, by the session that was reading the rule; (3) the GitHub PAT, expired 2026-08-27. Mitigated but not fixed by the IP allowlist (`68.183.209.2`) and by Withdraw/Transfer being OFF on the production key | 2026-07-20, re-opened 2026-09-08 | **the "before Phase II" trigger has passed.** Next window the operator is at the droplet with time; the trading key is the urgent one because it can trade |
+| **Rotate credentials — PARTLY DONE 2026-09-16.** ~~(1) July LTP keys~~ not present in the dashboard, moot. ~~(2) the Phase II production key AND secret~~ **rotated and the old key deleted**; one key remains, Read + Trade only, Withdraw and **Transfer** both OFF, IP-bound. A third exposure happened during the rotation itself (a new key screenshotted ~90s after issue) — that key never went live and is deleted. **Still open: (a) the AI gateway key `sk-…`, low impact — worst case someone burns budget, which `status.py` shows; (b) the GitHub PAT, expired 2026-08-27.** | 2026-07-20, re-opened 2026-09-08, part-closed 2026-09-16 | **CORRECTION: the trading key was never "the urgent one" and I said so for two months.** It is IP-bound to `68.183.209.2` with Withdraw OFF, so a leaked copy is inert off the droplet — and anyone *on* that droplet has the key from `/root/ltp.env` anyway. Rotation does not defend against the only attacker who could use it. Residual risk is narrow: LTP drops or misconfigures IP binding and someone trades the stake to zero. **Do not re-file this as an alarm** |
+| **Give the droplet a GitHub deploy key — this is the one that actually matters, and it was ranked third.** Checked 2026-09-16: `track_record/equity.csv` last row is **2026-08-12** and is the *Alpaca* paper track; `track_record/` has not been committed since **2026-08-21**. **Nothing about Phase II exists anywhere but the droplet** — not the ledger, not the state history, not the equity curve. `CLAUDE.md` says the project exists to produce a verifiable live track record; a droplet failure erases the phase that matters. `ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519_oustatarb -N ""`, add the **public** half at repo → Settings → Deploy keys with write access, switch the remote to SSH, then extend the 23:50 cron to commit and push `track_record/` | 2026-07-30, re-prioritised 2026-09-16 | **next session at the droplet — ten minutes, zero trading risk.** Also check whether DigitalOcean backups are enabled, which would change the severity |
 | **Give the droplet a non-interactive git credential** (deploy key or stored PAT), then extend the 23:50 UTC cron to `git add track_record/ && git commit && git push` | 2026-07-30 | next time the operator is at the droplet terminal — until then `ltp_state_history.jsonl` exists only on that machine |
 | ~~Re-check rank~~ **DONE 2026-08-02**: #2 of 29, score 94.4 | 2026-07-30 | closed |
 | ~~Restore `risk_per_pair` 0.002 → 0.004~~ **APPROVED 2026-08-02, HELD the same evening, and DECIDED AGAINST at the 2026-08-09 review** | 2026-07-30 | **closed.** Sizing is scale-invariant in Sharpe, so a restore buys the 45% of the score made of PnL and ROI while doing nothing for the 40% made of Sharpe, and roughly doubles the MDD we still lead on. The organizer's 2026-08-04 Quant Tip reaches the same place from the scoring side. Re-opening this needs a new argument, not the old one |
@@ -1772,7 +1773,7 @@ section existed; that is what it is for.
 | **Ask the organizers whether the USD 1 floor is daily or was one-off enforcement, and whether they read a lifetime total or the per-period meter** — their 2026-08-12 Telegram reply says "zero **total** AI usage", which does not settle it. Clearing 1.00 every period is safe under either reading, but that is an assumption. Rides along with the header-only CSV report we already owe them | 2026-08-12 | next organizer contact; draft is written when the operator wants it |
 | **`ltp_stream.py:31` hardcodes `wss://feeds.ltp-contest.com`** — the contest domain, which the cutover moved *away* from everywhere else. No env change reaches it; if that domain is retired now production is live, `NewsStream` goes silent and only a code edit fixes it. Proposed change: an env lookup mirroring `ltp_news.py:50` | 2026-09-08 | needs the operator's go. Wait for one live news-gate reading first — if the gate is healthy, this is precautionary rather than urgent |
 | **Verify `ltp_news.py`'s `FEEDS_BASE` against the production host** — it follows `LTP_API_HOST` so it moved with the cutover, but nothing has confirmed `api.liquiditytech.com` serves the feeds path at all | 2026-09-08 | first hourly tick after 2026-09-08 15:37 UTC. `status.py`'s news-gate line answers it |
-| **`deploy/README_ltp.md:20` still documents `LTP_API_HOST=https://api.ltp-contest.com`** — the sandbox host. A future session following the setup block would rebuild the exact failure we just spent a day diagnosing | 2026-09-08 | next doc pass; trivial, but it is a trap laid for a cold reader |
+| ~~**`deploy/README_ltp.md:20` still documents the sandbox host**~~ **ALREADY FIXED — this row was stale.** Found 2026-09-16 while preparing the rotation: the setup block has carried `https://api.liquiditytech.com` with an explicit warning that the AI gateway did **not** move with it and the two domains must not be tidied to match. A *different* trap was live in that block, though — `rapidx self-check --read-only`, a flag CLI 1.0.45 removed — and that is now fixed too | 2026-09-08 | closed |
 | **Re-run `universe_scan.py`** now that ETH/BTC is actually fetched. The 2026-09-09 run's CURRENT line (`0/14`) excluded the pair carrying the book and cannot be quoted until this is done | 2026-09-09 | next droplet session, avoiding ~15:38 UTC (refit) |
 | **Rule out a data cause for the 0/54**, before "regime" is written down as fact. ETH\|BTC passed 09-07, then 0/15 and 0/54 within 36h — coinciding exactly with the host change. Compare klines from `api.liquiditytech.com` against a known 09-07 fit | 2026-09-09 | before any decision rests on the regime verdict |
 | ~~**Enumerate the orderable instrument set**~~ **PROBED 2026-09-10.** No listing action exists in any of the 53 capabilities — enumeration is a name-by-name probing exercise with `get-symbol-info` as the oracle. `OKX_PERP_CL_USDT` (WTI crude) is **live and reachable** | 2026-09-10 | closed as a question; the blocker below replaces it |
@@ -4458,6 +4459,127 @@ in the repo, or the brief must say plainly that it is not.**
 **The queue is now empty.** 01, 03, 04 and 02 are all done. The README's
 standing rule applies: *"If the queue is empty, skip it — there is no make-work
 here."* Next Wednesday is skipped unless Sunday's review generates a question.
+
+---
+
+## 2026-09-16 (evening) — the trading key is rotated, and I had the urgency backwards
+
+Done on a flat book, verified end-to-end, agent never stopped trading for
+longer than a restart. **The LTP dashboard now shows exactly one key.**
+
+### What happened first: both Phase II positions stopped
+
+```
+09-15 20:00  1000SHIB/DOGE  Z-STOP z=-3.54, closing + blocking side
+09-16 10:00  NEAR/ICP       Z-STOP z=+3.76, closing + blocking side
+```
+
+Equity **995.21**, peak 1010.75, drawdown **1.54%** banked. Phase II is
+**−0.48%** on two entries and two stops. Week 6's "3rd place, best
+return-per-drawdown on the board" rested on one unrealised position; that
+position reverted, was re-entered the other way, stopped, and its successor
+stopped too.
+
+**NEAR/ICP stopped at +3.76 against a 3.5 band** — a 0.26σ overshoot, to be read
+on Sunday beside the 13.24σ frame drift and task 01's overshoot ceiling.
+
+The journal also confirms the churn sequence from primary source, which until
+now this record only had via a deep-review summary:
+
+```
+09-14 12:01 EXIT -0.16 · 13:00 ENTER +0.67 · 09-15 01:00 EXIT -0.29
+      02:00 ENTER -0.70 · 05:00 EXIT +0.05 · 07:00 ENTER -0.96 · 20:00 STOP -3.54
+```
+
+And the gate is genuinely thin, not broken: **1/15, 1/15, 2/15, 1/15** passing
+across four consecutive refits, rejections spread across five different filters
+each time. The agent is flat with one pair in the universe and that pair
+blocked, so it currently **cannot trade at all**. Idle days enter the Sharpe
+mean as zeros — one for Sunday, not a reason to touch the gate.
+
+### The rotation
+
+`NDAR-PhaseII` (the 09-08 cutover key) and the accidentally-exposed
+`ltp-agent-2026-09-16` are **deleted**. One key remains, `2C569…D5786`, with
+**Read + Trade (RapidX), All Accounts, Withdraw OFF, Transfer OFF**, IP-bound to
+`68.183.209.2`.
+
+Transfer was dropped deliberately: the broker only calls `self-check`,
+`market get-klines`, `trade preview`, order placement and account reads —
+**verified by reading it**, not assumed.
+
+Verification chain, all four green:
+
+```
+rapidx auth check      maskedAccessKey <matches the surviving dashboard row>
+drawdown peak          anchored at 1010.75 USDT      <- hwm survived
+self-check             PASS
+automation session     ras_7bb033df-...              <- the Trade-scope proof
+```
+
+**The last line is the one that mattered.** `rapidx auth check` is read-only and
+would have passed on a Read-only key; the agent would then have run for hours
+and failed at its first order. Starting an automation session is a write.
+Written into `README_ltp.md` so the next rotation checks it.
+
+Bar counter went 200 → 203 across the restart without resetting, so the refit
+clock did not re-phase. `bad_read` still 307.
+
+### I had the urgency backwards, and said so before doing it
+
+I have carried "rotate credentials" as an alarm since July and repeatedly called
+the trading key **"the urgent one."** That was wrong, and the reason is in the
+record's own notes: the key is **IP-bound to the droplet** with **Withdraw
+OFF**. A holder of the pasted key on any other machine can do nothing with it;
+anyone who *is* on that IP already owns the droplet, where the key sits in
+`/root/ltp.env` regardless. Rotation does not defend against the attacker who
+can actually use it.
+
+The real residual risk is narrow — LTP removes or misconfigures IP binding, and
+someone deliberately trades the stake to zero. Low probability, and it costs the
+competition run rather than money.
+
+**What I had ranked third is actually first.** Checked while answering "how
+necessary is this": `track_record/equity.csv` last row is **2026-08-12** and is
+the *Alpaca* paper track; `track_record/` has not been committed since
+**2026-08-21**. **Nothing about Phase II exists anywhere but the droplet** — not
+the ledger, not the state history, not the equity curve. `CLAUDE.md` says this
+project exists to produce "a verifiable live track record"; a droplet failure
+tonight erases the phase that matters. The GitHub deploy key is ten minutes,
+carries zero trading risk, and is the only open item whose failure mode is
+losing the deliverable.
+
+### Third chat exposure, and the fix is a command not a resolution
+
+A brand-new key was screenshotted about **ninety seconds after it was issued**,
+while asking "what now". The rotation was then completed onto a *different*,
+clean key — confirmed by the mask: the exposed key and the live
+one differ in the first four characters, so the leaked key never went live and
+has been deleted.
+
+Three exposures now: July, the 09-08 cutover, and this. **None were
+carelessness.** All three happened because the natural way to ask "does this
+look right?" is to show the file. Telling someone to be careful has now failed
+three times, so `README_ltp.md` gets the command instead:
+
+```bash
+sed -E 's/(KEY=|SECRET_KEY=).*/\1<redacted>/' /root/ltp.env
+```
+
+That output is safe to paste anywhere and still proves what you actually need to
+check — that an edit did not clip `LTP_AUTOMATION_CONSENT_TEXT`.
+
+### A doc bug that cost a minute mid-rotation
+
+`README_ltp.md:25` documented `rapidx self-check --read-only --json`. That flag
+was removed by CLI 1.0.45 and now hard-fails `RCLI30001 unknown field:
+readOnly`. **It is an input-validation error, not an auth failure** — which is
+why proceeding was correct — but mid-rotation it reads like a credential
+problem. Fixed, with the failure mode named in the doc.
+
+`README_ltp.md` now also carries the whole verified rotation procedure, since
+this one was reconstructed live in a chat window and would otherwise have to be
+reconstructed again.
 
 ---
 

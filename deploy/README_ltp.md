@@ -22,11 +22,67 @@ export LTP_SECRET_KEY="..."
 # The AI gateway did NOT move with it — LTP_AI_BASE_URL stays on
 # ai.ltp-contest.com. The two domains have diverged; do not tidy one to match.
 export LTP_API_HOST="https://api.liquiditytech.com"
-rapidx auth check && rapidx self-check --read-only --json
+# `--read-only` was REMOVED from the CLI by 1.0.45 and now hard-fails with
+# RCLI30001 "unknown field: readOnly". That is an input-validation error, not
+# an auth failure -- it says nothing about your credentials. It cost a
+# confusing minute mid-rotation on 2026-09-16.
+rapidx auth check && rapidx self-check --json
 
 # 3. Python side is just this repo
 pip install -e .
 ```
+
+### Never show this file to anyone, including an assistant
+
+Credentials have reached a chat window **three times** — July, the 2026-09-08
+cutover, and again on 2026-09-16, when a brand-new key was screenshotted about
+ninety seconds after it was issued. None of these were carelessness. All three
+happened for the same reason: **the natural way to ask "does this look right?"
+is to show the file.**
+
+So don't. Ask with this instead, which proves the structure without exposing
+anything — it is what you want when checking that an edit did not clip
+`LTP_AUTOMATION_CONSENT_TEXT`, which is the line most likely to break:
+
+```bash
+sed -E 's/(KEY=|SECRET_KEY=).*/\1<redacted>/' /root/ltp.env
+```
+
+If a key does reach a chat, it is not an emergency **provided the key is
+IP-bound** (see below) — but rotate it anyway, and rotate onto a key you do not
+then screenshot.
+
+### Rotating the trading key (verified procedure, 2026-09-16)
+
+The point of this order is that **nothing live changes until the new key is
+proven**, and the old key stays valid the whole time, so rollback is always
+available:
+
+```bash
+cp /root/ltp.env /root/ltp.env.bak.$(date +%F-%H%M)
+cp /root/ltp.env /root/ltp.env.new
+nano /root/ltp.env.new                 # change ONLY the two key lines
+( set -a; source /root/ltp.env.new; set +a; rapidx auth check )
+mv /root/ltp.env.new /root/ltp.env
+systemctl restart ltp-agent            # DO NOT SKIP -- an omitted restart once
+                                       # left the agent down for ten minutes
+journalctl -u ltp-agent -n 40 --no-pager
+```
+
+**Create the key with `Read` + `Trade (RapidX)`, `All Accounts`, Withdraw OFF,
+Transfer OFF, and the droplet IP in the IP field.** Transfer is deliberately
+off: the broker only calls `self-check`, `market get-klines`, `trade preview`,
+order placement and account reads — it never transfers or withdraws.
+
+**`rapidx auth check` cannot verify the Trade permission**, because it is
+read-only and would pass on a Read-only key; the agent would then run for hours
+and fail at its first order. The proof is the **`automation session ras_…`**
+line in the journal after restart — starting a session is a write and needs
+trade scope. Also confirm `drawdown peak anchored at …` and `self-check PASS`.
+
+Delete the old keys **only after** that, and pick the row to keep by matching
+`maskedAccessKey` from `rapidx auth check` against the dashboard's Access Key
+column. Never by name — names are memory.
 
 ## Running
 
