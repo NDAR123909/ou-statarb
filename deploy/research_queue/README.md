@@ -90,6 +90,26 @@ eventually be dispatched without being read.
   corpus, and it exists because that corpus turned out to contain a confident,
   widely-repeated claim that was fabricated by our own prompt.
 
+## What the research lane can and cannot see — CHECK THIS BEFORE WRITING A BRIEF
+
+**The repo carries Phase I only.** `track_record/phase1_submission/reasoning.jsonl`
+ends **2026-08-21T16:00:23Z**, and there is no `deploy/*.jsonl` in the repo at
+all. The live Phase II ledger exists **only on the droplet**, which Cowork
+cannot reach.
+
+This was learned the expensive way on 2026-09-16. Task 02's brief had been
+updated twice with Phase II material — the live `blocked=1`, the 09-15 churn
+cluster, the −3.54 stop — all of it quoted from droplet output pasted into a
+chat window, and **none of it reachable by the tool being asked to analyse it.**
+The dispatch still produced a good answer, because Cowork opened by saying the
+data was missing and scoped its work to Phase I. It should not have had to.
+
+**So: every figure a brief asks about must be in the repo, or the brief must
+say plainly that it is not and what to do instead.** If a question genuinely
+needs Phase II data, the honest options are to ask the operator to paste the
+relevant ledger lines into the repo on the task branch first, or to defer the
+question until the droplet ledger is committed (a standing open commitment).
+
 **These held.** Audited 2026-09-14 across all three completed dispatches: each
 branch contains exactly one new file, its own `out/` answer, and nothing else —
 no edits to the records, no stray files, no changes to agent code. The rules
@@ -99,7 +119,7 @@ travelling inside each PROMPT block is what did that, so keep copying them.
 
 | # | task | status |
 |---|---|---|
-| 02 | `02-side-blocked-earned-its-keep.md` — nothing waits on it | **open · run next** (Wed 2026-09-16) |
+| — | *(empty)* | The queue is clear. **Do not invent work to fill it** — README, top. |
 
 ## Done
 
@@ -111,6 +131,7 @@ here, not on the research branches.
 | 01 | `done/01-overshoot-recheck.md` | `out/01-overshoot-recheck.md` | **2026-09-09.** −10.67 reproduces but is stale and an upper bound; recoverable fraction unmeasurable. Intra-bar monitor **DROPPED** 09-13 |
 | 03 | `done/03-frame-drift-cost.md` | `out/03-frame-drift-cost.md` | **2026-09-11.** Mislabelling cost nothing, drift cost one stop; n=9 closes, not enough to act on. **Falsified its own brief's anchor case**, which found the `entry_beta` bug |
 | 04 | `done/04-entry-depth-vs-stops.md` | `out/04-entry-depth-vs-stops.md` | **2026-09-13.** Depth does not predict stop-outs (Fisher p=1.00); damage is in the middle bucket. **DO NOTHING** |
+| 02 | `done/02-side-blocked-earned-its-keep.md` | `out/02-side-blocked-earned-its-keep.md` | **2026-09-16. The block EARNS ITS KEEP on drawdown.** The "ten refusals" are **two episodes** (entry fires only when `side == 0`). Net −3.5 (~0.34% NAV), but MDD **2.273% → 1.779%** — a 28% relative cut in permanent drawdown. Also found: `blocked` does **not** survive pair eviction (`ltp_agent.py:302–306`), an undocumented third exit from the block |
 
 Run order was **01 → 04 → 03 → 02**, not numeric. 04 jumped to the front on
 2026-09-13: it gates a live sizing decision, and the agent had just entered at

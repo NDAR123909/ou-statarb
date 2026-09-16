@@ -1793,6 +1793,8 @@ section existed; that is what it is for.
 | ~~**Probe the news/feeds path against `api.liquiditytech.com`**~~ **CLOSED 2026-09-13** — the first Phase II entry passed through it: `screened: true`, `news_status: ok`, both legs rated, `news_age_h 0.0`. `news_assessment` 577 → 612. `ltp_stream.py`'s hardcoded WS host is still untested separately, but the journal reports `news stream: live` | 2026-09-08 | closed |
 | ~~**Entry depth is unbounded and unsized**~~ **MEASURED 2026-09-13, DECISION: DO NOTHING.** Stop rate is flat past |z|=1 (44/50/43%, Fisher p=1.0000); the damage is in the MIDDLE bucket, where all five worst trades entered (1.19-2.33); both candidate controls cost real money and one makes drawdown worse. Deep-relative entries stopped LESS often (1 of 5). Do not re-propose without new evidence | 2026-09-13 | closed. If reopened, use the first-passage probability in `thresholds.py` scored on all 31 closes, not more trades |
 | ~~**Decide on the pending reboot**~~ **DONE 2026-09-09 16:22 UTC** — kernel 6.8.0-137 → 139, 0 updates pending, banner cleared, ~5 min downtime on a flat book. `NRestarts=0`; equity, peak, `bad_read` and **the bar counter** all survived, so the refit clock did not move. The "it re-phases the clock" note in this row was wrong and is corrected in the day-1 entry | 2026-09-08 | closed |
+| **DECIDE: does the re-entry block survive pair eviction?** Task 02 found, and I verified against `ltp_agent.py:302–306`, that `state["pairs"]` is rebuilt over `keep_keys` only — **a pair dropped by a refit loses its entire entry, `blocked` included**, and returns unblocked. `CLAUDE.md` invariant 4 promises the side "stays blocked until z heals inside the entry band"; the real lifetime is "until z heals **OR the pair leaves the universe for one refit**". That is how the XLM/XRP block actually ended on 08-11. **Both readings are defensible** — an evicted pair returns with a new beta/mu/sigma so an old-frame block may mean nothing; but the control exists because re-entry into a spread that just broke is how one loss becomes several, and eviction-then-return is exactly that. **No change without a decision, and a test either way — it currently has none** | 2026-09-16 | **Sun 2026-09-20 review.** Note the block was just measured as *worth keeping* (MDD 2.273% → 1.779%), so this is about making its stated lifetime true, not about whether to have it |
+| **Push task 02's output** — `deploy/research_queue/out/02-side-blocked-earned-its-keep.md` is on `research/side-blocked` on the operator's laptop. Then land it on the working branch and `git mv` the task into `done/`, per README step 4 | 2026-09-16 | next laptop session. The README's Done table already names both paths as if they resolve |
 | ~~**Fix `constraint_prompt()` in `ai_deep_review.py`**~~ **DONE 2026-09-15**, same evening. The defect: `days_left()` counted to `PHASE_I_END` so it said **"0 days remain"** when 50 did; `KILL_SWITCH = 916.25` was frozen at the Phase I peak x 0.88 against a live 889.46; the 3.7% drawdown and "Phase I advancement is assured" were **string literals**. The model acted on it and recommended halting all trading on day 6 of 57. **Mine** — I added `PHASE_II_START/END`, `phase_days()` and `live_peak()` on 09-13 and never wired this function to them. The fix: `days_left()` repointed to `PHASE_II_END`; `kill_switch_level()` derives the halt from the live peak and the agent's own `AgentConfig.dd_halt`; `drawdown_pct()` measures it; an unreadable peak is labelled rather than guessed; the "advancement is assured" clause replaced by two scoring facts that cut opposite ways. Seven tests, suite 249 → 255. Disclosed in `LTP_STRATEGY.md`. **Not back-filled** — the 09-09 → 09-15 reviews stay as written, and any reading of that window must discount the constraint follow-up | 2026-09-15 | closed |
 | **Re-read task 03's answer beside the 2026-09-15 stop.** That task closed with *"nine closes and two drift events … not enough to act on."* Close number ten carries `mu_shift_sigma` **13.24** (132× material), σ widening **4.87×** in 13 bars, and a stop that fired **0.49σ late** in its own entry coordinates. The conclusion has weakened; it has not been overturned, and no change is proposed | 2026-09-15 | Sun 2026-09-20 review, with `out/03-frame-drift-cost.md` open beside it |
 | ~~**Glance at `status.py` after 09:00 UTC on Tue 2026-09-15**~~ **CLOSED 2026-09-15, clean.** The RapidX window (08:05–08:20 UTC) passed with **zero impact**, as the tick arithmetic predicted: `news_assessment` +40 over 40 bars means **every bar ticked**, `bad_read` unmoved at 307, restarts 0, trading continued normally through 08:00 and 09:00. Not arming the guard is now verified rather than argued — and had it been armed it would have flattened a position for nothing | 2026-09-14 | closed |
@@ -2018,6 +2020,17 @@ hours on a spread that then reverted hard. That is the sharpest evidence yet
 that this control may cost more than it saves, and it makes the Phase II
 question concrete rather than theoretical: **ten blocks are now on record, and
 one of them sat directly in front of our best trade.**
+
+> **CORRECTED 2026-09-16 by task 02, which measured both halves of that
+> sentence and found both wrong.** (a) The ten are **two blocking episodes**,
+> not ten independent refusals: entry fires only when `side == 0`, so five
+> consecutive skips on one pair are **one** forgone trade. (b) The block did
+> **not** sit in front of the best trade — the +13.40 winner was on the
+> **unblocked** side and fired the same bar the block healed. What the block
+> displaced was a *different*, better trade on the blocked side. The conclusion
+> drawn here — "the sharpest evidence yet that this control may cost more than
+> it saves" — does not survive: on the full counterfactual the block cost ~3.5
+> USDT and cut max drawdown from 2.273% to 1.779%. See the 2026-09-16 entry.
 
 ### #1 of 30 — and the Sharpe move is noise in our favour
 | | **NDAR #1** | X-Explore #2 | Little J #3 | T.Anh #4 | btcol #5 |
@@ -4301,6 +4314,139 @@ region of that corpus.
 
 ---
 
+## 2026-09-16 — task 02: the block earns its keep, and the ten were two
+
+Dispatched Wednesday as scheduled. Output on `research/side-blocked`.
+
+### The denominator was wrong, again
+
+**Entry fires only when `side == 0`.** So five consecutive skips on one pair
+while it is blocked are **one forgone trade, not five**. The "ten refusals"
+this project has quoted since 2026-08-20 — in the agenda, in the brief, and in
+my own summaries — are **two blocking episodes**. Both of those claims are now
+corrected in place at their source.
+
+That is the **third** denominator correction in three weeks: task 04's four
+`notional: 0` entries, the 3-of-162 cross-venue scan artefact, and now this.
+The pattern is consistent enough to name: **this project's recurring error is
+counting log lines instead of counting events.** A ledger row is not a
+decision, and the gap is always in the direction that makes the sample look
+bigger than it is.
+
+### The two episodes point opposite ways, and the net is not the point
+
+```
+XLM/XRP  08-11   block SAVED  +7.97   (3 trades, 2 stop within an hour of entry)
+KAS/ETC  08-20   block COST  ~-11.5   (a long from 06:00 rides a 6.3 sigma
+                                        reversion to +17.77, then a smaller short)
+net                          ~ -3.5   ~0.34% of NAV
+```
+
+**The sign flips if either episode reverses.** On P&L alone, n=2 decides
+nothing, and the honest reading is that the P&L question cannot be closed at
+this sample size.
+
+### The drawdown result is the one the brief said to judge on
+
+```
+MDD without the block   2.273%
+MDD actual              1.779%
+```
+
+**Half a point of permanent drawdown avoided — a 28% relative reduction — bought
+for about a third of a percent of NAV.** The block is return-reducing *and*
+risk-reducing: it removed both tails.
+
+MDD is 15% of the score and **monotonically non-decreasing**, so that half point
+is banked and never heals. The brief's own instruction was to score the worst
+trades and the drawdown rather than the P&L sum — the method task 04
+established — and on that test the answer is clear.
+
+**VERDICT: `side_blocked` earns its keep. No change. Invariant 4 stands.**
+
+Not converted to a score delta, correctly: Sharpe over ~20 daily returns cannot
+resolve a two-episode perturbation, and inventing that number would have been
+the kind of false precision this record exists to prevent.
+
+### A real code finding: the block has an undocumented third exit
+
+`ltp_agent.py:302–306` rebuilds `state["pairs"]` over `keep_keys` only. **A pair
+dropped by a refit loses its entire entry — `blocked` included.** When it later
+re-enters the universe, `old.get(k, {}).get("blocked", 0)` returns `0` and the
+block is silently gone.
+
+Verified independently against the source. This is exactly what happened on
+XLM/XRP 08-11: **the block ended by pair eviction at a 0/15 refit, not by z
+healing.**
+
+`CLAUDE.md` invariant 4 says the blocked side *"stays blocked until z heals
+inside the entry band."* The real lifetime is **"until z heals, OR the pair
+leaves the universe for one refit."** That third path is undocumented, untested,
+and nobody knew it was there.
+
+Whether it is a *bug* is a genuine question, not a formality, and it is the
+operator's:
+
+- **Leave it**: an evicted pair failed the gate; on return it carries a new
+  beta, mu and sigma, so a block anchored to the old frame arguably means
+  nothing.
+- **Fix it**: the block exists because re-entering a spread that just broke is
+  how one loss becomes several — and eviction-then-return is *precisely* a pair
+  that just broke. The invariant as written promises the stronger behaviour.
+
+In Open commitments. **No change without a decision**, and either way the
+behaviour needs a test, since it currently has none.
+
+### My 3c question did not reproduce — with one caveat
+
+Same-side re-entry after a non-stop close: **2 stops / 10 = 20%.** Opposite
+side: also 20%. Book base rate 26%. **No signal**, and same-side re-entry is
+about a coin flip of all re-entries — so "three round trips in six hours" is
+churn *frequency*, not a side effect.
+
+The caveat is sharp enough to keep: the **worst trade of the phase (−18.52,
+ETC/KAS 08-21 05:00) was exactly that shape**, two bars after a reverted exit.
+One of three quick same-side re-entries. **Precedent, not pattern.**
+
+### Validation the task did on itself
+
+The cost model reproduces both calibrating trades' realised fees to within
+**0.002 USDT**. The KAS/ETC frame check came back at ratio **1.000** — so the
+4.3σ one-bar jump there is a **real move, not a task-03-style coordinate
+shift**. Worth noting that the frame-drift instrumentation is now being used as
+a routine sanity check by a tool that was not told to, which is what the
+09-09 `entry_beta` fix bought.
+
+### My error: the brief pointed at data the research lane cannot reach
+
+**The repo carries Phase I only.** `track_record/phase1_submission/reasoning.jsonl`
+ends **2026-08-21T16:00:23Z**; there is no `deploy/*.jsonl` in the repo at all.
+The Phase II ledger lives only on the droplet.
+
+I updated task 02's brief twice — on 09-13 and 09-15 — with Phase II material:
+the live `blocked=1`, the churn cluster, the −3.54 stop. **All of it came from
+droplet output pasted into a chat window, and none of it was reachable by the
+tool I was writing the brief for.** I never checked.
+
+This is the same failure as "34 of 101 bars": asserting something checkable
+without checking it. There it put a wrong number in the record; here it aimed a
+dispatch at absent data. Cowork handled it correctly — it opened by naming the
+coverage gap and scoped its work to Phase I — but it should not have had to, and
+question 3c could only be answered in a degraded form.
+
+**Fixed systemically rather than apologised for:** `research_queue/README.md`
+now carries a section, above the scope rules, stating what the lane can and
+cannot see, with the instruction that **every figure a brief asks about must be
+in the repo, or the brief must say plainly that it is not.**
+
+### Queue state
+
+**The queue is now empty.** 01, 03, 04 and 02 are all done. The README's
+standing rule applies: *"If the queue is empty, skip it — there is no make-work
+here."* Next Wednesday is skipped unless Sunday's review generates a question.
+
+---
+
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
 
 > **STATUS 2026-09-08, read this before the list.** The build window closed and
@@ -4374,9 +4520,12 @@ is no live position at stake.
    stop. If it is wrong, the intra-bar monitor's case largely evaporates.
 4. **Then the intra-bar monitor**, two-tier at 4.0–4.5σ, read-only, may close
    or stop but never open — *if* item 3 survives.
-5. **`side_blocked` earned-its-keep analysis.** Ten refusals on record, one of
-   them directly in front of the best trade of the phase. Measure z after each
-   block and ask whether the refused entry would have paid.
+5. ~~**`side_blocked` earned-its-keep analysis.** Ten refusals on record, one of
+   them directly in front of the best trade of the phase.~~ **DONE 2026-09-16
+   — and both premises in this line were wrong.** Two episodes, not ten
+   refusals; and the best trade was on the *unblocked* side. **The block earns
+   its keep on drawdown**: net cost ~3.5 USDT (0.34% of NAV) against MDD
+   2.273% → 1.779%. See the 2026-09-16 entry.
 6. **The nested close-price probe**, so the ledger can state its own exits.
 7. **The news-gate refresh** before a newly selected pair's first entry.
 8. **The synthesis pass** over ~3,400 advisory reviews.
