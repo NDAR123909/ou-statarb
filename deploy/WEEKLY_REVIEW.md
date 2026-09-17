@@ -1794,6 +1794,8 @@ section existed; that is what it is for.
 | ~~**Probe the news/feeds path against `api.liquiditytech.com`**~~ **CLOSED 2026-09-13** — the first Phase II entry passed through it: `screened: true`, `news_status: ok`, both legs rated, `news_age_h 0.0`. `news_assessment` 577 → 612. `ltp_stream.py`'s hardcoded WS host is still untested separately, but the journal reports `news stream: live` | 2026-09-08 | closed |
 | ~~**Entry depth is unbounded and unsized**~~ **MEASURED 2026-09-13, DECISION: DO NOTHING.** Stop rate is flat past |z|=1 (44/50/43%, Fisher p=1.0000); the damage is in the MIDDLE bucket, where all five worst trades entered (1.19-2.33); both candidate controls cost real money and one makes drawdown worse. Deep-relative entries stopped LESS often (1 of 5). Do not re-propose without new evidence | 2026-09-13 | closed. If reopened, use the first-passage probability in `thresholds.py` scored on all 31 closes, not more trades |
 | ~~**Decide on the pending reboot**~~ **DONE 2026-09-09 16:22 UTC** — kernel 6.8.0-137 → 139, 0 updates pending, banner cleared, ~5 min downtime on a flat book. `NRestarts=0`; equity, peak, `bad_read` and **the bar counter** all survived, so the refit clock did not move. The "it re-phases the clock" note in this row was wrong and is corrected in the day-1 entry | 2026-09-08 | closed |
+| **BUILD: sub-hourly z capture on open positions.** Read-only, open positions only, **no trading path touched** — log z every few minutes so the next stop can say *when* the spread crossed the threshold. This was already the decision on 2026-09-13 (*"build the instrumentation instead… which answers at the next stop what a month of re-reading this ledger cannot"*) and **was never built. Three stops have happened since**, each exactly the event it was meant to characterise: −3.54 (frame-drifted), **+3.764** and **+4.125**, the last two with `mu_shift_sigma = 0.0` — provably stable frames, so the spread genuinely gapped inside one hourly bar. Today's overshoot cost ~3.2 of a 13.46 loss. **Without this, the next stop teaches us nothing the last three did not** | 2026-09-17 | **Sun 2026-09-20.** ~90 min by the record's own estimate. NOTE it also bears on a closed decision: the intra-bar monitor was dropped because four of eight stops never reached 4.0σ — **+4.125 is the first that did.** One observation does not reopen it; the logging is what would |
+| **Reconcile the leaderboard's "Total Trades" against our ledger.** It showed **78** for Team NDAR on 2026-09-17 against 44 lifetime `enter` records and far fewer in Phase II. Probably legs or fills rather than round trips, but unverified. **Do not quote that figure until it reconciles** — a number we cannot reproduce is exactly what this record has twice had to retract | 2026-09-17 | next organizer contact, or work it out from the fills snapshots; low priority, but it sits in a column an audit may read |
 | **DECIDE: does the re-entry block survive pair eviction?** Task 02 found, and I verified against `ltp_agent.py:302–306`, that `state["pairs"]` is rebuilt over `keep_keys` only — **a pair dropped by a refit loses its entire entry, `blocked` included**, and returns unblocked. `CLAUDE.md` invariant 4 promises the side "stays blocked until z heals inside the entry band"; the real lifetime is "until z heals **OR the pair leaves the universe for one refit**". That is how the XLM/XRP block actually ended on 08-11. **Both readings are defensible** — an evicted pair returns with a new beta/mu/sigma so an old-frame block may mean nothing; but the control exists because re-entry into a spread that just broke is how one loss becomes several, and eviction-then-return is exactly that. **No change without a decision, and a test either way — it currently has none** | 2026-09-16 | **Sun 2026-09-20 review.** Note the block was just measured as *worth keeping* (MDD 2.273% → 1.779%), so this is about making its stated lifetime true, not about whether to have it |
 | **Push task 02's output** — `deploy/research_queue/out/02-side-blocked-earned-its-keep.md` is on `research/side-blocked` on the operator's laptop. Then land it on the working branch and `git mv` the task into `done/`, per README step 4 | 2026-09-16 | next laptop session. The README's Done table already names both paths as if they resolve |
 | ~~**Fix `constraint_prompt()` in `ai_deep_review.py`**~~ **DONE 2026-09-15**, same evening. The defect: `days_left()` counted to `PHASE_I_END` so it said **"0 days remain"** when 50 did; `KILL_SWITCH = 916.25` was frozen at the Phase I peak x 0.88 against a live 889.46; the 3.7% drawdown and "Phase I advancement is assured" were **string literals**. The model acted on it and recommended halting all trading on day 6 of 57. **Mine** — I added `PHASE_II_START/END`, `phase_days()` and `live_peak()` on 09-13 and never wired this function to them. The fix: `days_left()` repointed to `PHASE_II_END`; `kill_switch_level()` derives the halt from the live peak and the agent's own `AgentConfig.dd_halt`; `drawdown_pct()` measures it; an unreadable peak is labelled rather than guessed; the "advancement is assured" clause replaced by two scoring facts that cut opposite ways. Seven tests, suite 249 → 255. Disclosed in `LTP_STRATEGY.md`. **Not back-filled** — the 09-09 → 09-15 reviews stay as written, and any reading of that window must discount the constraint follow-up | 2026-09-15 | closed |
@@ -4654,6 +4656,141 @@ the agent was down for under a minute in total.
 Still open and unchanged in priority: **the GitHub deploy key**, which is the
 only item whose failure mode is losing the Phase II record entirely, and the AI
 gateway key, which is low impact.
+
+---
+
+## 2026-09-17 — a third stop, and the overshoot is real with a stable frame
+
+Reading **2026-09-17 20:09 UTC**. Equity **981.67**, peak 1010.75, drawdown
+**2.88%**, kill switch 889.46 with **92.21** of headroom and 181.67 to the 800
+floor. Flat, not halted, `bad_read` still 307, service up since the reboot with
+restarts 0.
+
+### The day: one entry, one stop, no reverted exit
+
+```
+2026-09-17 10:01  ENTER 1000SHIB/DOGE  side -1  z=+1.244  g=388.02
+                  entry_z 0.60  half_life 14.46h  beta 0.7594  nav 995.21
+2026-09-17 17:00  STOP                 z=+4.125  hold 7 bars   nav 981.75
+```
+
+**Third consecutive stop.** Drawdown trail: 0.14% (09-14) → 1.13% (09-15) →
+1.54% (09-16) → **2.88%** (09-17). `blocked` flipped `+1 → -1`, so the short
+side is now the shut one, and the agent is refusing shorts at +3.05, +2.81,
++2.51 as z heals.
+
+### FIRST: a correction to what I said before checking
+
+In chat, before pulling the ledger, I estimated the sizing model implied ~6 USDT
+against a realised 13.5 and called it **"~2× the sizing model, three times in a
+row."** That was wrong. It assumed entry at the 0.60 band and that `sigma_eq`
+and `dvol` were the same scale. Neither holds:
+
+```
+entry z          +1.244      not 0.60, so the stop was 2.26 sigma away, not 2.9
+dvol              0.005130   = std(diff(spread)) -- an HOURLY step, not daily
+sigma_eq          0.011710   = 2.28x dvol
+modelled loss at the 3.5 stop   10.25 USDT
+actual                          13.46 USDT
+```
+
+**The sizing is working about as designed**, and the cost model is sound:
+`-g x dspread` = **−13.09** against a realised **−13.46**, agreeing to **0.37
+USDT** on ~1.4k of round-trip notional, consistent with the measured fee.
+
+Recording the miss because it is the same shape as "34 of 101 bars": a plausible
+figure produced by arithmetic on assumed inputs, stated before the primary
+record was read. The fix both times was the ledger.
+
+### The real finding: the overshoot, with a provably stable frame
+
+```
+stop threshold            3.5
+actual trigger           +4.125     <- 0.625 sigma past, an 18% overshoot
+mu_shift_sigma            0.0
+equilibrium_reestimated   false
+```
+
+**This is not frame drift.** `mu_shift` is exactly zero — the coordinate system
+did not move. The spread gapped from under 3.5 to 4.125 **inside one hourly
+bar**. The 09-16 NEAR/ICP stop is the same shape: **+3.764**, `mu_shift 0.0`.
+
+The three Phase II stops are therefore **−3.54** (the 13.24σ frame-drift case),
+**+3.764** and **+4.125** — two of three overshooting with the frame provably
+still. On today's trade the overshoot cost ~**3.2 USDT of the 13.46**, about a
+quarter of the loss.
+
+### This bears on a decision made four days ago
+
+The intra-bar monitor was **DROPPED 2026-09-13**, and the stated reason was that
+**four of eight stops never reached 4.0σ**, so a 4.0–4.5σ monitor could not
+touch them at any cadence.
+
+**Today's stop reached 4.125.** That is the first one past 4.0.
+
+**The decision is not reopened on one observation** — that is the error this log
+keeps cataloguing. But the same entry said what to build *instead*, and it was
+never built:
+
+> *"Build the instrumentation instead: sub-hourly z capture on open positions,
+> read-only, which answers at the next stop what a month of re-reading this
+> ledger cannot."*
+
+**Three stops have happened since, and each was exactly the event that logging
+was meant to characterise.** We cannot say whether the spread crossed 3.5 five
+minutes or fifty before the bar closed, and without that the next stop will
+teach us nothing the last three did not. In Open commitments as a proposal for
+Sunday: read-only, open positions only, no trading path touched.
+
+### Task 04 confirmed out of sample
+
+Today's entry was at **z = +1.244**. Task 04, on 2026-09-13, found the damage
+concentrated in **|z| 1–3**, with all five worst trades entering between **1.19
+and 2.33**. Today's is a sixth, in the same band, four days later, on data that
+task never saw.
+
+**The strongest out-of-sample confirmation this project has produced** — and it
+cuts *against* the intuition that prompted the task. The agent entered modestly,
+at 2.07× its own band, and still ran to the stop. The "do nothing about entry
+depth" decision holds, and now holds on evidence rather than on one measurement.
+
+### The leaderboard: 15th, and mostly not about us
+
+Score **50.1**, rank **15**, return −1.8%, PnL −18.33, Sharpe −2.79, MDD 2.9%,
+"78 trades".
+
+**Every team visible (ranks 11–20) is negative**: −0.0, −0.6, −0.7, −0.4,
+**−1.8 (us)**, −3.6, −0.3, −2.6, −3.0, −6.2%. X-Explore, who led Phase I, is
+**last** at −6.2% and 12.1% MDD.
+
+**Our Sharpe is the best real one on the visible board.** −2.79 against −5.17,
+−5.29, −5.42, −5.77, −6.29, −6.37, −9.55, −10.70. Poetikrule's −0.07 is the
+degenerate near-zero-activity artifact this record documented on 09-10, not a
+better result. Sharpe is 40% of the score.
+
+We sit 15th because PnL (25%) and return (20%) trail four quieter teams, and MDD
+2.9% trails their 0.0–1.1%. **The rank move is a field-wide drawdown in which
+the teams above us traded less**, not a strategy uniquely breaking.
+
+Two caveats. **Ranks 1–10 were not visible**, so "everyone is losing" is true of
+what was shown, not proven of the field. And **"78 Total Trades" does not
+reconcile** with our ledger — 44 lifetime `enter` records, far fewer in Phase II.
+They are probably counting legs or fills; **do not quote that number until it is
+reconciled.**
+
+### What was NOT done, and why
+
+No change to sizing, bands, stops, the gate or `risk_per_pair`. Every candidate
+control has already been measured and rejected on evidence — entry-depth sizing,
+the intra-bar monitor, stratified FDR, `CANDIDATES` expansion — and acting on
+three observations is precisely the pattern-matching this project exists not to
+do. **The kill switch at 889.46 is the control designed for this run**, and it
+is 92.21 away.
+
+Worth stating because it looks like concentration risk and is not:
+`risk_per_pair = 0.002` with `max_pairs = 4` intends up to 0.8% of NAV at risk.
+With one pair surviving the gate we are running **0.2%** — less aggregate risk
+than designed, not more.
 
 ---
 
