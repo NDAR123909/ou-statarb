@@ -1753,7 +1753,8 @@ section existed; that is what it is for.
 | Decide whether the sentinel should gain **macro-event awareness** (Fed/CPI/GDP are market-wide; our prompt is asset-specific and would rate them `none`) | 2026-07-28 | Sunday review; design question is whether market-wide risk should shrink size across all pairs, or whether the hedge already handles it |
 | ~~**Sample the AI rationales for genuine depth**~~ **CLOSED 2026-08-04, nothing to fix** — `ai_spread_assessment` n=300, median 54 words, `max_tokens` never binding; the sampled rationales cite the z path, half-life and band. The "~22 tokens per call" that raised this divided a rolling-window count by a lifetime count | 2026-07-27 | closed |
 | ~~Reboot the droplet~~ **DONE 2026-08-06** — 19s down, hwm/bar counter/crontab all survived, first ever test. Kernel packages were kept back; `dist-upgrade` + the second reboot completed 2026-08-09 | 2026-07-28 | closed |
-| **Rotate credentials — now four, not two.** (1) the July LTP + AI keys pasted in chat; (2) **the Phase II production key AND secret**, pasted in chat at the 2026-09-08 cutover — the same mistake, made again, by the session that was reading the rule; (3) the GitHub PAT, expired 2026-08-27. Mitigated but not fixed by the IP allowlist (`68.183.209.2`) and by Withdraw/Transfer being OFF on the production key | 2026-07-20, re-opened 2026-09-08 | **the "before Phase II" trigger has passed.** Next window the operator is at the droplet with time; the trading key is the urgent one because it can trade |
+| **Rotate credentials — PARTLY DONE 2026-09-16.** ~~(1) July LTP keys~~ not present in the dashboard, moot. ~~(2) the Phase II production key AND secret~~ **rotated and the old key deleted**; one key remains, Read + Trade only, Withdraw and **Transfer** both OFF, IP-bound. A third exposure happened during the rotation itself (a new key screenshotted ~90s after issue) — that key never went live and is deleted. **Still open: (a) the AI gateway key `sk-…`, low impact — worst case someone burns budget, which `status.py` shows; (b) the GitHub PAT, expired 2026-08-27.** | 2026-07-20, re-opened 2026-09-08, part-closed 2026-09-16 | **CORRECTION: the trading key was never "the urgent one" and I said so for two months.** It is IP-bound to `68.183.209.2` with Withdraw OFF, so a leaked copy is inert off the droplet — and anyone *on* that droplet has the key from `/root/ltp.env` anyway. Rotation does not defend against the only attacker who could use it. Residual risk is narrow: LTP drops or misconfigures IP binding and someone trades the stake to zero. **Do not re-file this as an alarm** |
+| **Give the droplet a GitHub deploy key — this is the one that actually matters, and it was ranked third.** Checked 2026-09-16: `track_record/equity.csv` last row is **2026-08-12** and is the *Alpaca* paper track; `track_record/` has not been committed since **2026-08-21**. **Nothing about Phase II exists anywhere but the droplet** — not the ledger, not the state history, not the equity curve. `CLAUDE.md` says the project exists to produce a verifiable live track record; a droplet failure erases the phase that matters. `ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519_oustatarb -N ""`, add the **public** half at repo → Settings → Deploy keys with write access, switch the remote to SSH, then extend the 23:50 cron to commit and push `track_record/` | 2026-07-30, re-prioritised 2026-09-16 | **next session at the droplet — ten minutes, zero trading risk.** Also check whether DigitalOcean backups are enabled, which would change the severity |
 | **Give the droplet a non-interactive git credential** (deploy key or stored PAT), then extend the 23:50 UTC cron to `git add track_record/ && git commit && git push` | 2026-07-30 | next time the operator is at the droplet terminal — until then `ltp_state_history.jsonl` exists only on that machine |
 | ~~Re-check rank~~ **DONE 2026-08-02**: #2 of 29, score 94.4 | 2026-07-30 | closed |
 | ~~Restore `risk_per_pair` 0.002 → 0.004~~ **APPROVED 2026-08-02, HELD the same evening, and DECIDED AGAINST at the 2026-08-09 review** | 2026-07-30 | **closed.** Sizing is scale-invariant in Sharpe, so a restore buys the 45% of the score made of PnL and ROI while doing nothing for the 40% made of Sharpe, and roughly doubles the MDD we still lead on. The organizer's 2026-08-04 Quant Tip reaches the same place from the scoring side. Re-opening this needs a new argument, not the old one |
@@ -1772,7 +1773,7 @@ section existed; that is what it is for.
 | **Ask the organizers whether the USD 1 floor is daily or was one-off enforcement, and whether they read a lifetime total or the per-period meter** — their 2026-08-12 Telegram reply says "zero **total** AI usage", which does not settle it. Clearing 1.00 every period is safe under either reading, but that is an assumption. Rides along with the header-only CSV report we already owe them | 2026-08-12 | next organizer contact; draft is written when the operator wants it |
 | **`ltp_stream.py:31` hardcodes `wss://feeds.ltp-contest.com`** — the contest domain, which the cutover moved *away* from everywhere else. No env change reaches it; if that domain is retired now production is live, `NewsStream` goes silent and only a code edit fixes it. Proposed change: an env lookup mirroring `ltp_news.py:50` | 2026-09-08 | needs the operator's go. Wait for one live news-gate reading first — if the gate is healthy, this is precautionary rather than urgent |
 | **Verify `ltp_news.py`'s `FEEDS_BASE` against the production host** — it follows `LTP_API_HOST` so it moved with the cutover, but nothing has confirmed `api.liquiditytech.com` serves the feeds path at all | 2026-09-08 | first hourly tick after 2026-09-08 15:37 UTC. `status.py`'s news-gate line answers it |
-| **`deploy/README_ltp.md:20` still documents `LTP_API_HOST=https://api.ltp-contest.com`** — the sandbox host. A future session following the setup block would rebuild the exact failure we just spent a day diagnosing | 2026-09-08 | next doc pass; trivial, but it is a trap laid for a cold reader |
+| ~~**`deploy/README_ltp.md:20` still documents the sandbox host**~~ **ALREADY FIXED — this row was stale.** Found 2026-09-16 while preparing the rotation: the setup block has carried `https://api.liquiditytech.com` with an explicit warning that the AI gateway did **not** move with it and the two domains must not be tidied to match. A *different* trap was live in that block, though — `rapidx self-check --read-only`, a flag CLI 1.0.45 removed — and that is now fixed too | 2026-09-08 | closed |
 | **Re-run `universe_scan.py`** now that ETH/BTC is actually fetched. The 2026-09-09 run's CURRENT line (`0/14`) excluded the pair carrying the book and cannot be quoted until this is done | 2026-09-09 | next droplet session, avoiding ~15:38 UTC (refit) |
 | **Rule out a data cause for the 0/54**, before "regime" is written down as fact. ETH\|BTC passed 09-07, then 0/15 and 0/54 within 36h — coinciding exactly with the host change. Compare klines from `api.liquiditytech.com` against a known 09-07 fit | 2026-09-09 | before any decision rests on the regime verdict |
 | ~~**Enumerate the orderable instrument set**~~ **PROBED 2026-09-10.** No listing action exists in any of the 53 capabilities — enumeration is a name-by-name probing exercise with `get-symbol-info` as the oracle. `OKX_PERP_CL_USDT` (WTI crude) is **live and reachable** | 2026-09-10 | closed as a question; the blocker below replaces it |
@@ -1793,6 +1794,8 @@ section existed; that is what it is for.
 | ~~**Probe the news/feeds path against `api.liquiditytech.com`**~~ **CLOSED 2026-09-13** — the first Phase II entry passed through it: `screened: true`, `news_status: ok`, both legs rated, `news_age_h 0.0`. `news_assessment` 577 → 612. `ltp_stream.py`'s hardcoded WS host is still untested separately, but the journal reports `news stream: live` | 2026-09-08 | closed |
 | ~~**Entry depth is unbounded and unsized**~~ **MEASURED 2026-09-13, DECISION: DO NOTHING.** Stop rate is flat past |z|=1 (44/50/43%, Fisher p=1.0000); the damage is in the MIDDLE bucket, where all five worst trades entered (1.19-2.33); both candidate controls cost real money and one makes drawdown worse. Deep-relative entries stopped LESS often (1 of 5). Do not re-propose without new evidence | 2026-09-13 | closed. If reopened, use the first-passage probability in `thresholds.py` scored on all 31 closes, not more trades |
 | ~~**Decide on the pending reboot**~~ **DONE 2026-09-09 16:22 UTC** — kernel 6.8.0-137 → 139, 0 updates pending, banner cleared, ~5 min downtime on a flat book. `NRestarts=0`; equity, peak, `bad_read` and **the bar counter** all survived, so the refit clock did not move. The "it re-phases the clock" note in this row was wrong and is corrected in the day-1 entry | 2026-09-08 | closed |
+| **BUILD: sub-hourly z capture on open positions.** Read-only, open positions only, **no trading path touched** — log z every few minutes so the next stop can say *when* the spread crossed the threshold. This was already the decision on 2026-09-13 (*"build the instrumentation instead… which answers at the next stop what a month of re-reading this ledger cannot"*) and **was never built. Three stops have happened since**, each exactly the event it was meant to characterise: −3.54 (frame-drifted), **+3.764** and **+4.125**, the last two with `mu_shift_sigma = 0.0` — provably stable frames, so the spread genuinely gapped inside one hourly bar. Today's overshoot cost ~3.2 of a 13.46 loss. **Without this, the next stop teaches us nothing the last three did not** | 2026-09-17 | **Sun 2026-09-20.** ~90 min by the record's own estimate. NOTE it also bears on a closed decision: the intra-bar monitor was dropped because four of eight stops never reached 4.0σ — **+4.125 is the first that did.** One observation does not reopen it; the logging is what would |
+| **Reconcile the leaderboard's "Total Trades" against our ledger.** It showed **78** for Team NDAR on 2026-09-17 against 44 lifetime `enter` records and far fewer in Phase II. Probably legs or fills rather than round trips, but unverified. **Do not quote that figure until it reconciles** — a number we cannot reproduce is exactly what this record has twice had to retract | 2026-09-17 | next organizer contact, or work it out from the fills snapshots; low priority, but it sits in a column an audit may read |
 | **DECIDE: does the re-entry block survive pair eviction?** Task 02 found, and I verified against `ltp_agent.py:302–306`, that `state["pairs"]` is rebuilt over `keep_keys` only — **a pair dropped by a refit loses its entire entry, `blocked` included**, and returns unblocked. `CLAUDE.md` invariant 4 promises the side "stays blocked until z heals inside the entry band"; the real lifetime is "until z heals **OR the pair leaves the universe for one refit**". That is how the XLM/XRP block actually ended on 08-11. **Both readings are defensible** — an evicted pair returns with a new beta/mu/sigma so an old-frame block may mean nothing; but the control exists because re-entry into a spread that just broke is how one loss becomes several, and eviction-then-return is exactly that. **No change without a decision, and a test either way — it currently has none** | 2026-09-16 | **Sun 2026-09-20 review.** Note the block was just measured as *worth keeping* (MDD 2.273% → 1.779%), so this is about making its stated lifetime true, not about whether to have it |
 | **Push task 02's output** — `deploy/research_queue/out/02-side-blocked-earned-its-keep.md` is on `research/side-blocked` on the operator's laptop. Then land it on the working branch and `git mv` the task into `done/`, per README step 4 | 2026-09-16 | next laptop session. The README's Done table already names both paths as if they resolve |
 | ~~**Fix `constraint_prompt()` in `ai_deep_review.py`**~~ **DONE 2026-09-15**, same evening. The defect: `days_left()` counted to `PHASE_I_END` so it said **"0 days remain"** when 50 did; `KILL_SWITCH = 916.25` was frozen at the Phase I peak x 0.88 against a live 889.46; the 3.7% drawdown and "Phase I advancement is assured" were **string literals**. The model acted on it and recommended halting all trading on day 6 of 57. **Mine** — I added `PHASE_II_START/END`, `phase_days()` and `live_peak()` on 09-13 and never wired this function to them. The fix: `days_left()` repointed to `PHASE_II_END`; `kill_switch_level()` derives the halt from the live peak and the agent's own `AgentConfig.dd_halt`; `drawdown_pct()` measures it; an unreadable peak is labelled rather than guessed; the "advancement is assured" clause replaced by two scoring facts that cut opposite ways. Seven tests, suite 249 → 255. Disclosed in `LTP_STRATEGY.md`. **Not back-filled** — the 09-09 → 09-15 reviews stay as written, and any reading of that window must discount the constraint follow-up | 2026-09-15 | closed |
@@ -4346,6 +4349,13 @@ net                          ~ -3.5   ~0.34% of NAV
 nothing, and the honest reading is that the P&L question cannot be closed at
 this sample size.
 
+Two measurement bases, both reported rather than averaged away: on a single
+consistent **decision-price** basis the net is **−3.69**; using the **venue**
+figure where one exists, **−3.46**. The output calls it −3.5 and says why.
+Worth keeping because the 0.23 gap between them is the live-vs-decision
+slippage question in miniature, on a book where that has never been measured
+in Phase II.
+
 ### The drawdown result is the one the brief said to judge on
 
 ```
@@ -4363,6 +4373,13 @@ trades and the drawdown rather than the P&L sum — the method task 04
 established — and on that test the answer is clear.
 
 **VERDICT: `side_blocked` earns its keep. No change. Invariant 4 stands.**
+
+**That verdict is ours, not the task's, and the distinction is the standing
+rule.** The output's own bottom line is *"unproven on P&L, favourable on risk,
+and the sample is two — not ten"*; it issues no recommendation, which is
+correct — research output is evidence, not orders. The step from "removed both
+tails, 28% off a monotone drawdown" to "keep it" is the human decision the
+queue exists to inform.
 
 Not converted to a score delta, correctly: Sharpe over ~20 daily returns cannot
 resolve a two-episode perturbation, and inventing that number would have been
@@ -4444,6 +4461,336 @@ in the repo, or the brief must say plainly that it is not.**
 **The queue is now empty.** 01, 03, 04 and 02 are all done. The README's
 standing rule applies: *"If the queue is empty, skip it — there is no make-work
 here."* Next Wednesday is skipped unless Sunday's review generates a question.
+
+---
+
+## 2026-09-16 (evening) — the trading key is rotated, and I had the urgency backwards
+
+Done on a flat book, verified end-to-end, agent never stopped trading for
+longer than a restart. **The LTP dashboard now shows exactly one key.**
+
+### What happened first: both Phase II positions stopped
+
+```
+09-15 20:00  1000SHIB/DOGE  Z-STOP z=-3.54, closing + blocking side
+09-16 10:00  NEAR/ICP       Z-STOP z=+3.76, closing + blocking side
+```
+
+Equity **995.21**, peak 1010.75, drawdown **1.54%** banked. Phase II is
+**−0.48%** on two entries and two stops. Week 6's "3rd place, best
+return-per-drawdown on the board" rested on one unrealised position; that
+position reverted, was re-entered the other way, stopped, and its successor
+stopped too.
+
+**NEAR/ICP stopped at +3.76 against a 3.5 band** — a 0.26σ overshoot, to be read
+on Sunday beside the 13.24σ frame drift and task 01's overshoot ceiling.
+
+The journal also confirms the churn sequence from primary source, which until
+now this record only had via a deep-review summary:
+
+```
+09-14 12:01 EXIT -0.16 · 13:00 ENTER +0.67 · 09-15 01:00 EXIT -0.29
+      02:00 ENTER -0.70 · 05:00 EXIT +0.05 · 07:00 ENTER -0.96 · 20:00 STOP -3.54
+```
+
+And the gate is genuinely thin, not broken: **1/15, 1/15, 2/15, 1/15** passing
+across four consecutive refits, rejections spread across five different filters
+each time. The agent is flat with one pair in the universe and that pair
+blocked, so it currently **cannot trade at all**. Idle days enter the Sharpe
+mean as zeros — one for Sunday, not a reason to touch the gate.
+
+### The rotation
+
+`NDAR-PhaseII` (the 09-08 cutover key) and the accidentally-exposed
+`ltp-agent-2026-09-16` are **deleted**. One key remains, `2C569…D5786`, with
+**Read + Trade (RapidX), All Accounts, Withdraw OFF, Transfer OFF**, IP-bound to
+`68.183.209.2`.
+
+Transfer was dropped deliberately: the broker only calls `self-check`,
+`market get-klines`, `trade preview`, order placement and account reads —
+**verified by reading it**, not assumed.
+
+Verification chain, all four green:
+
+```
+rapidx auth check      maskedAccessKey <matches the surviving dashboard row>
+drawdown peak          anchored at 1010.75 USDT      <- hwm survived
+self-check             PASS
+automation session     ras_7bb033df-...              <- the Trade-scope proof
+```
+
+**The last line is the one that mattered.** `rapidx auth check` is read-only and
+would have passed on a Read-only key; the agent would then have run for hours
+and failed at its first order. Starting an automation session is a write.
+Written into `README_ltp.md` so the next rotation checks it.
+
+Bar counter went 200 → 203 across the restart without resetting, so the refit
+clock did not re-phase. `bad_read` still 307.
+
+### I had the urgency backwards, and said so before doing it
+
+I have carried "rotate credentials" as an alarm since July and repeatedly called
+the trading key **"the urgent one."** That was wrong, and the reason is in the
+record's own notes: the key is **IP-bound to the droplet** with **Withdraw
+OFF**. A holder of the pasted key on any other machine can do nothing with it;
+anyone who *is* on that IP already owns the droplet, where the key sits in
+`/root/ltp.env` regardless. Rotation does not defend against the attacker who
+can actually use it.
+
+The real residual risk is narrow — LTP removes or misconfigures IP binding, and
+someone deliberately trades the stake to zero. Low probability, and it costs the
+competition run rather than money.
+
+**What I had ranked third is actually first.** Checked while answering "how
+necessary is this": `track_record/equity.csv` last row is **2026-08-12** and is
+the *Alpaca* paper track; `track_record/` has not been committed since
+**2026-08-21**. **Nothing about Phase II exists anywhere but the droplet** — not
+the ledger, not the state history, not the equity curve. `CLAUDE.md` says this
+project exists to produce "a verifiable live track record"; a droplet failure
+tonight erases the phase that matters. The GitHub deploy key is ten minutes,
+carries zero trading risk, and is the only open item whose failure mode is
+losing the deliverable.
+
+### Third chat exposure, and the fix is a command not a resolution
+
+A brand-new key was screenshotted about **ninety seconds after it was issued**,
+while asking "what now". The rotation was then completed onto a *different*,
+clean key — confirmed by the mask: the exposed key and the live
+one differ in the first four characters, so the leaked key never went live and
+has been deleted.
+
+Three exposures now: July, the 09-08 cutover, and this. **None were
+carelessness.** All three happened because the natural way to ask "does this
+look right?" is to show the file. Telling someone to be careful has now failed
+three times, so `README_ltp.md` gets the command instead:
+
+```bash
+sed -E 's/(KEY=|SECRET_KEY=).*/\1<redacted>/' /root/ltp.env
+```
+
+That output is safe to paste anywhere and still proves what you actually need to
+check — that an edit did not clip `LTP_AUTOMATION_CONSENT_TEXT`.
+
+### A doc bug that cost a minute mid-rotation
+
+`README_ltp.md:25` documented `rapidx self-check --read-only --json`. That flag
+was removed by CLI 1.0.45 and now hard-fails `RCLI30001 unknown field:
+readOnly`. **It is an input-validation error, not an auth failure** — which is
+why proceeding was correct — but mid-rotation it reads like a credential
+problem. Fixed, with the failure mode named in the doc.
+
+`README_ltp.md` now also carries the whole verified rotation procedure, since
+this one was reconstructed live in a chat window and would otherwise have to be
+reconstructed again.
+
+---
+
+## 2026-09-16 (late) — reboot done on the flat book, and a nuance about the bar counter
+
+Second half of the same maintenance window. Both items that had been parked
+behind "wait for a flat book" since 09-15 are now closed.
+
+### Clean, and faster than last time
+
+`24.04.4 → 24.04.5`; perl, libsqlite3, libaom, base-files; kernel stayed
+**6.8.0-139** ("Running kernel seems to be up-to-date" — the pending-restart
+banner was from an earlier update, not a new kernel). Banner cleared, **0
+updates pending**.
+
+**Agent downtime ~30 seconds** — stopped 21:29:30, started 21:29:48, fully up
+by 21:30:00. The 2026-09-09 reboot took ~5 minutes; this one benefited from
+having no kernel to install.
+
+Everything survived:
+
+```
+service     active, pid 752, restarts 0
+equity      995.21    peak 1010.75    dd 1.54%    kill switch 889.46
+bad_read    307, unmoved
+bar         204  (not 0)
+journal     drawdown peak anchored at 1010.75 · self-check PASS
+            news stream: live · automation session ras_69d3b913-...
+```
+
+`--force-confold` was used deliberately on the dist-upgrade. If dpkg had
+replaced `/etc/ssh/sshd_config` with a version disabling root login, the droplet
+would have been unreachable by the only route we have to it. Worth keeping in
+the procedure.
+
+### The nuance: the counter survives, but the refit HOUR drifts
+
+The 2026-09-09 entry says the bar counter surviving means *"the refit clock did
+not move."* That is right about **state** and slightly too strong about
+**schedule**.
+
+On restart the agent ticks immediately and only then sleeps to the top of the
+next hour, so **every restart adds one off-cycle bar**. The refit fires on
+`state["bar"] % refit_every_bars == 0` (`ltp_agent.py:1186`), so the counter is
+intact — but the wall-clock time at which the next multiple of 24 arrives moves
+**one hour earlier per restart**.
+
+Today had two restarts (the key rotation at 20:57, the reboot at 21:29), so:
+
+```
+refits have landed at 12:00 UTC on 09-13, 09-14, 09-15, 09-16
+next refit is bar 216, projected ~09:00 UTC on 09-17 -- about two hours earlier
+```
+
+**Harmless in itself** — the hour a refit happens is arbitrary. But two things
+follow. The standing advice to avoid running things near the refit goes stale
+whenever this drifts, so read `status.py`'s "next in N bars" rather than
+assuming 12:00. And a future session should not repeat the 09-09 phrasing as
+though restarts are schedule-neutral; they are state-neutral, which is the part
+that matters, and schedule-mobile, which is the part that surprises.
+
+`bars_to_refit`'s own docstring already records a related bruise — a restart
+landing on bar 432 cost a round of debugging on 2026-08-14 — so restart/bar
+interactions have bitten before and are worth stating precisely.
+
+### Where the evening leaves us
+
+Both flat-book items are done: key rotated onto a clean credential with the old
+keys deleted, and the droplet fully patched. Neither touched trading logic and
+the agent was down for under a minute in total.
+
+Still open and unchanged in priority: **the GitHub deploy key**, which is the
+only item whose failure mode is losing the Phase II record entirely, and the AI
+gateway key, which is low impact.
+
+---
+
+## 2026-09-17 — a third stop, and the overshoot is real with a stable frame
+
+Reading **2026-09-17 20:09 UTC**. Equity **981.67**, peak 1010.75, drawdown
+**2.88%**, kill switch 889.46 with **92.21** of headroom and 181.67 to the 800
+floor. Flat, not halted, `bad_read` still 307, service up since the reboot with
+restarts 0.
+
+### The day: one entry, one stop, no reverted exit
+
+```
+2026-09-17 10:01  ENTER 1000SHIB/DOGE  side -1  z=+1.244  g=388.02
+                  entry_z 0.60  half_life 14.46h  beta 0.7594  nav 995.21
+2026-09-17 17:00  STOP                 z=+4.125  hold 7 bars   nav 981.75
+```
+
+**Third consecutive stop.** Drawdown trail: 0.14% (09-14) → 1.13% (09-15) →
+1.54% (09-16) → **2.88%** (09-17). `blocked` flipped `+1 → -1`, so the short
+side is now the shut one, and the agent is refusing shorts at +3.05, +2.81,
++2.51 as z heals.
+
+### FIRST: a correction to what I said before checking
+
+In chat, before pulling the ledger, I estimated the sizing model implied ~6 USDT
+against a realised 13.5 and called it **"~2× the sizing model, three times in a
+row."** That was wrong. It assumed entry at the 0.60 band and that `sigma_eq`
+and `dvol` were the same scale. Neither holds:
+
+```
+entry z          +1.244      not 0.60, so the stop was 2.26 sigma away, not 2.9
+dvol              0.005130   = std(diff(spread)) -- an HOURLY step, not daily
+sigma_eq          0.011710   = 2.28x dvol
+modelled loss at the 3.5 stop   10.25 USDT
+actual                          13.46 USDT
+```
+
+**The sizing is working about as designed**, and the cost model is sound:
+`-g x dspread` = **−13.09** against a realised **−13.46**, agreeing to **0.37
+USDT** on ~1.4k of round-trip notional, consistent with the measured fee.
+
+Recording the miss because it is the same shape as "34 of 101 bars": a plausible
+figure produced by arithmetic on assumed inputs, stated before the primary
+record was read. The fix both times was the ledger.
+
+### The real finding: the overshoot, with a provably stable frame
+
+```
+stop threshold            3.5
+actual trigger           +4.125     <- 0.625 sigma past, an 18% overshoot
+mu_shift_sigma            0.0
+equilibrium_reestimated   false
+```
+
+**This is not frame drift.** `mu_shift` is exactly zero — the coordinate system
+did not move. The spread gapped from under 3.5 to 4.125 **inside one hourly
+bar**. The 09-16 NEAR/ICP stop is the same shape: **+3.764**, `mu_shift 0.0`.
+
+The three Phase II stops are therefore **−3.54** (the 13.24σ frame-drift case),
+**+3.764** and **+4.125** — two of three overshooting with the frame provably
+still. On today's trade the overshoot cost ~**3.2 USDT of the 13.46**, about a
+quarter of the loss.
+
+### This bears on a decision made four days ago
+
+The intra-bar monitor was **DROPPED 2026-09-13**, and the stated reason was that
+**four of eight stops never reached 4.0σ**, so a 4.0–4.5σ monitor could not
+touch them at any cadence.
+
+**Today's stop reached 4.125.** That is the first one past 4.0.
+
+**The decision is not reopened on one observation** — that is the error this log
+keeps cataloguing. But the same entry said what to build *instead*, and it was
+never built:
+
+> *"Build the instrumentation instead: sub-hourly z capture on open positions,
+> read-only, which answers at the next stop what a month of re-reading this
+> ledger cannot."*
+
+**Three stops have happened since, and each was exactly the event that logging
+was meant to characterise.** We cannot say whether the spread crossed 3.5 five
+minutes or fifty before the bar closed, and without that the next stop will
+teach us nothing the last three did not. In Open commitments as a proposal for
+Sunday: read-only, open positions only, no trading path touched.
+
+### Task 04 confirmed out of sample
+
+Today's entry was at **z = +1.244**. Task 04, on 2026-09-13, found the damage
+concentrated in **|z| 1–3**, with all five worst trades entering between **1.19
+and 2.33**. Today's is a sixth, in the same band, four days later, on data that
+task never saw.
+
+**The strongest out-of-sample confirmation this project has produced** — and it
+cuts *against* the intuition that prompted the task. The agent entered modestly,
+at 2.07× its own band, and still ran to the stop. The "do nothing about entry
+depth" decision holds, and now holds on evidence rather than on one measurement.
+
+### The leaderboard: 15th, and mostly not about us
+
+Score **50.1**, rank **15**, return −1.8%, PnL −18.33, Sharpe −2.79, MDD 2.9%,
+"78 trades".
+
+**Every team visible (ranks 11–20) is negative**: −0.0, −0.6, −0.7, −0.4,
+**−1.8 (us)**, −3.6, −0.3, −2.6, −3.0, −6.2%. X-Explore, who led Phase I, is
+**last** at −6.2% and 12.1% MDD.
+
+**Our Sharpe is the best real one on the visible board.** −2.79 against −5.17,
+−5.29, −5.42, −5.77, −6.29, −6.37, −9.55, −10.70. Poetikrule's −0.07 is the
+degenerate near-zero-activity artifact this record documented on 09-10, not a
+better result. Sharpe is 40% of the score.
+
+We sit 15th because PnL (25%) and return (20%) trail four quieter teams, and MDD
+2.9% trails their 0.0–1.1%. **The rank move is a field-wide drawdown in which
+the teams above us traded less**, not a strategy uniquely breaking.
+
+Two caveats. **Ranks 1–10 were not visible**, so "everyone is losing" is true of
+what was shown, not proven of the field. And **"78 Total Trades" does not
+reconcile** with our ledger — 44 lifetime `enter` records, far fewer in Phase II.
+They are probably counting legs or fills; **do not quote that number until it is
+reconciled.**
+
+### What was NOT done, and why
+
+No change to sizing, bands, stops, the gate or `risk_per_pair`. Every candidate
+control has already been measured and rejected on evidence — entry-depth sizing,
+the intra-bar monitor, stratified FDR, `CANDIDATES` expansion — and acting on
+three observations is precisely the pattern-matching this project exists not to
+do. **The kill switch at 889.46 is the control designed for this run**, and it
+is 92.21 away.
+
+Worth stating because it looks like concentration risk and is not:
+`risk_per_pair = 0.002` with `max_pairs = 4` intends up to 0.8% of NAV at risk.
+With one pair surviving the gate we are running **0.2%** — less aggregate risk
+than designed, not more.
 
 ---
 
@@ -4910,7 +5257,13 @@ Carried from week 1. Do these in order; the analysis gates the tuning.
   flagged it earlier. Until that pattern appears in the ledger, leave it alone.
 - `get_leverage` readback parses a dict but the API returns a list, so
   `set_leverage.py` prints `Nonex` (cosmetic only — the sets succeeded).
-- Droplet has pending Ubuntu security updates; safe to apply and reboot (the
-  service auto-starts and state survives).
+- ~~Droplet has pending Ubuntu security updates~~ **APPLIED 2026-09-16**,
+  24.04.4 → 24.04.5, 0 pending, banner cleared, ~30s of agent downtime on a flat
+  book. The service does auto-start and state does survive, as this said — with
+  one correction recorded in that day's entry: each restart adds an off-cycle
+  bar, so the refit **hour** drifts an hour earlier per restart even though the
+  counter is intact. Use `--force-confold` on the dist-upgrade; a replaced
+  `sshd_config` would lock us out of the only route to the box. Three ESM
+  updates remain and need Ubuntu Pro — not taken.
 - `deploy/ltp_state.test.json` / `ltp_ledger.test.jsonl` are archived
   pre-competition shakeout data, kept for the post-mortem.
