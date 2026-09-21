@@ -1739,6 +1739,16 @@ git says `peak_equity: 1000.0`** (live is 1041.19) and **`track_record/equity.cs
 is the Alpaca paper record**, flat at 100000 — neither is the competition
 account.
 
+> **STANDING RULE, added 2026-09-21: never push to `live/track-record`.**
+> That branch belongs to the droplet. Its 23:58 cron does
+> `git add track_record/ && (git commit || true) && git push origin
+> live/track-record`, and a push from anywhere else makes that fail on
+> non-fast-forward — **silently, at 23:58, while `/var/log/ltp_record.log`
+> keeps reporting a healthy append.** The daily record would stop leaving the
+> droplet and nothing would say so. Work on
+> `claude/offline-competition-deploy-*`; take files FROM the data branch by
+> `git checkout origin/live/track-record -- <path>`, never the other way.
+
 ---
 
 ## Open commitments (write these down WHEN PROMISED, not later)
@@ -1755,7 +1765,10 @@ section existed; that is what it is for.
 | ~~Reboot the droplet~~ **DONE 2026-08-06** — 19s down, hwm/bar counter/crontab all survived, first ever test. Kernel packages were kept back; `dist-upgrade` + the second reboot completed 2026-08-09 | 2026-07-28 | closed |
 | **Rotate credentials — PARTLY DONE 2026-09-16.** ~~(1) July LTP keys~~ not present in the dashboard, moot. ~~(2) the Phase II production key AND secret~~ **rotated and the old key deleted**; one key remains, Read + Trade only, Withdraw and **Transfer** both OFF, IP-bound. A third exposure happened during the rotation itself (a new key screenshotted ~90s after issue) — that key never went live and is deleted. **Still open: (a) the AI gateway key `sk-…`, low impact — worst case someone burns budget, which `status.py` shows; (b) the GitHub PAT, expired 2026-08-27.** | 2026-07-20, re-opened 2026-09-08, part-closed 2026-09-16 | **CORRECTION: the trading key was never "the urgent one" and I said so for two months.** It is IP-bound to `68.183.209.2` with Withdraw OFF, so a leaked copy is inert off the droplet — and anyone *on* that droplet has the key from `/root/ltp.env` anyway. Rotation does not defend against the only attacker who could use it. Residual risk is narrow: LTP drops or misconfigures IP binding and someone trades the stake to zero. **Do not re-file this as an alarm** |
 | ~~**Give the droplet a GitHub deploy key**~~ **DONE 2026-09-21.** ed25519 key with write access, remote on SSH, `core.sshCommand` set repo-scoped. Droplet pushes to its **own** branch `live/track-record` — the cron suggested in `record_state.py`'s docstring targets `claude/offline-competition-deploy-*`, which would race this log's branch and fail non-fast-forward. **53 files, 86,746 insertions**: 54 rows of state history (2026-07-30 → 09-21) and 50 days of venue-reconciled fills, plus both universe manifests. Two hazards found en route — `.rapidx/` untracked **and not ignored** (now in `.gitignore`, `56fb5e5`) and a stray empty `ssh` file, deleted. **Still to do: the cron, and the Phase II reasoning-log export** (`reasoning_log.py --out track_record/phase2_submission`) | 2026-07-30 | closed; the two follow-ons are the row below |
-| **Finish the droplet's push loop: the daily cron and the Phase II reasoning-log export.** Cron = `record_state.py` then `git add track_record/ && (git commit || true) && git push origin live/track-record`, edited by hand with `crontab -e` (never piped — standing rule) and `%` escaped as `\%`. The export is the existing, deliberate path for the **gitignored** ledger to reach the published record, and it would also put Phase II data where **Cowork can reach it** — the coverage gap that degraded task 02 and would degrade task 05 identically | 2026-09-21 | next droplet session. The export is worth running once immediately so the phase to date is out of the blast radius |
+| ~~**Finish the droplet's push loop**~~ **DONE 2026-09-21.** Phase II ledger slice published as `track_record/ltp_ledger_phase2.jsonl` — **498 trading records, 311K, from a 67M file**, with 4,959 `ai_deep_review` records excluded (advisory bulk, and that window is contaminated). Cron added at **23:58**, deliberately not bolted onto the 23:50 line: fills are written at 23:55, so the docstring's suggestion would have put every day's fills a day late, silently, forever | 2026-09-21 | closed |
+| **Build `deploy/export_phase_ledger.py` and wire it into the 23:58 cron.** The Phase II slice is currently a heredoc'd one-off; a Python filter inside a crontab is fragile in exactly the ways `%` and quoting bite, which is why it was kept manual. Wants a `--since` argument, a test, and then one clean cron line so the published slice tracks the live ledger instead of freezing at whenever someone last remembered | 2026-09-21 | build window, alongside the banked-MDD line and the deployed-version line — same file family, one pass |
+| **Re-run the Phase II ledger slice before Wednesday's task 05 dispatch.** Until `export_phase_ledger.py` exists the published slice stops at 2026-09-21, and **Cowork reads the repo**. Stale data here is the exact coverage gap that degraded task 02 and would degrade task 05 identically | 2026-09-21 | **before Wed 2026-09-23.** One command on the droplet, then commit and push to `live/track-record` |
+| **`record_state.py`'s docstring is now wrong in two ways** — it suggests bolting the git push onto the 23:50 line (which would publish each day's fills a day late, since `fills_report` runs at 23:55) and it pushes to `claude/offline-competition-deploy-*` (which would race this log's branch and fail non-fast-forward). A future session following it rebuilds both faults | 2026-09-21 | next doc pass; small, but it is a trap laid for a cold reader — the same shape as the `README_ltp.md` sandbox-host row |
 | **Have `status.py` report the deployed code version.** On 2026-09-21 the droplet was found running **2026-09-12 code** — the `constraint_prompt` fix had been in git since 09-15 and never deployed, so six extra days of deep reviews ran on the premise the phase was over, while this log said it was fixed. **Nothing in the daily glance could have shown that**: `status.py` reports every live fact except which version of the code produces them. Print the HEAD short-sha and whether it matches `origin`. **It was found by accident**, falling out of the deploy-key work — a gap only findable by accident will recur | 2026-09-21 | build window, with the banked-MDD line; same file, same pass |
 | **Give the droplet a non-interactive git credential** (deploy key or stored PAT), then extend the 23:50 UTC cron to `git add track_record/ && git commit && git push` | 2026-07-30 | next time the operator is at the droplet terminal — until then `ltp_state_history.jsonl` exists only on that machine |
 | ~~Re-check rank~~ **DONE 2026-08-02**: #2 of 29, score 94.4 | 2026-07-30 | closed |
@@ -5106,6 +5119,111 @@ track_record/phase2_submission`, which is the existing, deliberate path for
 getting the gitignored ledger into the published record, and the one that would
 also put Phase II data where Cowork can reach it. That coverage gap degraded
 task 02 and would degrade task 05 the same way.
+
+---
+
+## 2026-09-21 (later) — the push loop closes, and a cold pitch arrives
+
+### The fix is verified live, not merely deployed
+
+```
+live_peak: 1010.7468568133846
+44 days remain in the phase. Equity is 987.00 USDT against a competition
+elimination floor of 800 -- 187.00 USDT of headroom. Our own kill switch sits
+higher, at 889.46 ... Max drawdown off the peak is 2.35%. This phase is live
+and scored from zero ...
+```
+
+All four defects gone, and every derived number agrees with `status.py`: 44 days
+(= `PHASE_II_END` − today), kill switch **889.46** (= live peak × 0.88), and a
+**measured** 2.35% where the literal 3.7% used to be. Equity carries no "reading
+of" staleness label because the live meter answered. The two-sided closing
+clause is present.
+
+Note the path that makes it work: `main()` calls `followups(equity=...)` without
+`peak`, so `kill_switch_level(None)` falls through to `live_peak()`, which reads
+`deploy/ltp_state.json` on the droplet. Verified rather than assumed — the
+previous entry exists because something was assumed.
+
+### The Phase II ledger is published, and the numbers argue for the filter
+
+```
+deploy/ltp_ledger.jsonl            67M
+track_record/ltp_ledger_phase2.jsonl   311K   498 records
+                                       4,959 ai_deep_review excluded
+```
+
+**Nearly five thousand deep reviews in Phase II alone**, and they are almost the
+entire 67 MB. Excluding them was not tidiness: the raw file would have been a
+problem to commit, and that window (09-09 → 09-21) is the contaminated one
+anyway. Every trading record survives — `enter`, `exit`, `stop`, `refit`,
+`operation`, `skip`, `news_assessment`, `ai_spread_assessment`.
+
+**What was NOT done, and why.** The plan an hour earlier was
+`reasoning_log.py --out track_record/phase2_submission`. Reading it first
+killed that: `copy_fills` globs **every** `track_record/fills_*.json` and the
+ledger is read whole, with no date filter anywhere — its docstring names the
+organizer's 2026-08-24 deadline, so it is a *Phase I submission packager*, not a
+general phase exporter. Running it would have produced a directory labelled
+"Phase II" containing mostly Phase I. **For a project whose value is that its
+record can be trusted, a bundle whose name does not match its contents is the
+wrong artifact.** The slice above is named for exactly what it holds.
+
+### The cron, and a timing bug the existing schedule caught
+
+The 23:50 line writes the state row; **the fills file is written at 23:55.** The
+plan — and `record_state.py`'s own docstring — bolts the git push onto the 23:50
+job, which would commit and push **before that day's fills exist**, putting every
+day's fills a day late, forever, silently.
+
+So the push is its own line at **23:58**, after both writers:
+
+```
+58 23 * * * cd /root/ou-statarb && (git add track_record/ && (git commit -m
+"track: daily state $(date -u +\%F)" || true) && git push origin
+live/track-record) >> /var/log/ltp_record.log 2>&1
+```
+
+A separate line also means a git failure logs separately instead of masking a
+data failure. The subshell keeps the redirect over all three git steps rather
+than the push alone, and `\%` matches the escaping the `fills_report` line
+already uses.
+
+**`record_state.py`'s docstring is now wrong in two ways** — it suggests the
+23:50 line and it pushes to `claude/offline-competition-deploy-*`. Both are in
+Open commitments to fix, because a future session following that docstring
+rebuilds both faults.
+
+**And a standing rule, added to the standing context above: never push to
+`live/track-record`.** A push from anywhere else breaks the cron on
+non-fast-forward — silently, at 23:58, while the log keeps reporting a healthy
+append.
+
+### A cold pitch on the repo — recommend closing
+
+Issue #45, from `headlinearena`: an invitation to submit daily direction +
+confidence forecasts on macro targets (gold, crude, treasuries, soybeans) to a
+third-party-graded arena, integrated via **a plugin from a repo we do not
+control**, rewarded in LLM inference credits.
+
+Courteously written and it quotes our README accurately. **Recommended: close
+it.** Three reasons, recorded so this does not get re-argued if similar arrives:
+
+1. **Its central premise is false about us.** It says the top rung — forward-only
+   data graded by a third party — is one "the repo hasn't reached yet". We are
+   on it: live capital, LTP grading, public leaderboard, and a dated record now
+   committed under `track_record/`. They read the README and not `deploy/`.
+2. **It is a different activity.** We run a market-neutral cointegrated spread
+   and deliberately hold no directional view. Their bridge — "no spring
+   detected, submit 0.5" — does not hold: declining a trade because a pair
+   failed FDR-corrected cointegration is not a 50% forecast about crude.
+3. **It asks us to run third-party code on the machine holding live trading
+   credentials**, mid-competition, for an incentive with no pull — the organizer
+   already funds our AI budget and our constraint is a **floor**, not a ceiling.
+
+Nothing here reads as hostile; it is ordinary outreach. Recorded because "flatter
+the README, then ask for code execution on the trading box" is a shape worth
+recognising quickly rather than evaluating from scratch each time.
 
 ---
 
