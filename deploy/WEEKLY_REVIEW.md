@@ -5227,6 +5227,61 @@ recognising quickly rather than evaluating from scratch each time.
 
 ---
 
+## 2026-09-21 (14:40 UTC) — the daily series, and a zero-return day that was only ever hypothetical
+
+`/var/log/ltp_record.log` shows the 23:50 job healthy through 09-20 with no
+errors. **The 23:58 push job has not fired yet** — it was installed at ~03:00
+UTC and runs at 23:58, so the first automatic commit lands tonight. A future
+reader finding no `track: daily state` commit before then should not read that
+as a failure; the check was simply run nine hours early.
+
+(The manual `record_state.py` run last night produced row 54 interactively, so
+it went to stdout rather than the log. That is why the log's last line says 53.)
+
+### The daily equity series, and 09-18
+
+```
+09-11  1000.00  dd 0.00%   pairs []
+09-12  1005.74  dd 0.15%
+09-13  1009.05  dd 0.07%
+09-14  1006.53  dd 0.32%
+09-15   999.60  dd 1.10%   ['1000SHIB/DOGE', 'NEAR/ICP']
+09-16   995.21  dd 1.54%
+09-17   981.67  dd 2.88%
+09-18   981.67  dd 2.88%   pairs []      <- identical equity, flat book
+09-19   983.50  dd 2.70%
+09-20   986.25  dd 2.42%
+```
+
+**2026-09-18 was a genuine zero-return day** — equity unchanged to the cent, no
+pairs in the universe, nothing held. Sunday's review declined to cut
+`risk_per_pair` partly on the ground that *"an idle day enters the Sharpe mean
+as a zero"*, and that clause is now one of the two scoring facts in
+`constraint_prompt`. **It stops being an argument and becomes an observation:
+there is one in the record, on day 10 of the phase.**
+
+Worth stating precisely what it costs and what it does not. A zero-return day
+drags the Sharpe *mean* toward zero and adds nothing to its *variance*, so it
+weakens the 40% term without touching MDD or the 800 floor. It is not a loss —
+it is the gate refusing to trade a market it found nothing in, which is the
+behaviour `selection.py` exists to produce. The record should not start treating
+idle days as a defect to engineer away; **the 09-18 flat day and the 09-15→17
+stop cluster are the same gate behaving correctly under two different regimes.**
+
+### Banked MDD is 2.88%, not "at least"
+
+Every row implies the same peak — `equity / (1 − dd)` gives **1010.78** on
+09-16, 09-17, 09-18 and 09-19, and 1010.71 on 09-20, the ±0.08 spread being the
+two-decimal rounding of the printed `dd`. That matches `status.py`'s 1010.75.
+
+The daily series maxes at **2.88%**. Previous entries hedged this as "≥2.88%"
+because the competition measures MDD over **hourly** snapshots while this series
+is daily — that hedge stands and is correct, since an intraday trough between
+two daily readings cannot appear here. But the daily figure is now pinned rather
+than inferred from one status line.
+
+---
+
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
 
 > **STATUS 2026-09-08, read this before the list.** The build window closed and
