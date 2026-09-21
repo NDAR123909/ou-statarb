@@ -50,7 +50,7 @@ glance. The procedure is five minutes of typing.
 2. Open Claude Desktop → Cowork, point it at the repo folder, and give it
    **one line** — Cowork can read the task file itself, so the prompt never
    needs copying:
-   > Read `deploy/research_queue/02-side-blocked-earned-its-keep.md` and carry
+   > Read `deploy/research_queue/05-sigma-window-and-stops.md` and carry
    > out the task in its PROMPT block exactly as written.
 3. When it finishes: `git status`, confirm it created only the output file the
    task names, then commit and push the branch.
@@ -119,7 +119,11 @@ travelling inside each PROMPT block is what did that, so keep copying them.
 
 | # | task | status |
 |---|---|---|
-| — | *(empty)* | The queue is clear. **Do not invent work to fill it** — README, top. |
+| 05 | `05-sigma-window-and-stops.md` — does the shrinking sigma window explain the stops? | **open · run next** (Wed 2026-09-23) |
+
+The queue emptied on 2026-09-16 and refilled at the 09-20 review, which is the
+cadence the top of this file predicts: reviews generate roughly one or two
+research questions, not ten.
 
 ## Done
 
