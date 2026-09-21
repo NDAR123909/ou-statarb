@@ -16,5 +16,11 @@ deploy/ltp_state.json
 deploy/ltp_hwm.json
 deploy/ltp_ledger.jsonl
 
+# the RapidX CLI's own state dir on the droplet: automation-session records
+# and a 745 KB symbol-rules cache. Operational, regenerable, mode 0600, and
+# nothing anyone should publish. Untracked-but-not-ignored until 2026-09-21,
+# which is one `git add -A` away from pushing account state to GitHub.
+.rapidx/
+
 # derived: rebuild with deploy/reasoning_log.py --archive
 track_record/phase1_submission.tar.gz
