@@ -145,7 +145,17 @@ tests/                 27 tests. test_viability.py pins the v0.2 math
 3. **Selection changes must keep the FDR correction applied to ALL tests run**,
    including candidates rejected by other filters (they were still tests).
 4. **The z-stop's one-sided re-entry block** must survive any refactor: after a
-   stop, that side stays blocked until z heals inside the entry band.
+   stop, that side stays blocked until z heals inside the entry band — **or
+   until the pair leaves the universe for one refit**, which clears it too.
+   That second path is real, not a bug to fix silently: `refit()` rebuilds
+   `state["pairs"]` over surviving keys only, so an evicted pair loses
+   `blocked` with the rest of its entry and returns unblocked. It was found on
+   2026-09-16 (task 02: the XLM/XRP block ended by eviction, not by healing) and
+   **deliberately left alone** at the 2026-09-20 review — a returning pair
+   carries a new beta, mu and sigma, so a block anchored to the old frame would
+   measure against coordinates that no longer exist; `refit_drop` is 4 lifetime;
+   and the one episode it affected *saved* 7.97. Pinned by
+   `tests/test_ltp_blocked_skip.py::test_the_block_does_not_survive_pair_eviction`.
 5. Old tests are behavioral contracts. `BacktestConfig` defaults must keep
    v0.1 behavior (stop_z=None, legs_cost_mult=1.0).
 

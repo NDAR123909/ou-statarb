@@ -89,3 +89,35 @@ def test_skip_reasons_stay_a_closed_vocabulary():
                              src))
     assert reasons == {"gross_cap", "min_notional", "anomaly_veto",
                        "news_veto", "side_blocked"}, reasons
+
+
+def test_the_block_does_not_survive_pair_eviction():
+    """The block has a THIRD exit nobody documented until 2026-09-16.
+
+    `CLAUDE.md` invariant 4 said the side stays blocked "until z heals inside
+    the entry band". Task 02 found the XLM/XRP block of 2026-08-11 ended by the
+    pair being dropped at a 0/15 refit instead: `refit()` rebuilds
+    `state["pairs"]` over surviving keys only, so an evicted pair loses
+    `blocked` with the rest of its entry and comes back unblocked.
+
+    The 2026-09-20 review decided to leave the behaviour alone and correct the
+    invariant -- a returning pair carries a new beta, mu and sigma, so a block
+    anchored to the old frame measures against coordinates that no longer
+    exist; `refit_drop` is 4 lifetime; and the one episode it touched *saved*
+    7.97. This test exists so that decision stays deliberate: if someone later
+    makes `blocked` survive eviction, this fails and they have to come here and
+    read why it was not.
+    """
+    with open(AGENT) as fh:
+        src = fh.read()
+    # The rebuild is comprehension-scoped to the survivors...
+    assert 'for k in keep_keys' in src
+    # ...and `blocked` is carried only through that comprehension, so a pair
+    # absent from keep_keys has no surviving copy of it anywhere.
+    assert '"blocked": old.get(k, {}).get("blocked", 0),' in src
+    carried = re.findall(r'"blocked": old\.get\(k, \{\}\)\.get\("blocked", 0\)', src)
+    assert len(carried) == 1, (
+        "a second carry-forward of `blocked` would mean the block now survives "
+        "eviction -- that is a real behavioural change to a live risk control, "
+        "so update CLAUDE.md invariant 4 and the 2026-09-20 review before "
+        "changing this test")
