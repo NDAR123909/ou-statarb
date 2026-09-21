@@ -1754,7 +1754,9 @@ section existed; that is what it is for.
 | ~~**Sample the AI rationales for genuine depth**~~ **CLOSED 2026-08-04, nothing to fix** — `ai_spread_assessment` n=300, median 54 words, `max_tokens` never binding; the sampled rationales cite the z path, half-life and band. The "~22 tokens per call" that raised this divided a rolling-window count by a lifetime count | 2026-07-27 | closed |
 | ~~Reboot the droplet~~ **DONE 2026-08-06** — 19s down, hwm/bar counter/crontab all survived, first ever test. Kernel packages were kept back; `dist-upgrade` + the second reboot completed 2026-08-09 | 2026-07-28 | closed |
 | **Rotate credentials — PARTLY DONE 2026-09-16.** ~~(1) July LTP keys~~ not present in the dashboard, moot. ~~(2) the Phase II production key AND secret~~ **rotated and the old key deleted**; one key remains, Read + Trade only, Withdraw and **Transfer** both OFF, IP-bound. A third exposure happened during the rotation itself (a new key screenshotted ~90s after issue) — that key never went live and is deleted. **Still open: (a) the AI gateway key `sk-…`, low impact — worst case someone burns budget, which `status.py` shows; (b) the GitHub PAT, expired 2026-08-27.** | 2026-07-20, re-opened 2026-09-08, part-closed 2026-09-16 | **CORRECTION: the trading key was never "the urgent one" and I said so for two months.** It is IP-bound to `68.183.209.2` with Withdraw OFF, so a leaked copy is inert off the droplet — and anyone *on* that droplet has the key from `/root/ltp.env` anyway. Rotation does not defend against the only attacker who could use it. Residual risk is narrow: LTP drops or misconfigures IP binding and someone trades the stake to zero. **Do not re-file this as an alarm** |
-| **Give the droplet a GitHub deploy key — this is the one that actually matters, and it was ranked third.** Checked 2026-09-16: `track_record/equity.csv` last row is **2026-08-12** and is the *Alpaca* paper track; `track_record/` has not been committed since **2026-08-21**. **Nothing about Phase II exists anywhere but the droplet** — not the ledger, not the state history, not the equity curve. `CLAUDE.md` says the project exists to produce a verifiable live track record; a droplet failure erases the phase that matters. `ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519_oustatarb -N ""`, add the **public** half at repo → Settings → Deploy keys with write access, switch the remote to SSH, then extend the 23:50 cron to commit and push `track_record/` | 2026-07-30, re-prioritised 2026-09-16 | **next session at the droplet — ten minutes, zero trading risk.** Also check whether DigitalOcean backups are enabled, which would change the severity |
+| ~~**Give the droplet a GitHub deploy key**~~ **DONE 2026-09-21.** ed25519 key with write access, remote on SSH, `core.sshCommand` set repo-scoped. Droplet pushes to its **own** branch `live/track-record` — the cron suggested in `record_state.py`'s docstring targets `claude/offline-competition-deploy-*`, which would race this log's branch and fail non-fast-forward. **53 files, 86,746 insertions**: 54 rows of state history (2026-07-30 → 09-21) and 50 days of venue-reconciled fills, plus both universe manifests. Two hazards found en route — `.rapidx/` untracked **and not ignored** (now in `.gitignore`, `56fb5e5`) and a stray empty `ssh` file, deleted. **Still to do: the cron, and the Phase II reasoning-log export** (`reasoning_log.py --out track_record/phase2_submission`) | 2026-07-30 | closed; the two follow-ons are the row below |
+| **Finish the droplet's push loop: the daily cron and the Phase II reasoning-log export.** Cron = `record_state.py` then `git add track_record/ && (git commit || true) && git push origin live/track-record`, edited by hand with `crontab -e` (never piped — standing rule) and `%` escaped as `\%`. The export is the existing, deliberate path for the **gitignored** ledger to reach the published record, and it would also put Phase II data where **Cowork can reach it** — the coverage gap that degraded task 02 and would degrade task 05 identically | 2026-09-21 | next droplet session. The export is worth running once immediately so the phase to date is out of the blast radius |
+| **Have `status.py` report the deployed code version.** On 2026-09-21 the droplet was found running **2026-09-12 code** — the `constraint_prompt` fix had been in git since 09-15 and never deployed, so six extra days of deep reviews ran on the premise the phase was over, while this log said it was fixed. **Nothing in the daily glance could have shown that**: `status.py` reports every live fact except which version of the code produces them. Print the HEAD short-sha and whether it matches `origin`. **It was found by accident**, falling out of the deploy-key work — a gap only findable by accident will recur | 2026-09-21 | build window, with the banked-MDD line; same file, same pass |
 | **Give the droplet a non-interactive git credential** (deploy key or stored PAT), then extend the 23:50 UTC cron to `git add track_record/ && git commit && git push` | 2026-07-30 | next time the operator is at the droplet terminal — until then `ltp_state_history.jsonl` exists only on that machine |
 | ~~Re-check rank~~ **DONE 2026-08-02**: #2 of 29, score 94.4 | 2026-07-30 | closed |
 | ~~Restore `risk_per_pair` 0.002 → 0.004~~ **APPROVED 2026-08-02, HELD the same evening, and DECIDED AGAINST at the 2026-08-09 review** | 2026-07-30 | **closed.** Sizing is scale-invariant in Sharpe, so a restore buys the 45% of the score made of PnL and ROI while doing nothing for the 40% made of Sharpe, and roughly doubles the MDD we still lead on. The organizer's 2026-08-04 Quant Tip reaches the same place from the scoring side. Re-opening this needs a new argument, not the old one |
@@ -1764,7 +1766,7 @@ section existed; that is what it is for.
 | ~~Restart for `taker_fee`~~ **DONE 2026-08-02 20:54** | 2026-08-02 | closed |
 | ~~Restart for `side_blocked` logging~~ **DONE 2026-08-09 23:28** — live now, dormant until a block actually declines a signal | 2026-08-08 | closed |
 | ~~`dist-upgrade` + reboot~~ **DONE 2026-08-09 23:28** — kernel 6.8.0-136 → 137, zero updates pending, banner cleared. Second clean reboot: NRestarts=0, peak 1041.19 and the bar counter both survived | 2026-08-06 | closed |
-| **Re-merge the fills snapshots weekly** for the loss attribution — the live report only reaches back ~7 days | 2026-08-09 | each review, before writing the numbers down |
+| ~~**Re-merge the fills snapshots weekly**~~ **CLOSED 2026-09-21 by the deploy key.** All 50 snapshots (2026-08-02 → 09-20) are now committed on `live/track-record`, so the ~7-day retention limit that forced this workaround no longer binds — the whole archive is queryable from the repo | 2026-08-09 | closed |
 | **Synthesise the 399 deep reviews** — where they converge, where they contradict each other, which claims survive contact with the others. Discount the round-5 layer, which reasoned from the understated headroom | 2026-08-12 | Sun 2026-08-16 review. Until it exists, no claim from that run has been acted on |
 | ~~Reply to LTP with the BSC USDT deposit address~~ **SENT 2026-09-02, ~5 hours late.** Deadline was 19:00 GMT+8 = 11:00 UTC = 04:00 local; sent ~16:00 UTC. Low consequence — it was administrative batching for account setup, not an eligibility condition like the Reasoning Log, and Phase II does not open until 09-09. **UI note for next time: the button is "Top up", not "Deposit"** (Asset Center → Funds account → Top up → USDT → BSC/BEP20); generating the address sends nothing | 2026-08-27 | closed |
 | **Surface dated commitments in `status.py`** — this deadline was written down, with the local-time conversion done in advance precisely so it could not be misread, **and it was still missed, because the record is passive and never alerts.** Show any commitment falling due inside 72h in the daily glance the operator already runs | 2026-09-02 | build window, before 09-09. It would have caught this one |
@@ -5005,6 +5007,105 @@ this project exists to produce.
 first half of the week, none in the second. If task 05's mechanism is right, the
 stop rate should track the sigma window — which is a prediction, and therefore
 checkable at the next refit.
+
+---
+
+## 2026-09-21 — the record leaves the droplet, and a fix that shipped to git but not to reality
+
+Two things, and the second is worse than the first is good.
+
+### The deploy key works, and the record is no longer single-machine
+
+`origin/live/track-record`, commit `7a7ed91`, **53 files and 86,746 insertions**:
+
+```
+track_record/ltp_state_history.jsonl   54 rows, 2026-07-30 -> 2026-09-21
+track_record/fills_*.json              50 days,  2026-08-02 -> 2026-09-20
+deploy/universe_manifest{,_nc}.json    the OKX/Binance probe output
+```
+
+**Fifty-four consecutive days of state history and fifty days of
+venue-reconciled fills** — most of Phase I and all of Phase II — are off the
+droplet. The failure mode named on 2026-09-16 ("a droplet failure tonight
+erases the phase that matters") is closed.
+
+It also closes, incidentally, a commitment open since 2026-08-09: **"re-merge
+the fills snapshots weekly"**, which had been worked around all month because
+the live report only reaches back ~7 days. The whole archive is now in the repo
+and queryable.
+
+Mechanics, for the next time: ed25519 deploy key with **write access**, remote
+switched to SSH, and `core.sshCommand` set **repo-scoped** so it cannot disturb
+other SSH on the box. The droplet pushes to its **own branch**, `live/track-record`
+— the cron line suggested in `record_state.py`'s docstring pushes to
+`claude/offline-competition-deploy-*`, which would race the branch this log is
+written on and fail on non-fast-forward.
+
+**Two hazards found while setting it up.** `.rapidx/` — the CLI's own state dir,
+automation-session records and a 745 KB symbol cache — was untracked **and not
+ignored**, one `git add -A` away from GitHub. Now in `.gitignore` (`56fb5e5`)
+and in the droplet's `.git/info/exclude`. And a stray empty file named `ssh` in
+the repo root, deleted.
+
+### The part that matters: `constraint_prompt` was fixed in git and never deployed
+
+The branch pushed from the droplet is based on **`40ea18f`, 2026-09-12**. That
+is the droplet's code. Diffing it against HEAD:
+
+```
+deploy/ai_deep_review.py | 145 ++++++++++++++------------
+1 file changed, 111 insertions(+), 34 deletions(-)
+```
+
+**One file, and it is the `constraint_prompt` fix.** Written 2026-09-15, tested,
+disclosed in `LTP_STRATEGY.md`, and written up here as shipped. It shipped to
+git. **It never shipped to the droplet.**
+
+So from 09-15 to 09-21 every deep review was still briefed with *"0 days remain
+in the phase"*, the frozen 916.25 kill switch and the hardcoded 3.7% drawdown —
+the very defect the 09-15 entry says was fixed. `ai_deep_review` stands at
+8,383 records; the contaminated window is **six days longer than the record
+claims**.
+
+Deployed now by checking out the single file onto the data branch (no restart
+needed — `ai_deep_review.py` is invoked fresh by cron, not held by the agent)
+and verified live:
+
+```
+44 days remain      <- PHASE_II_END - 2026-09-21, correct
+```
+
+**The `LTP_STRATEGY.md` addendum's "What does NOT ship" clause must now be read
+with a wider window**: the corpus to discount for constraint-conditioned answers
+runs **2026-09-09 → 2026-09-21**, not to 09-15.
+
+### The lesson, and it is not "remember to deploy"
+
+I wrote "fixed" in this log on 09-15 and it was true of the repository and false
+of the running system. **Nothing in the daily glance could have revealed that.**
+`status.py` reports equity, peak, the news gate, spend, the bar counter — every
+live fact except *which version of the code is producing them*.
+
+That is the same class of defect as the stale prompt itself: a number that is
+generated cannot drift, a number that is remembered can. **"Deployed" has been a
+remembered fact for this project's entire life.** Proposed fix in Open
+commitments: have `status.py` print the droplet's HEAD short-sha and whether it
+matches `origin`, so version drift becomes a line in the glance rather than
+something discovered nine days later by accident while doing an unrelated task.
+
+Worth being precise about how it was found: **not by looking for it.** It fell
+out of the deploy-key work, because pushing from the droplet exposed what commit
+the droplet was actually on. A gap that is only findable by accident is a gap
+that will recur.
+
+### Still open from tonight
+
+The **cron** (daily `record_state.py` + add/commit/push to `live/track-record`)
+and the **Phase II reasoning-log export** — `reasoning_log.py --out
+track_record/phase2_submission`, which is the existing, deliberate path for
+getting the gitignored ledger into the published record, and the one that would
+also put Phase II data where Cowork can reach it. That coverage gap degraded
+task 02 and would degrade task 05 the same way.
 
 ---
 
