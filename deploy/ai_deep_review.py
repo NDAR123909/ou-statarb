@@ -266,7 +266,13 @@ PHASE_I_END = date(2026, 8, 21)
 PHASE_II_START = date(2026, 9, 9)
 PHASE_II_END = date(2026, 11, 4)
 ELIMINATION_FLOOR = 800.0     # competition rule: equity below this is out
-KILL_SWITCH = 916.25          # ours, self-imposed; halts and flattens first
+# FALLBACK ONLY since 2026-09-15. Ours, self-imposed; halts and flattens first.
+# 916.25 is the Phase I peak (1041.19) x 0.88 and went wrong the moment Phase
+# II reset the book -- it was 27 USDT above the real level by 09-15. The live
+# level is `kill_switch_level()`, derived from the live peak and the agent's
+# own `dd_halt`; this constant is used only when the peak cannot be read, and
+# the prompt then says so out loud.
+KILL_SWITCH = 916.25
 
 # Fallback only. Equity is read live -- hardcoding it is the same rot as the
 # hardcoded "nine days remain" one function down, and it rots faster: this
@@ -287,34 +293,122 @@ def live_equity() -> float | None:
 
 
 def days_left(today: date | None = None) -> int:
-    """Days remaining in Phase I, derived rather than typed.
+    """Days remaining in the LIVE phase, derived rather than typed.
 
     "Nine days remain" was written into the prompt on 2026-08-12 and would have
     been quietly wrong on the 13th -- the same calendar rot that made three
     tests fail in week 3, except a test fails loudly and a prompt does not.
+
+    **Repointed from `PHASE_I_END` to `PHASE_II_END` on 2026-09-15.** Deriving
+    the number fixed the typing, and then the thing it was derived FROM went
+    stale: Phase I ended 2026-08-21, so from 09-09 onward this returned a
+    clamped **0** and the constraint prompt opened with "0 days remain in the
+    phase". On 2026-09-15 a reviewer read that, concluded the phase was over,
+    and recommended halting all trading -- on day 6 of 57, holding live
+    capital. A derived number is only as honest as its reference point.
     """
-    return max(0, (PHASE_I_END - (today or date.today())).days)
+    return max(0, (PHASE_II_END - (today or date.today())).days)
+
+
+def live_peak(root: Path | str | None = None) -> float | None:
+    """The drawdown peak the agent is actually running against, or None.
+
+    Hardcoded as 1041.19 -- the Phase I peak -- until 2026-09-09. Phase II
+    reset the book to 1,000 USDT and deleted the high-water mark with it, so
+    every review generated after the phase opened was briefed on a drawdown
+    that no longer existed.
+    """
+    base = Path(root) if root else Path(__file__).resolve().parent
+    p = base / "ltp_state.json"
+    if not p.exists():
+        return None
+    try:
+        peak = float(json.loads(p.read_text()).get("peak_equity") or 0.0)
+    except (json.JSONDecodeError, OSError, ValueError, TypeError):
+        return None
+    return peak if peak > 0 else None
+
+
+def kill_switch_level(peak: float | None = None) -> float | None:
+    """Where OUR halt actually fires now, or None if the peak is unreadable.
+
+    `KILL_SWITCH = 916.25` was correct against the Phase I high-water mark of
+    1041.19 and became wrong the moment Phase II reset the book. Derived here
+    from the live peak and the agent's OWN `dd_halt`, so the briefing cannot
+    describe a halt level the agent would not actually halt at -- the same
+    reason `stop_facts()` delegates to `stop_analysis` instead of restating it.
+    """
+    pk = live_peak() if peak is None else peak
+    if not pk or pk <= 0:
+        return None
+    return float(pk) * (1.0 - AgentConfig().dd_halt)
+
+
+def drawdown_pct(equity: float, peak: float | None = None) -> float | None:
+    """Drawdown off the peak, measured. None when the peak is unreadable.
+
+    Replaces the string literal "Max drawdown is already banked at 3.7%",
+    which was a Phase I reading and stayed in the prompt for 25 days after
+    Phase I closed.
+    """
+    pk = live_peak() if peak is None else peak
+    if not pk or pk <= 0:
+        return None
+    return max(0.0, (float(pk) - float(equity)) / float(pk)) * 100.0
 
 
 def constraint_prompt(today: date | None = None,
-                      equity: float | None = None) -> str:
-    """The risk budget, stated so the two floors cannot be confused again."""
+                      equity: float | None = None,
+                      peak: float | None = None) -> str:
+    """The risk budget, stated so the two floors cannot be confused again.
+
+    Every number here is read or derived. The 2026-09-15 rewrite removed the
+    last three that were not: a days-remaining figure counting to a phase that
+    had already closed, a kill switch frozen at the Phase I peak, and a
+    drawdown typed in as "3.7%". A reviewer briefed on those recommended
+    halting a live book because it believed the phase was won.
+
+    The closing facts are deliberately two-sided. The clause they replace
+    ("Phase I advancement is assured regardless of rank") pushed toward
+    inaction, and the fix is not to push the other way: MDD is monotone, which
+    argues for caution, and only completed days count for Sharpe, which argues
+    against idling. Both are scoring rules. The model weighs them.
+    """
     eq = EQUITY_AT_REVIEW if equity is None else float(equity)
     dated = "" if equity is not None else f" (reading of {EQUITY_AS_OF}; the "
     dated += "" if equity is not None else "live meter was unreadable)"
+
+    ks = kill_switch_level(peak)
+    if ks is None:
+        ks, ks_note = KILL_SWITCH, (
+            " (the live high-water mark was unreadable, so this is the last "
+            "recorded level and may be stale)")
+    else:
+        ks_note = ""
+    dd = drawdown_pct(eq, peak)
+    dd_clause = ("Max drawdown off the peak is {:.2f}%. ".format(dd)
+                 if dd is not None else
+                 "The live high-water mark was unreadable, so treat the "
+                 "drawdown as unknown rather than as zero. ")
+
     return (
         "{d} days remain in the phase. Equity is {eq:.2f} USDT{dated} against "
         "a competition elimination floor of {floor:.0f} -- {to_floor:.2f} USDT "
-        "of headroom. Our own kill switch sits higher, at {ks:.2f}, only "
-        "{to_ks:.2f} away, but that is a self-imposed halt we chose and not "
-        "the rule that ends the competition; do not conflate the two. Max "
-        "drawdown is already banked at 3.7%, and Phase I advancement is "
-        "assured regardless of rank. Under those constraints specifically, "
-        "what is the single highest-expected-value action, and what does "
-        "doing nothing actually cost?"
+        "of headroom. Our own kill switch sits higher, at {ks:.2f}{ks_note}, "
+        "only {to_ks:.2f} away, but that is a self-imposed halt we chose and "
+        "not the rule that ends the competition; do not conflate the two. "
+        "{dd_clause}"
+        "This phase is live and scored from zero: every team reset to 1,000 "
+        "USDT, elimination below the floor is in force, and nothing is "
+        "already banked in our favour. Two scoring rules cut opposite ways "
+        "and both are facts: max drawdown is monotonically non-decreasing, so "
+        "a drawdown once taken never heals; and Sharpe counts only completed "
+        "days, so an idle day enters the mean as a zero. Under those "
+        "constraints specifically, what is the single highest-expected-value "
+        "action, and what does doing nothing actually cost?"
     ).format(d=days_left(today), eq=eq, dated=dated,
              floor=ELIMINATION_FLOOR, to_floor=eq - ELIMINATION_FLOOR,
-             ks=KILL_SWITCH, to_ks=eq - KILL_SWITCH)
+             ks=ks, ks_note=ks_note, to_ks=eq - ks, dd_clause=dd_clause)
 
 
 # Escalating follow-ups, asked in order. Each turn carries the whole
@@ -361,14 +455,16 @@ CONSTRAINT_INDEX = 3
 
 
 def followups(equity: float | None = None,
-              today: date | None = None) -> list[str]:
+              today: date | None = None,
+              peak: float | None = None) -> list[str]:
     """`FOLLOWUPS` with the risk budget filled in from the live reading.
 
     The module-level list is built at import and must stay network-free, so the
     substitution happens here, once, at the start of a run.
     """
     out = list(FOLLOWUPS)
-    out[CONSTRAINT_INDEX] = constraint_prompt(today=today, equity=equity)
+    out[CONSTRAINT_INDEX] = constraint_prompt(today=today, equity=equity,
+                                              peak=peak)
     return out
 
 
@@ -784,25 +880,6 @@ def _record_block(facts: dict | None) -> str:
         out += ("  NOTE: fees exceeded gross P&L in this window -- the book "
                 "paid more to trade than the trades earned.\n")
     return out
-
-
-def live_peak(root: Path | str | None = None) -> float | None:
-    """The drawdown peak the agent is actually running against, or None.
-
-    Hardcoded as 1041.19 -- the Phase I peak -- until 2026-09-09. Phase II
-    reset the book to 1,000 USDT and deleted the high-water mark with it, so
-    every review generated after the phase opened was briefed on a drawdown
-    that no longer existed.
-    """
-    base = Path(root) if root else Path(__file__).resolve().parent
-    p = base / "ltp_state.json"
-    if not p.exists():
-        return None
-    try:
-        peak = float(json.loads(p.read_text()).get("peak_equity") or 0.0)
-    except (json.JSONDecodeError, OSError, ValueError, TypeError):
-        return None
-    return peak if peak > 0 else None
 
 
 def stop_facts(path: Path | str | None = None,
