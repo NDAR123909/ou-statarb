@@ -1766,9 +1766,9 @@ section existed; that is what it is for.
 | **Rotate credentials — PARTLY DONE 2026-09-16.** ~~(1) July LTP keys~~ not present in the dashboard, moot. ~~(2) the Phase II production key AND secret~~ **rotated and the old key deleted**; one key remains, Read + Trade only, Withdraw and **Transfer** both OFF, IP-bound. A third exposure happened during the rotation itself (a new key screenshotted ~90s after issue) — that key never went live and is deleted. **Still open: (a) the AI gateway key `sk-…`, low impact — worst case someone burns budget, which `status.py` shows; (b) the GitHub PAT, expired 2026-08-27.** | 2026-07-20, re-opened 2026-09-08, part-closed 2026-09-16 | **CORRECTION: the trading key was never "the urgent one" and I said so for two months.** It is IP-bound to `68.183.209.2` with Withdraw OFF, so a leaked copy is inert off the droplet — and anyone *on* that droplet has the key from `/root/ltp.env` anyway. Rotation does not defend against the only attacker who could use it. Residual risk is narrow: LTP drops or misconfigures IP binding and someone trades the stake to zero. **Do not re-file this as an alarm** |
 | ~~**Give the droplet a GitHub deploy key**~~ **DONE 2026-09-21.** ed25519 key with write access, remote on SSH, `core.sshCommand` set repo-scoped. Droplet pushes to its **own** branch `live/track-record` — the cron suggested in `record_state.py`'s docstring targets `claude/offline-competition-deploy-*`, which would race this log's branch and fail non-fast-forward. **53 files, 86,746 insertions**: 54 rows of state history (2026-07-30 → 09-21) and 50 days of venue-reconciled fills, plus both universe manifests. Two hazards found en route — `.rapidx/` untracked **and not ignored** (now in `.gitignore`, `56fb5e5`) and a stray empty `ssh` file, deleted. **Still to do: the cron, and the Phase II reasoning-log export** (`reasoning_log.py --out track_record/phase2_submission`) | 2026-07-30 | closed; the two follow-ons are the row below |
 | ~~**Finish the droplet's push loop**~~ **DONE 2026-09-21.** Phase II ledger slice published as `track_record/ltp_ledger_phase2.jsonl` — **498 trading records, 311K, from a 67M file**, with 4,959 `ai_deep_review` records excluded (advisory bulk, and that window is contaminated). Cron added at **23:58**, deliberately not bolted onto the 23:50 line: fills are written at 23:55, so the docstring's suggestion would have put every day's fills a day late, silently, forever | 2026-09-21 | closed |
-| **Build `deploy/export_phase_ledger.py` and wire it into the 23:58 cron.** The Phase II slice is currently a heredoc'd one-off; a Python filter inside a crontab is fragile in exactly the ways `%` and quoting bite, which is why it was kept manual. Wants a `--since` argument, a test, and then one clean cron line so the published slice tracks the live ledger instead of freezing at whenever someone last remembered | 2026-09-21 | build window, alongside the banked-MDD line and the deployed-version line — same file family, one pass |
+| ~~**Build `deploy/export_phase_ledger.py`**~~ **DONE 2026-09-22.** `--since` (default the Phase II open), `--out`, `--include-reviews`; prints the event breakdown, the first and last record, **the last record's age in hours**, and past three hours says outright that a quiet ledger cannot distinguish idle from stopped and that `status.py` settles it. **Atomic write** — an interrupted run leaves the previously published file intact rather than a truncated one that looks complete, which matters because a cron and the dispatch runbook both commit whatever is on disk. Eight tests; suite 256 → 264. Step 0 of the dispatch runbook is now one command | 2026-09-21 | closed |
 | **Log the refit rejection breakdown to the ledger.** The `refit` record carries `passed`, `tested`, `active` and per-pair `bands`, but **not why the rejected candidates were rejected** — that lives only in the droplet's systemd journal, which rotates. On 2026-09-21 the mix was *split-half 6, half-life out of band 4, crossings 3, Hurst 2* with **zero FDR rejections**, and that evidence is not in the published record. Add `rejects=` to the `ledger("refit", ...)` call — read-only instrumentation, no trading path. Without it, any analysis of the gate can see **survivors only**, which are a selected sample and biased in exactly the direction task 05's question 4b asks about | 2026-09-22 | build window, with the banked-MDD and deployed-version lines |
-| **Re-run the Phase II ledger slice before Wednesday's task 05 dispatch.** Until `export_phase_ledger.py` exists the published slice stops at 2026-09-21, and **Cowork reads the repo**. Stale data here is the exact coverage gap that degraded task 02 and would degrade task 05 identically | 2026-09-21 | **before Wed 2026-09-23.** One command on the droplet, then commit and push to `live/track-record` |
+| ~~**Re-run the Phase II ledger slice before Wednesday**~~ **DONE 2026-09-22** (523 records, last 09-21T10:01) and now superseded: the refresh is **step 0 of the dispatch runbook**, so it happens every Wednesday by procedure rather than by anyone remembering | 2026-09-21 | closed |
 | **`record_state.py`'s docstring is now wrong in two ways** — it suggests bolting the git push onto the 23:50 line (which would publish each day's fills a day late, since `fills_report` runs at 23:55) and it pushes to `claude/offline-competition-deploy-*` (which would race this log's branch and fail non-fast-forward). A future session following it rebuilds both faults | 2026-09-21 | next doc pass; small, but it is a trap laid for a cold reader — the same shape as the `README_ltp.md` sandbox-host row |
 | **Have `status.py` report the deployed code version.** On 2026-09-21 the droplet was found running **2026-09-12 code** — the `constraint_prompt` fix had been in git since 09-15 and never deployed, so six extra days of deep reviews ran on the premise the phase was over, while this log said it was fixed. **Nothing in the daily glance could have shown that**: `status.py` reports every live fact except which version of the code produces them. Print the HEAD short-sha and whether it matches `origin`. **It was found by accident**, falling out of the deploy-key work — a gap only findable by accident will recur | 2026-09-21 | build window, with the banked-MDD line; same file, same pass |
 | **Give the droplet a non-interactive git credential** (deploy key or stored PAT), then extend the 23:50 UTC cron to `git add track_record/ && git commit && git push` | 2026-07-30 | next time the operator is at the droplet terminal — until then `ltp_state_history.jsonl` exists only on that machine |
@@ -5438,6 +5438,66 @@ and is not in the published record, and task 05 can get half-lives for
 **survivors** but not for **rejected** candidates — a selected sample, biased in
 exactly the quantity 4b asks about. In Open commitments as a small
 instrumentation fix.
+
+---
+
+## 2026-09-22 (later) — the dispatch is a runbook, and the export is a tool
+
+Prompted by the operator asking for a dispatch template so the Wednesday
+procedure stops being re-derived in chat each week. **That request landed on
+this project's own principle.** `research_queue/README.md` opens by saying a
+queue living in a chat window "needs whoever wrote it to be present" — which is
+why the queue is files — and the dispatch commands had been coming from chat
+every single week anyway. The procedure was in the repo; I kept regenerating it
+beside it.
+
+### The runbook
+
+One variable: the task file's stem. The branch name derives from it, so there is
+no second thing to remember. Four steps, all literal, plus a step 0 that
+refreshes the Phase II slice — which only became a prerequisite on 09-21 and was
+therefore never in the README.
+
+### `deploy/export_phase_ledger.py`
+
+Step 0 was a twelve-line heredoc. It is now one command.
+
+`--since` (default the Phase II open), `--out`, `--include-reviews`. It prints
+the event breakdown, first and last record, **the last record's age in hours**,
+and past three hours says outright that a quiet ledger cannot distinguish idle
+from stopped, naming `status.py` as what settles it. That text exists because of
+this morning: 16.7 hours of ledger silence read as a possible dead agent for
+twenty minutes before `status.py` explained it. The tool now carries that lesson
+so nobody re-learns it.
+
+**The write is atomic** — temp file, rename on success. Not decoration: a cron
+and the dispatch runbook both commit whatever is on disk, so a run interrupted
+half-way must not leave a truncated file that looks complete. Pinned by
+`test_an_interrupted_run_leaves_no_half_written_file`, which interrupts mid-stream
+and asserts the previous published contents survive untouched.
+
+Eight tests, suite **256 → 264**. The two that matter most:
+`test_only_the_declared_bulk_events_are_dropped` (if the exclusion ever widens to
+a trading record, a research task computes a rate on a silently truncated
+denominator — this project's most-repeated error) and
+`test_a_missing_ledger_raises_rather_than_publishing_emptiness` (an empty output
+and a missing input look identical to whoever reads the published file, and one
+of them means "the phase had no activity").
+
+### Two corrections found by being asked for a template
+
+The README's coverage section still said **"the repo carries Phase I only"** —
+false since 09-21. The identical sentence was fixed in task 05's brief yesterday
+and missed here. One fact, two homes, one caught. The corrected paragraph now
+carries its own history and tells the next brief writer that **a coverage note is
+a fact about the repo, and facts about the repo change.**
+
+And the droplet needed the script cherry-picked, exactly as it needed
+`ai_deep_review.py` on 09-21 and task 05's brief today. **That is three
+file-by-file pulls in two days** — a symptom of the droplet tracking no branch,
+which is the same root as the undeployed-fix incident. Not solved here; noted
+because the deployed-version commitment is about detecting the drift and this is
+about why it keeps happening.
 
 ---
 

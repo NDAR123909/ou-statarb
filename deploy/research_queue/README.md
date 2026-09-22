@@ -51,39 +51,31 @@ and goes stale; a brief pointing at it gets whatever was last pushed.
 ```bash
 ssh root@68.183.209.2
 cd /root/ou-statarb
-.venv/bin/python - <<'EOF'
-import json
-CUT = "2026-09-08T16:00"        # Phase II open: 16:00 UTC = 00:00 GMT+8 on 09-09
-src, out = "deploy/ltp_ledger.jsonl", "track_record/ltp_ledger_phase2.jsonl"
-kept = skipped = 0; last = ""
-with open(src) as f, open(out, "w") as g:
-    for line in f:
-        try:
-            r = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if r.get("ts", "") < CUT:
-            continue
-        if r.get("event") == "ai_deep_review":
-            skipped += 1
-            continue
-        g.write(line); kept += 1; last = r.get("ts", "")
-print(f"{kept} records -> {out}  ({skipped} ai_deep_review excluded)")
-print("last record:", last)
-EOF
+.venv/bin/python deploy/export_phase_ledger.py
 git add track_record/ltp_ledger_phase2.jsonl
 git commit -m "track: refresh phase II ledger slice"
 git push origin live/track-record
 exit
 ```
 
-**Read the `last record:` line before moving on.** If it is not within a few
-hours of now, either the agent is idle — an empty universe silences the ledger,
-and `status.py` says so explicitly in its news-gate line — or something is
-wrong. Do not dispatch against a slice you have not looked at.
+**Read the `last record:` line before moving on.** The tool prints its age in
+hours and, past three, says plainly that a quiet ledger is ambiguous: an empty
+universe silences the sentinel (`ltp_agent.py`, `if assets:`), so "idle and
+healthy" and "stopped" look identical from the file. `deploy/status.py` is what
+settles it. **Do not dispatch against a slice you have not looked at.**
 
-*(This step becomes one line once `deploy/export_phase_ledger.py` exists — it is
-an open commitment in `WEEKLY_REVIEW.md`.)*
+Defaults: cut at the Phase II open (2026-09-08T16:00 UTC = 00:00 GMT+8 on
+09-09), `ai_deep_review` excluded. `--since`, `--out` and `--include-reviews`
+override. The write is atomic, so an interrupted run leaves the previous
+published file intact rather than a truncated one that looks complete.
+
+**One-time, if the droplet has not got the script yet:**
+
+```bash
+git fetch origin claude/offline-competition-deploy-nuk5tz
+git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/export_phase_ledger.py
+```
+
 
 ### 1. Branch — laptop
 
