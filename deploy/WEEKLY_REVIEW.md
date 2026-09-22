@@ -5594,6 +5594,66 @@ unmodelled two-venue execution, both still open.
 
 ---
 
+## 2026-09-22 — model seam: Opus 5 → Opus 5.5
+
+**Everything from here on is written by a different model.** Recorded because a
+future cold start noticing a shift in voice or judgement should know where the
+seam is rather than wonder.
+
+**The evidence.** Opus 5.5 beats Opus 5 on all nine published benchmarks, with
+the largest gains in exactly what this project is — long agentic sessions
+driving a repo and a droplet:
+
+```
+Terminal-Bench-Science   29.0% -> 58.7%   (+29.7, ~6 standard errors)
+Terminal-Bench 4.0       52.3% -> 66.4%   (+14.1)
+AutomationBench          26.9% -> 40.0%   (+13.1)
+CursorBench 4.0          46.6% -> 57.8%   (+11.2)
+OSWorld 2.0              74.0% -> 81.8%   (+7.8)
+GDPval-AA                 1708 -> 1846
+```
+
+Honest against the case: **GPT-6 Astra beats Opus 5.5 on two of nine**
+(Terminal-Bench-Science 64.6, AutomationBench 41.4). Neither bears on the 5-vs-5.5
+comparison, which is what was actually being decided.
+
+**The argument that decided it was the outgoing model's own error record.** In
+the 2026-09-14 → 09-22 stretch alone: `34 of 101 bars` derived and written down
+as though read; "~2× the sizing model" asserted before the ledger was opened;
+"the trading key is the urgent one" carried for two months against an IP
+allowlist that made it false; the GitHub deploy key ranked third when it was the
+only item whose failure mode was losing the deliverable; task 05's question 4b
+presuming the direction of the thing it was testing. **Several of those were
+caught by accident** — one because the operator asked for a dispatch template,
+one because the organizer posted a market note, one because pushing from the
+droplet incidentally revealed what commit it was on. That is a thin margin.
+
+None reached the trading path. The describe-then-go rule, the tests and this log
+held. But a safety net holding is not an argument against reducing the load on
+it.
+
+**Switching cost was near zero, and that is the architecture rather than luck.**
+At the seam: working tree clean, 264 tests green, everything pushed, and the
+Wednesday dispatch procedure living in `research_queue/README.md` rather than in
+any session's context. `CLAUDE.md`'s cold-start protocol is what makes a model
+swap a non-event, and it was written for context loss without anyone
+anticipating this use.
+
+**On compaction, since it was asked directly:** it has not hurt this project. The
+single cold start earlier in this session **surfaced four real defects that had
+been sitting unnoticed** — a git divergence that would have silently deleted two
+entries, all three research outputs stranded on throwaway branches, the missing
+`entry_beta` disclosure in `LTP_STRATEGY.md`, and a stale commitment row.
+Compaction plus the protocol has been net positive, because it forces a read of
+the record that otherwise never happens.
+
+**What the next session should do:** nothing special. Cold start, then carry on.
+Task 05 dispatches Wednesday 2026-09-23 — `$T = "05-sigma-window-and-stops"`,
+steps 1-4 in `research_queue/README.md`, step 0 already done (slice refreshed
+2026-09-22, 546 records, last record 15:00 UTC). Week 8 review Sunday 2026-09-27.
+
+---
+
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
 
 > **STATUS 2026-09-08, read this before the list.** The build window closed and
