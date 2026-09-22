@@ -34,42 +34,114 @@ what comes back. The rest is the tool working.
 
 ## How to run one
 
-**The operator dispatches. Nobody needs to be asked.**
+**The operator dispatches. Nobody needs to be asked** — and nobody should have
+to ask what the commands are. **This section is the whole procedure.** If it is
+ever re-derived in a chat window instead of read from here, that is precisely
+the failure this queue was built to prevent.
 
-Nothing here is automated. There is no timer and no scheduled job — the day is
-a reminder so the lane does not drift, exactly like the daily `status.py`
-glance. The procedure is five minutes of typing.
+**Everything below uses ONE variable: the task file's stem.** Set it once and
+the rest is literal. The branch name derives from it deliberately, so there is
+no second thing to remember.
 
-1. Sync the local clone and branch:
-   ```powershell
-   cd $HOME\repos\ou-statarb
-   git checkout claude/offline-competition-deploy-nuk5tz
-   git pull
-   git checkout -b research/<task-name>
-   ```
-2. Open Claude Desktop → Cowork, point it at the repo folder, and give it
-   **one line** — Cowork can read the task file itself, so the prompt never
-   needs copying:
-   > Read `deploy/research_queue/05-sigma-window-and-stops.md` and carry
-   > out the task in its PROMPT block exactly as written.
-3. When it finishes: `git status`, confirm it created only the output file the
-   task names, then commit and push the branch.
-4. **Land the output on the working branch and move the task file to `done/`.**
-   Pushing the throwaway branch is not finishing — on 2026-09-14 all three
-   completed outputs turned out to exist *only* on their research branches,
-   while this README and `WEEKLY_REVIEW.md` cited `out/` paths that did not
-   resolve on `claude/offline-competition-deploy-*`. The decisions survived in
-   prose; the per-entry working tables that back the arithmetic did not. Three
-   commands do it:
-   ```powershell
-   git checkout claude/offline-competition-deploy-nuk5tz
-   git checkout origin/research/<task-name> -- deploy/research_queue/out/<file>.md
-   git mv deploy/research_queue/<task>.md deploy/research_queue/done/
-   ```
-   then update the tables below and commit.
+### 0. Refresh the Phase II data — droplet, ~1 min
 
-The scope rules live inside each PROMPT block, so a task dispatched this way
-carries them whether or not anyone remembers to repeat them.
+Skip only if the task is Phase-I-only. The published slice is a periodic export
+and goes stale; a brief pointing at it gets whatever was last pushed.
+
+```bash
+ssh root@68.183.209.2
+cd /root/ou-statarb
+.venv/bin/python - <<'EOF'
+import json
+CUT = "2026-09-08T16:00"        # Phase II open: 16:00 UTC = 00:00 GMT+8 on 09-09
+src, out = "deploy/ltp_ledger.jsonl", "track_record/ltp_ledger_phase2.jsonl"
+kept = skipped = 0; last = ""
+with open(src) as f, open(out, "w") as g:
+    for line in f:
+        try:
+            r = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if r.get("ts", "") < CUT:
+            continue
+        if r.get("event") == "ai_deep_review":
+            skipped += 1
+            continue
+        g.write(line); kept += 1; last = r.get("ts", "")
+print(f"{kept} records -> {out}  ({skipped} ai_deep_review excluded)")
+print("last record:", last)
+EOF
+git add track_record/ltp_ledger_phase2.jsonl
+git commit -m "track: refresh phase II ledger slice"
+git push origin live/track-record
+exit
+```
+
+**Read the `last record:` line before moving on.** If it is not within a few
+hours of now, either the agent is idle — an empty universe silences the ledger,
+and `status.py` says so explicitly in its news-gate line — or something is
+wrong. Do not dispatch against a slice you have not looked at.
+
+*(This step becomes one line once `deploy/export_phase_ledger.py` exists — it is
+an open commitment in `WEEKLY_REVIEW.md`.)*
+
+### 1. Branch — laptop
+
+```powershell
+cd $HOME\repos\ou-statarb
+$T = "05-sigma-window-and-stops"        # <- the ONLY thing you change
+git checkout claude/offline-competition-deploy-nuk5tz
+git pull
+git checkout -b research/$T
+```
+
+### 2. Dispatch — Claude Desktop → Cowork, pointed at the repo folder
+
+One line. Cowork reads the task file itself, so the prompt is never copied:
+
+> Read `deploy/research_queue/05-sigma-window-and-stops.md` and carry out the
+> task in its PROMPT block exactly as written.
+
+Substitute your own `$T`. The scope rules live inside each PROMPT block, so a
+task dispatched this way carries them whether or not anyone remembers to repeat
+them.
+
+### 3. Check, commit, push — laptop
+
+```powershell
+git status --short
+```
+
+**Confirm it created only `deploy/research_queue/out/$T.md` and nothing else.**
+All four dispatches so far have been clean — that is the rules working rather
+than luck, and it is worth verifying each time rather than assuming.
+
+```powershell
+git add deploy\research_queue\out\$T.md
+git commit -m "research: $T"
+git push -u origin research/$T
+```
+
+### 4. Land it — part of the job, not an afterthought
+
+Pushing the throwaway branch is **not** finishing. On 2026-09-14 all three
+completed outputs turned out to exist *only* on their research branches, while
+this README and `WEEKLY_REVIEW.md` cited `out/` paths that did not resolve on
+the working branch. The decisions survived in prose; the per-entry working
+tables that back the arithmetic did not.
+
+```powershell
+git checkout claude/offline-competition-deploy-nuk5tz
+git checkout origin/research/$T -- deploy/research_queue/out/$T.md
+git mv deploy/research_queue/$T.md deploy/research_queue/done/
+git add -A deploy/research_queue
+git commit -m "research: land $T, move to done/"
+git push
+```
+
+Then update the **Open** and **Done** tables below, and tell Claude the result so
+it reaches `WEEKLY_REVIEW.md`. **An output nobody reads back is a file, not a
+finding.**
 
 Tasks are numbered by dispatch order, not importance. A task marked **GATE**
 blocks a decision — run those first.
@@ -92,10 +164,24 @@ eventually be dispatched without being read.
 
 ## What the research lane can and cannot see — CHECK THIS BEFORE WRITING A BRIEF
 
-**The repo carries Phase I only.** `track_record/phase1_submission/reasoning.jsonl`
-ends **2026-08-21T16:00:23Z**, and there is no `deploy/*.jsonl` in the repo at
-all. The live Phase II ledger exists **only on the droplet**, which Cowork
-cannot reach.
+**Both phases are in the repo since 2026-09-21, and they are not equivalent.**
+`track_record/phase1_submission/reasoning.jsonl` is **Phase I**, ending
+2026-08-21T16:00:23Z — the larger sample, and usually the primary test bed.
+`track_record/ltp_ledger_phase2.jsonl` is **Phase II** from 2026-09-08T16:00,
+**trading records only**: `ai_deep_review` is excluded (advisory, ~99% of the
+raw ledger by volume, and that window is independently known to be
+contaminated). The raw `deploy/ltp_ledger.jsonl` is gitignored and stays on the
+droplet.
+
+**The Phase II file is a periodic export and lags** — step 0 of the dispatch
+refreshes it, and every brief should tell its reader to check the last
+timestamp rather than assume it runs to today.
+
+> **This paragraph was itself wrong for a day.** It said "the repo carries
+> Phase I only" from 2026-09-16 until 2026-09-21, and stayed wrong for a day
+> after the slice landed — the same stale claim was fixed in task 05's brief
+> and missed here. **A coverage note is a fact about the repo, and facts about
+> the repo change.** Re-check it when writing any brief.
 
 This was learned the expensive way on 2026-09-16. Task 02's brief had been
 updated twice with Phase II material — the live `blocked=1`, the 09-15 churn
