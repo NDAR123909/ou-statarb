@@ -138,13 +138,34 @@ nothing has tested it, which is not the same as support.
 >    So: **if half-lives are compressing across the whole candidate set, the
 >    same mechanism would explain both the stop cluster and the gate emptying**
 >    — pairs we hold get a shrinking sigma window, and pairs we don't hold fall
->    out of the bottom of the band. That is one story instead of two, which is
->    a reason to test it carefully rather than a reason to believe it.
+>    out of the band. That is one story instead of two, which is a reason to
+>    test it carefully rather than a reason to believe it.
 >
+>    **WHICH END OF THE BAND? This is the question, and the first version of
+>    this task assumed the answer.** It said candidates "fall out of the
+>    **bottom**", which presumes compression. The opposite is at least as
+>    likely:
+>
+>    - **Shorter** half-lives → failures at `min_half_life = 6.0` → consistent
+>      with the compression hypothesis this whole task is testing.
+>    - **Longer** half-lives → failures at `max_half_life = 168.0` → consistent
+>      with a **trending market**, where the fitted AR(1) coefficient approaches
+>      1 and the spread stops oscillating at all.
+>
+>    The second reading has live support the task did not have when written. The
+>    organizer's 2026-09-22 market note reports **BTC rallying from below $80K
+>    to ~$85K that week**, with ETH following — and the 0-of-15 refit fell in the
+>    middle of it. The same mix shows **"too few mean crossings" 3**, which is
+>    exactly what a trending spread produces. A hard directional rally is the
+>    classic regime in which pairs stop mean-reverting.
+>
+>    **These are opposite diagnoses and they imply opposite remedies**, so do
+>    not let either the prose above or the phrase "out of band" decide it.
 >    Compute the fitted half-life distribution across **all** candidates at each
->    refit, not just survivors, and track whether its centre moves. Report how
->    many rejections in each period were `half-life out of band` versus other
->    gates.
+>    refit, not just survivors, track whether its centre moves, **and state
+>    which side of the band the failures sit on.** If the answer is "longer",
+>    the compression hypothesis is wrong about the universe even if it is right
+>    about the pairs we hold — and saying so is the finding.
 >
 >    **A coverage warning specific to this sub-question.** The `refit` ledger
 >    record carries `passed`, `tested`, `active` and per-pair `bands` — **it does

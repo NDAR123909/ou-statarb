@@ -1767,7 +1767,7 @@ section existed; that is what it is for.
 | ~~**Give the droplet a GitHub deploy key**~~ **DONE 2026-09-21.** ed25519 key with write access, remote on SSH, `core.sshCommand` set repo-scoped. Droplet pushes to its **own** branch `live/track-record` — the cron suggested in `record_state.py`'s docstring targets `claude/offline-competition-deploy-*`, which would race this log's branch and fail non-fast-forward. **53 files, 86,746 insertions**: 54 rows of state history (2026-07-30 → 09-21) and 50 days of venue-reconciled fills, plus both universe manifests. Two hazards found en route — `.rapidx/` untracked **and not ignored** (now in `.gitignore`, `56fb5e5`) and a stray empty `ssh` file, deleted. **Still to do: the cron, and the Phase II reasoning-log export** (`reasoning_log.py --out track_record/phase2_submission`) | 2026-07-30 | closed; the two follow-ons are the row below |
 | ~~**Finish the droplet's push loop**~~ **DONE 2026-09-21.** Phase II ledger slice published as `track_record/ltp_ledger_phase2.jsonl` — **498 trading records, 311K, from a 67M file**, with 4,959 `ai_deep_review` records excluded (advisory bulk, and that window is contaminated). Cron added at **23:58**, deliberately not bolted onto the 23:50 line: fills are written at 23:55, so the docstring's suggestion would have put every day's fills a day late, silently, forever | 2026-09-21 | closed |
 | ~~**Build `deploy/export_phase_ledger.py`**~~ **DONE 2026-09-22.** `--since` (default the Phase II open), `--out`, `--include-reviews`; prints the event breakdown, the first and last record, **the last record's age in hours**, and past three hours says outright that a quiet ledger cannot distinguish idle from stopped and that `status.py` settles it. **Atomic write** — an interrupted run leaves the previously published file intact rather than a truncated one that looks complete, which matters because a cron and the dispatch runbook both commit whatever is on disk. Eight tests; suite 256 → 264. Step 0 of the dispatch runbook is now one command | 2026-09-21 | closed |
-| **Log the refit rejection breakdown to the ledger.** The `refit` record carries `passed`, `tested`, `active` and per-pair `bands`, but **not why the rejected candidates were rejected** — that lives only in the droplet's systemd journal, which rotates. On 2026-09-21 the mix was *split-half 6, half-life out of band 4, crossings 3, Hurst 2* with **zero FDR rejections**, and that evidence is not in the published record. Add `rejects=` to the `ledger("refit", ...)` call — read-only instrumentation, no trading path. Without it, any analysis of the gate can see **survivors only**, which are a selected sample and biased in exactly the direction task 05's question 4b asks about | 2026-09-22 | build window, with the banked-MDD and deployed-version lines |
+| **Log the refit rejection breakdown to the ledger — AND WHICH END OF EACH BAND.** The `refit` record carries `passed`, `tested`, `active` and per-pair `bands`, but not why candidates were rejected; that lives only in the droplet's systemd journal, which rotates. **Sharpened 2026-09-22: the gate name alone is not enough.** `half-life out of band` is ambiguous between `min_half_life = 6.0` (compression — task 05's hypothesis) and `max_half_life = 168.0` (**a trending market**, where the AR(1) coefficient approaches 1 and the spread stops oscillating). **Those are opposite diagnoses implying opposite remedies, and the current log cannot tell them apart.** Same for any other two-sided gate. Add `rejects=` with the direction — read-only instrumentation, no trading path. Without it, analysis of the gate sees **survivors only**, a selected sample biased in exactly the direction task 05's 4b asks about | 2026-09-22 | build window, with the banked-MDD and deployed-version lines |
 | ~~**Re-run the Phase II ledger slice before Wednesday**~~ **DONE 2026-09-22** (523 records, last 09-21T10:01) and now superseded: the refresh is **step 0 of the dispatch runbook**, so it happens every Wednesday by procedure rather than by anyone remembering | 2026-09-21 | closed |
 | **`record_state.py`'s docstring is now wrong in two ways** — it suggests bolting the git push onto the 23:50 line (which would publish each day's fills a day late, since `fills_report` runs at 23:55) and it pushes to `claude/offline-competition-deploy-*` (which would race this log's branch and fail non-fast-forward). A future session following it rebuilds both faults | 2026-09-21 | next doc pass; small, but it is a trap laid for a cold reader — the same shape as the `README_ltp.md` sandbox-host row |
 | **Have `status.py` report the deployed code version.** On 2026-09-21 the droplet was found running **2026-09-12 code** — the `constraint_prompt` fix had been in git since 09-15 and never deployed, so six extra days of deep reviews ran on the premise the phase was over, while this log said it was fixed. **Nothing in the daily glance could have shown that**: `status.py` reports every live fact except which version of the code produces them. Print the HEAD short-sha and whether it matches `origin`. **It was found by accident**, falling out of the deploy-key work — a gap only findable by accident will recur | 2026-09-21 | build window, with the banked-MDD line; same file, same pass |
@@ -5498,6 +5498,99 @@ file-by-file pulls in two days** — a symptom of the droplet tracking no branch
 which is the same root as the undeployed-fix incident. Not solved here; noted
 because the deployed-version commitment is about detecting the drift and this is
 about why it keeps happening.
+
+---
+
+## 2026-09-22 — a rally, a fourth delisting, and an assumption I had no business making
+
+### The delisting reflex, fully exercised at last
+
+```
+09-15  OKX_PERP_ICX            wrong venue, wrong symbol
+09-17  OKX_PERP_ONE            wrong venue, wrong symbol
+09-19  BINANCE_MARGIN/SPOT_STG right venue, WRONG PRODUCT
+09-22  BINANCE_PERP_STG_USDT   right venue, RIGHT PRODUCT -- fails on symbol alone
+```
+
+**The fourth notice is the first to clear both filters.** `BINANCE_PERP_STG_USDT`
+delists 2026-09-24 07:00 UTC — our venue, our product type, and STG is simply
+not among our thirty symbols. Consistent with the 09-19 notice: spot and margin
+at 08:00, perp an hour earlier, so the exchange is removing STG entirely.
+
+The reflex recorded on 09-19 — *check the product type, not just the symbol* —
+has now been run end to end, and the remaining filter is the symbol list. A
+notice naming something in `CANDIDATES` is still the one that matters, and the
+guard there is the news sentinel, which rates exchange delisting `critical`.
+
+### The rally, and why it may cut against task 05
+
+The organizer's Market Watch reports **BTC climbing from below $80K to ~$85K
+across the week**, ETH following, plus an SEC five-year exemption for certain
+tokenised US stocks trading onchain.
+
+**The 0-of-15 refit on 09-21 fell in the middle of that rally.** That is not a
+coincidence worth ignoring: a hard directional move is the classic regime in
+which pairs stop mean-reverting, and the rejection mix fits it —
+*half-life out of band 4, **too few mean crossings 3***, the second being
+exactly what a trending spread produces.
+
+**And it may invert task 05's hypothesis.** A trending market drives the fitted
+AR(1) coefficient toward 1, which makes half-lives **LONGER** and fails
+`max_half_life = 168.0`. Task 05 is testing whether half-lives are getting
+**SHORTER**, compressing the sigma window and failing `min_half_life = 6.0`.
+
+```
+shorter -> min_half_life  -> compression (task 05's hypothesis)
+longer  -> max_half_life  -> trending market (the rally)
+```
+
+**Opposite diagnoses, opposite remedies, and `half-life out of band` cannot
+distinguish them.**
+
+### The assumption
+
+Question 4b, written yesterday, said unheld candidates "fall out of the
+**bottom** of the band." **That presumed compression — the very thing the task
+exists to test.** I had no evidence for the direction and did not mark it as an
+assumption.
+
+Corrected before dispatch: 4b now lays out both readings, gives the rally as
+live support for the *longer* one, and instructs the reader to **state which
+side of the band the failures sit on** rather than let the phrase "out of band"
+or my prose decide it. It also says plainly that "longer" would mean the
+compression hypothesis is wrong about the universe even if right about the pairs
+we hold — **and that saying so is the finding.**
+
+This is the second time in three days a brief has gone out carrying something I
+asserted rather than measured (the other: the coverage note that had already
+gone stale). Both were caught before dispatch. **The pattern is that briefs
+accumulate confident prose between writing and running**, and the fix that has
+worked twice now is re-reading the brief against the day's news before sending
+it — which is worth doing every Wednesday, not just when something prompts it.
+
+### The Quant Tip, checked rather than nodded at
+
+> *"Max drawdown is monotonically non-decreasing… it hits you twice: MDD is
+> scored directly, and the volatility behind it drags your Sharpe down too."*
+
+The monotone half is already the first of the two scoring facts in
+`constraint_prompt`. The "twice" framing is new, so it was tested against
+Sunday's decision **not** to cut `risk_per_pair`:
+
+Halving position size halves returns **and** standard deviation, so **Sharpe is
+unchanged** — scale-invariance survives the organizer's point intact. MDD
+improves; PnL and ROI worsen. The trade is still **45% of the score against
+15%**, and with one pair passing the gate we run 0.2% of NAV against a designed
+0.8%.
+
+**Decision stands, now checked rather than assumed.** Recorded because an
+organizer tip that sounds like it should change a decision is exactly the kind
+of thing this record should show being tested rather than absorbed.
+
+The tokenised-equities item is noted and not acted on. The venue already lists
+AAPL, MSFT, NVDA and TSLA perps — found in the 09-10 universe probe — and the
+blocker there was never regulatory. It was the unexplained SPX beta and the
+unmodelled two-venue execution, both still open.
 
 ---
 
