@@ -5282,6 +5282,63 @@ than inferred from one status line.
 
 ---
 
+## 2026-09-21 — third maintenance window, and the rule stated sharply
+
+RapidX announced **Tue 2026-09-22, 16:05–16:30 HKT = 08:05–08:30 UTC**. Third
+window in eight days (09-15, 09-17, 09-22), and the first to change shape:
+**25 minutes, not 15**.
+
+Same verdict, reached by the rule rather than by judgement:
+
+```
+07:00:05 -> clear
+08:00:05 -> prepare
+09:00:05 -> clear
+ticks landing 'active': NONE
+```
+
+**Guard NOT armed.** Arming would make the 08:00 tick flatten whatever is open
+for no protection, since the agent takes no action between 08:00 and 09:00
+regardless.
+
+### The condition, stated generally so it stops being re-derived
+
+The 09-14 entry said *"convert to UTC, then check which `:00:05` ticks the
+window actually covers."* Three applications in, the sharper form:
+
+> **A window only matters if it CONTAINS a `:00:05` tick — which means it must
+> cross an hour boundary.** Duration alone is not the test. A **56-minute or
+> longer** window contains one by construction, wherever it starts; anything
+> shorter depends entirely on whether it straddles the top of an hour.
+
+So the shape to watch for is a window spanning a `:00` — something like
+08:55–09:15 — or one approaching an hour. Neither has occurred. This one runs
+08:05→08:30 and crosses nothing.
+
+### What the longer window costs
+
+The accepted exposure scales with duration and nothing else: `stream.urgent.wait()`
+can wake the agent mid-hour to `derisk()` on critical news, and inside the
+window that call hits a dead API. **That hole is now 25 minutes rather than 15.**
+Against a news veto that has still never fired in this agent's life, the trade
+is unchanged — an unlikely 25-minute inability to de-risk versus a certain
+forced exit.
+
+### One timing note
+
+After the bar-counter drift from the 09-16 restarts, refits now land near
+**09:00 UTC** rather than the 12:00 they held through 09-16. That is *after* the
+window closes at 08:30 — clear, but closer than any previous window. Read
+`status.py`'s "next in N bars" rather than assuming, since the refit hour is now
+a moving quantity (see the 09-16 bar-counter entry).
+
+Three delisting notices and three maintenance windows in eight days is a lot of
+venue housekeeping. None of it has touched us, and the cadence is not a signal
+about venue health — but it does mean the "check the product type, not just the
+symbol" reflex is getting regular exercise.
+
+---
+
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
 
 > **STATUS 2026-09-08, read this before the list.** The build window closed and
