@@ -1767,6 +1767,7 @@ section existed; that is what it is for.
 | ~~**Give the droplet a GitHub deploy key**~~ **DONE 2026-09-21.** ed25519 key with write access, remote on SSH, `core.sshCommand` set repo-scoped. Droplet pushes to its **own** branch `live/track-record` — the cron suggested in `record_state.py`'s docstring targets `claude/offline-competition-deploy-*`, which would race this log's branch and fail non-fast-forward. **53 files, 86,746 insertions**: 54 rows of state history (2026-07-30 → 09-21) and 50 days of venue-reconciled fills, plus both universe manifests. Two hazards found en route — `.rapidx/` untracked **and not ignored** (now in `.gitignore`, `56fb5e5`) and a stray empty `ssh` file, deleted. **Still to do: the cron, and the Phase II reasoning-log export** (`reasoning_log.py --out track_record/phase2_submission`) | 2026-07-30 | closed; the two follow-ons are the row below |
 | ~~**Finish the droplet's push loop**~~ **DONE 2026-09-21.** Phase II ledger slice published as `track_record/ltp_ledger_phase2.jsonl` — **498 trading records, 311K, from a 67M file**, with 4,959 `ai_deep_review` records excluded (advisory bulk, and that window is contaminated). Cron added at **23:58**, deliberately not bolted onto the 23:50 line: fills are written at 23:55, so the docstring's suggestion would have put every day's fills a day late, silently, forever | 2026-09-21 | closed |
 | **Build `deploy/export_phase_ledger.py` and wire it into the 23:58 cron.** The Phase II slice is currently a heredoc'd one-off; a Python filter inside a crontab is fragile in exactly the ways `%` and quoting bite, which is why it was kept manual. Wants a `--since` argument, a test, and then one clean cron line so the published slice tracks the live ledger instead of freezing at whenever someone last remembered | 2026-09-21 | build window, alongside the banked-MDD line and the deployed-version line — same file family, one pass |
+| **Log the refit rejection breakdown to the ledger.** The `refit` record carries `passed`, `tested`, `active` and per-pair `bands`, but **not why the rejected candidates were rejected** — that lives only in the droplet's systemd journal, which rotates. On 2026-09-21 the mix was *split-half 6, half-life out of band 4, crossings 3, Hurst 2* with **zero FDR rejections**, and that evidence is not in the published record. Add `rejects=` to the `ledger("refit", ...)` call — read-only instrumentation, no trading path. Without it, any analysis of the gate can see **survivors only**, which are a selected sample and biased in exactly the direction task 05's question 4b asks about | 2026-09-22 | build window, with the banked-MDD and deployed-version lines |
 | **Re-run the Phase II ledger slice before Wednesday's task 05 dispatch.** Until `export_phase_ledger.py` exists the published slice stops at 2026-09-21, and **Cowork reads the repo**. Stale data here is the exact coverage gap that degraded task 02 and would degrade task 05 identically | 2026-09-21 | **before Wed 2026-09-23.** One command on the droplet, then commit and push to `live/track-record` |
 | **`record_state.py`'s docstring is now wrong in two ways** — it suggests bolting the git push onto the 23:50 line (which would publish each day's fills a day late, since `fills_report` runs at 23:55) and it pushes to `claude/offline-competition-deploy-*` (which would race this log's branch and fail non-fast-forward). A future session following it rebuilds both faults | 2026-09-21 | next doc pass; small, but it is a trap laid for a cold reader — the same shape as the `README_ltp.md` sandbox-host row |
 | **Have `status.py` report the deployed code version.** On 2026-09-21 the droplet was found running **2026-09-12 code** — the `constraint_prompt` fix had been in git since 09-15 and never deployed, so six extra days of deep reviews ran on the premise the phase was over, while this log said it was fixed. **Nothing in the daily glance could have shown that**: `status.py` reports every live fact except which version of the code produces them. Print the HEAD short-sha and whether it matches `origin`. **It was found by accident**, falling out of the deploy-key work — a gap only findable by accident will recur | 2026-09-21 | build window, with the banked-MDD line; same file, same pass |
@@ -5336,6 +5337,107 @@ Three delisting notices and three maintenance windows in eight days is a lot of
 venue housekeeping. None of it has touched us, and the cadence is not a signal
 about venue health — but it does mean the "check the product type, not just the
 symbol" reflex is getting regular exercise.
+
+---
+
+## 2026-09-22 — the cron's first run, a 0/15 refit, and FDR is not the binding constraint
+
+### The push loop is autonomous
+
+First automatic run, clean:
+
+```
+[live/track-record 8513e72] track: daily state 2026-09-21
+ 2 files changed, 2396 insertions(+), 1 deletion(-)
+ create mode 100644 track_record/fills_2026-09-21.json
+```
+
+**Git identity works under cron** — no `HOME=/root` needed. The `1 deletion` is
+`record_state.py` being idempotent, replacing the 09-21 row created manually at
+02:28 with the 23:50 one.
+
+**And the 23:58 timing proved out rather than merely sounding right.**
+`fills_2026-09-21.json` is *in* that commit — it is written at 23:55, so the
+docstring's suggestion of bolting the push onto the 23:50 line would have missed
+it, and every day's fills would have landed a day late, silently, forever. The
+operator's existing crontab is what exposed that; the first run confirms the fix.
+
+Phase II ledger slice refreshed: **523 records** (from 498), last record
+`2026-09-21T10:01:48`.
+
+### A 0/15 refit — the first in Phase II
+
+```
+Sep 21 10:00:55  refit: 0/15 candidates pass the gate
+Sep 21 10:00:55  refit: active []
+Sep 21 10:01:22  1000SHIB/DOGE: dropped by refit, flattening
+```
+
+The book has been **flat and the universe empty for 16.7 hours**. Equity
+**990.78** (peak 1010.75, current dd 1.98%), bar 329, service up since 09-16
+with restarts 0, automation session renewed 21:00. The day netted **+2.87**
+despite the forced flatten: one reverted exit at 07:00, one entry at 09:00, one
+`refit_drop` an hour later.
+
+This is Sunday's decision meeting reality three days early. The review declined
+to cut `risk_per_pair` partly on the ground that idle days are **the gate
+refusing a market it found nothing in**, not a defect. Here is the gate doing
+exactly that, on the largest scale yet.
+
+### I was wrong that "nothing alerts"
+
+The silence in the ledger looked, for about twenty minutes, like it might be a
+dead agent — 16.7 hours with no `news_assessment` — and I proposed a staleness
+check as a new commitment. Then `status.py` printed:
+
+```
+news gate  STALE — last rated 16.7h ago @ 2026-09-21T10:01:11+00:00
+           (no active pairs: nothing to screen, and nothing refreshing)
+```
+
+**The tool already distinguishes idle from dead, in the parenthetical, in plain
+words.** Someone solved this before I proposed solving it. The commitment is not
+filed. Worth recording the near-miss: the ledger alone genuinely cannot tell the
+two apart — `ltp_agent.py:1209` is `if assets:`, so an empty universe silences
+the sentinel — and the answer was already in the glance we run daily.
+
+### FDR is not the binding constraint, and has not been for days
+
+```
+09-21   split-half cointegration 6 · half-life out of band 4 · crossings 3 · hurst 2
+09-20   split-half 5 · half-life 5 · hurst 2 · crossings 2
+```
+
+**Zero FDR rejections on either day.** This record carries a great deal of
+argument about Benjamini-Hochberg and m-inflation — the stratified-FDR decision,
+the `CANDIDATES` expansion rejected because m=15 → m=60 would tighten the live
+gate. All of it is currently moot: **every candidate is dying at split-half
+cointegration or the half-life band before FDR gets a vote.**
+
+That does not overturn those decisions, which were about what *would* happen if
+the family grew. It does mean the next session tempted to reason about FDR
+should check whether it is binding first.
+
+### The observation that may unify two open questions
+
+**"Half-life out of band" is rejecting 4–5 of 15.** Task 05's hypothesis is that
+half-life compression shrinks the sigma window on pairs we *hold*, inflating z
+and causing stops. If compression is **universe-wide**, the same mechanism also
+empties the gate — held pairs get a shrinking ruler, unheld pairs fall out of
+the bottom of the 6–168h band.
+
+**One story instead of two, which is a reason to test it carefully rather than
+to believe it.** Added to task 05 as question 4b before tomorrow's dispatch.
+
+### A gap that question exposes
+
+The `refit` ledger record carries `passed`, `tested`, `active` and per-pair
+`bands` — **but not the rejection breakdown.** Both mixes above were read by
+hand from the droplet's systemd journal, which rotates. So the evidence ages out
+and is not in the published record, and task 05 can get half-lives for
+**survivors** but not for **rejected** candidates — a selected sample, biased in
+exactly the quantity 4b asks about. In Open commitments as a small
+instrumentation fix.
 
 ---
 

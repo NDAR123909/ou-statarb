@@ -124,6 +124,38 @@ nothing has tested it, which is not the same as support.
 >    compression persists across refits or oscillates, and whether it coincides
 >    with realised volatility falling.
 >
+> 4b. **Is compression universe-wide, or only on the pairs we hold?** This
+>    matters more than it looks, and it was added on 2026-09-22 after an
+>    observation the task did not have when it was written.
+>
+>    The gate accepts half-lives in a band — `min_half_life = 6.0` bars,
+>    `max_half_life = 168.0` (`AgentConfig`). On **2026-09-21 the refit passed
+>    0 of 15** and the rejection mix was *split-half cointegration 6, **half-life
+>    out of band 4**, mean crossings 3, Hurst 2*. On 09-20 it was *split-half 5,
+>    **half-life 5**, Hurst 2, crossings 2*. **FDR rejected nothing on either
+>    day** — every candidate died at an earlier gate.
+>
+>    So: **if half-lives are compressing across the whole candidate set, the
+>    same mechanism would explain both the stop cluster and the gate emptying**
+>    — pairs we hold get a shrinking sigma window, and pairs we don't hold fall
+>    out of the bottom of the band. That is one story instead of two, which is
+>    a reason to test it carefully rather than a reason to believe it.
+>
+>    Compute the fitted half-life distribution across **all** candidates at each
+>    refit, not just survivors, and track whether its centre moves. Report how
+>    many rejections in each period were `half-life out of band` versus other
+>    gates.
+>
+>    **A coverage warning specific to this sub-question.** The `refit` ledger
+>    record carries `passed`, `tested`, `active` and per-pair `bands` — **it does
+>    not carry the rejection breakdown**, which exists only in the droplet's
+>    systemd journal and is not in this repo. The two mixes quoted above were
+>    read from there by hand. So you can get half-lives for **survivors** from
+>    the ledger, and for **rejected** candidates you cannot — say so plainly
+>    rather than inferring the distribution from the survivors, which are a
+>    selected sample by construction and would bias exactly the quantity in
+>    question.
+>
 > 5. **The obvious confound, stated up front.** A short half-life means a fast
 >    pair, and fast pairs may simply be worse to trade for reasons unrelated to
 >    the window. **Try to separate "short window" from "fast pair."** If you
