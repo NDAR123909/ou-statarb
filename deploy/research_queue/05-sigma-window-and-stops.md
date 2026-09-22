@@ -69,13 +69,34 @@ nothing has tested it, which is not the same as support.
 > smaller sigma window inflate z and cause stops that the raw spread movement
 > does not justify?**
 >
-> **Read the coverage warning before you start.** The repo carries **Phase I
-> only** — `track_record/phase1_submission/reasoning.jsonl` ends
-> 2026-08-21T16:00:23Z and there is no `deploy/*.jsonl` here. The Phase II
-> ledger lives on the droplet and you cannot reach it. **Phase I is a perfectly
-> good test bed for this question** — it has 8 stops, 39 entries and many
-> refits — so answer it there, and say plainly that the Phase II stops which
-> prompted the question are outside your reach.
+> **Read the coverage note before you start — it changed on 2026-09-21.**
+>
+> **Both phases are now in the repo**, and they play different roles:
+>
+> - `track_record/phase1_submission/reasoning.jsonl` — **Phase I**, ending
+>   2026-08-21T16:00:23Z. **8 stops, 39 entries, many refits. This is your
+>   primary test bed**, because it is the only sample large enough to compute a
+>   stop rate conditioned on window size with a denominator worth the name.
+> - `track_record/ltp_ledger_phase2.jsonl` — **Phase II**, from
+>   2026-09-08T16:00 (the phase open). Trading records only: `enter`, `exit`,
+>   `stop`, `refit`, `operation`, `skip`, `news_assessment`,
+>   `ai_spread_assessment`. **`ai_deep_review` records are deliberately
+>   excluded** — they are advisory, they are ~99% of the raw ledger by volume,
+>   and that window is independently known to be contaminated.
+>
+> **Phase II is small but unusually clean for this question.** It holds the
+> three stops that prompted the task, and **two of them carry
+> `mu_shift_sigma = 0.0`** — a provably stationary frame during the hold, which
+> is exactly the condition under which `dspread / dz` *is* sigma. Those are the
+> cleanest available cases for separating the ruler from the move (question 3).
+> Three stops cannot carry a rate; they can carry a worked example.
+>
+> So: **compute on Phase I, corroborate on Phase II**, and keep the two clearly
+> labelled. If they disagree, that is a finding, not a problem to average away.
+>
+> The Phase II file is a periodic export and **may lag the live agent by a day
+> or two** — check its last timestamp and say what it is rather than assuming it
+> runs to today.
 >
 > **Answer these, in order:**
 >
