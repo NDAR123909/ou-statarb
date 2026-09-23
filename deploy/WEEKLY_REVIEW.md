@@ -5908,6 +5908,32 @@ on the 15% MDD carries.
 
 ---
 
+## 2026-09-23 — fourth maintenance window, and the first with nothing exposed
+
+RapidX announced **Thu 2026-09-24, 16:05–16:30 HKT = 08:05–08:30 UTC** —
+WebSocket, REST, Algo API and dashboard trading. Fourth window in ten days
+(09-15, 09-17, 09-22, 09-24), and the same 25-minute shape and slot as 09-22.
+
+By the rule in the 09-21 entry, not by judgement:
+
+```
+08:00:05 -> before the window
+09:00:05 -> after it
+ticks inside the window: NONE   (it crosses no hour boundary)
+```
+
+**Guard NOT armed.**
+
+**This is the first window with zero accepted exposure.** Every previous verdict
+carried one residual hole: `stream.urgent.wait()` can wake the agent mid-hour to
+`derisk()` on critical news, and inside a window that call hits a dead API. At
+19:33 UTC on 09-23 the book is **flat with zero active pairs**, and a pair can
+only enter the universe at a refit — the next is 14 bars out (~10:00 UTC on
+09-24), after the window closes. **Nothing can be held during it, so there is
+nothing to de-risk.**
+
+---
+
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
 
 > **STATUS 2026-09-08, read this before the list.** The build window closed and
