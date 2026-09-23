@@ -398,3 +398,61 @@ def test_weekly_second_week_window_is_non_overlapping(tmp_path):
     assert abs(m["weekly_return_pct"] - (101_800 / 100_900 - 1) * 100) < 1e-6
     assert m["fills"] == 2                                  # only the new week's fills
     assert log.read_text().count(ENTRY_MARKER) == 2
+
+
+# --------------------------------------------------------------------------- #
+#  Selection diagnostics (Phase 3 post-mortem input; observational only)      #
+# --------------------------------------------------------------------------- #
+from deploy.run_strategy import write_selection_diagnostics, _models_from_selection
+from statarb.selection import select_pairs
+
+
+def _diag_panel(n=300, seed=1):
+    """A normal MR-ish pair (AAA/BBB) plus a degenerate pair (CCC vs a flat
+    DDD) so the table exercises both the normal and the NaN/rejected paths."""
+    rng = np.random.default_rng(seed)
+    lb = np.cumsum(rng.normal(0, 0.01, n)) + np.log(100.0)
+    la = 0.8 * lb + rng.normal(0, 0.01, n) + 0.5
+    return pd.DataFrame(
+        {"AAA": la, "BBB": lb, "CCC": lb, "DDD": np.full(n, np.log(50.0))},
+        index=pd.bdate_range("2025-01-01", periods=n))
+
+
+def test_selection_diagnostics_written_and_json_safe(tmp_path):
+    logp = _diag_panel()
+    cands = [("AAA", "BBB"), ("CCC", "DDD")]
+    cfg = StrategyConfig()
+    sel = select_pairs(logp, cands, cfg.selection)
+    root = tmp_path / "track_record"
+
+    path = write_selection_diagnostics(root, "2026-09-22", sel, len(logp), cfg)
+    assert path.exists() and path.parent.name == "selection"
+
+    doc = json.loads(path.read_text())            # valid JSON => no NaN/inf leaked
+    assert doc["n_candidates"] == 2
+    assert len(doc["pairs"]) == 2
+    assert doc["date"] == "2026-09-22" and doc["train_days"] == len(logp)
+    # config is echoed verbatim so an auditor sees the gates that were applied
+    assert doc["config"]["fdr_q"] == cfg.selection.fdr_q
+    assert doc["config"]["max_hurst"] == cfg.selection.max_hurst
+
+    # the degenerate pair is rejected with a reason, and its NaN stats are null
+    deg = next(p for p in doc["pairs"] if p["a"] == "CCC")
+    assert deg["passed"] is False and deg["reject_reason"]
+    assert deg["beta"] is None and deg["beta_drift_frac"] is None
+
+    # every failed pair carries a reason; the counts reconcile
+    fails = [p for p in doc["pairs"] if not p["passed"]]
+    assert all(p["reject_reason"] for p in fails)
+    assert sum(doc["reject_reason_counts"].values()) == len(fails)
+    assert doc["n_passed"] == 2 - len(fails)
+
+
+def test_diagnostics_writer_does_not_change_the_refit_decision(tmp_path):
+    """The split into _models_from_selection must be observational: the pairs
+    chosen from a precomputed table equal what refit_models picks on its own."""
+    logp = _diag_panel()
+    cfg = StrategyConfig()
+    cfg.candidates = [("AAA", "BBB"), ("CCC", "DDD")]
+    sel = select_pairs(logp, cfg.candidates, cfg.selection)
+    assert set(_models_from_selection(sel, logp, cfg)) == set(refit_models(logp, cfg))

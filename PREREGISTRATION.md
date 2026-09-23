@@ -168,6 +168,25 @@ already seen, in a way that depends on how those decisions turned out?"* If yes,
 it is tuning and is forbidden until the window closes. If it only corrects a
 mechanism to match this spec, it is a bug fix and is allowed.
 
+## 7. Instrumentation log — observational additions (no decision changes)
+
+Changes that only *record* what the frozen system does — adding logging or
+persisting a value the code already computes — are neither bug fixes nor tuning.
+They are allowed and listed here so the `run_strategy.py` history stays legible
+to an auditor. Each must pass the same operational test in reverse: it must
+**not** alter any decision on any data, past or future.
+
+- **2026-09-23 — selection diagnostics.** The weekly refit now writes the full
+  per-candidate selection table to `track_record/selection/YYYY-MM-DD.json`
+  (each pair's pass/fail, reject reason, ADF p-value, half-life, Hurst,
+  crossings, split-half betas, and derived margins). Previously the refit
+  discarded this and logged only the count of survivors, leaving no record of
+  *why* every pair was rejected across the flat opening months. The scan and the
+  chosen models are byte-for-byte unchanged (`select_pairs` →
+  `_models_from_selection` is the same computation as before); only a JSON file
+  is now written, under a guard that cannot interrupt trading. Pinned by
+  `tests/test_deploy.py::test_diagnostics_writer_does_not_change_the_refit_decision`.
+
 ---
 
 *Verification: this file's introduction into git history predates all but the

@@ -95,13 +95,15 @@ def save_state(path: Path, state: dict) -> None:
 # --------------------------------------------------------------------------- #
 #  Weekly refit                                                               #
 # --------------------------------------------------------------------------- #
-def refit_models(logp: pd.DataFrame, cfg: StrategyConfig) -> dict:
+def _models_from_selection(sel: pd.DataFrame, logp: pd.DataFrame,
+                           cfg: StrategyConfig) -> dict:
+    """Build the tradeable-model dict from an already-computed selection table.
+
+    Split out of refit_models so the live refit can persist the full table
+    (see write_selection_diagnostics) without running the expensive scan twice.
+    The decision here is byte-for-byte what refit_models did before: take the
+    passing rows, fit each, keep only those whose optimal bands clear costs.
     """
-    select_pairs + fit_spread_model + optimal_bands on the training panel.
-    Returns {"A/B": model-dict} for pairs that pass every gate AND clear their
-    own costs. Frozen numbers only — nothing here updates between refits.
-    """
-    sel = select_pairs(logp, cfg.candidates, cfg.selection)
     chosen = sel[sel.passed].head(cfg.max_pairs)
     models = {}
     for _, row in chosen.iterrows():
@@ -122,6 +124,97 @@ def refit_models(logp: pd.DataFrame, cfg: StrategyConfig) -> dict:
             "max_hold": int(np.clip(round(cfg.max_hold_mult * hl), 5, 120)),
         }
     return models
+
+
+def refit_models(logp: pd.DataFrame, cfg: StrategyConfig) -> dict:
+    """
+    select_pairs + fit_spread_model + optimal_bands on the training panel.
+    Returns {"A/B": model-dict} for pairs that pass every gate AND clear their
+    own costs. Frozen numbers only — nothing here updates between refits.
+    """
+    sel = select_pairs(logp, cfg.candidates, cfg.selection)
+    return _models_from_selection(sel, logp, cfg)
+
+
+def write_selection_diagnostics(root: Path, day: str, sel: pd.DataFrame,
+                                n_days: int, cfg: StrategyConfig) -> Path:
+    """Persist the FULL per-pair selection table for a weekly refit.
+
+    Observational only. `select_pairs` already computes, for every candidate,
+    which gate it failed and the raw statistic behind that gate; the live refit
+    used to discard all of it and log just the count. This records it to
+    `track_record/selection/<day>.json` so "why did nothing trade, and how close
+    did anything come" is a pandas one-liner later (Phase 3 post-mortem input).
+
+    It changes no gate, no parameter, and no trading decision — it reads a table
+    that was already produced. Derived margins (crossings/year, |Δβ|/|β|, and the
+    FDR bar the best pair must beat) are added so each rejection is legible
+    without recomputation. Values are JSON-safe: non-finite floats become null.
+    """
+    s = cfg.selection
+    years = (n_days / s.periods_per_year) if s.periods_per_year else float("nan")
+
+    def _f(x):
+        x = float(x)
+        return x if np.isfinite(x) else None          # NaN/inf -> null
+
+    pairs = []
+    for _, r in sel.iterrows():
+        beta, b1, b2 = _f(r.beta), _f(r.beta_first_half), _f(r.beta_second_half)
+        drift = (abs(b1 - b2) / max(abs(beta), 1e-9)
+                 if None not in (beta, b1, b2) else None)
+        cr = int(r.crossings)
+        pairs.append({
+            "a": r.a, "b": r.b,
+            "passed": bool(r.passed),
+            "reject_reason": r.reject_reason or "",
+            "adf_pvalue": _f(r.adf_pvalue),
+            "half_life": _f(r.half_life),
+            "hurst": _f(r.hurst),
+            "crossings": cr,
+            "crossings_per_year": (cr / years
+                                   if np.isfinite(years) and years else None),
+            "beta": beta,
+            "beta_first_half": b1, "beta_second_half": b2,
+            "beta_drift_frac": drift,
+        })
+
+    reasons: dict[str, int] = {}
+    for p in pairs:
+        if not p["passed"]:
+            reasons[p["reject_reason"]] = reasons.get(p["reject_reason"], 0) + 1
+    adfs = [p["adf_pvalue"] for p in pairs if p["adf_pvalue"] is not None]
+    n = len(pairs)
+
+    doc = {
+        "date": day,
+        "n_candidates": n,
+        "n_passed": int(sum(p["passed"] for p in pairs)),
+        "train_days": int(n_days),
+        "config": {
+            "fdr_q": s.fdr_q,
+            "min_half_life": s.min_half_life, "max_half_life": s.max_half_life,
+            "min_crossings_per_year": s.min_crossings_per_year,
+            "max_hurst": s.max_hurst, "max_beta_drift": s.max_beta_drift,
+            "min_abs_beta": s.min_abs_beta, "max_abs_beta": s.max_abs_beta,
+            "split_adf_pmax": s.split_adf_pmax,
+        },
+        # To clear Benjamini-Hochberg at all, the smallest full-window ADF
+        # p-value must beat q*(1/n). This is the single hardest bar for a small
+        # candidate set, so record it next to the observed minimum.
+        "fdr_bar_for_one_survivor": (s.fdr_q / n if n else None),
+        "min_adf_pvalue": (min(adfs) if adfs else None),
+        "reject_reason_counts": reasons,
+        "pairs": sorted(pairs, key=lambda p: (not p["passed"],
+                        p["adf_pvalue"] if p["adf_pvalue"] is not None else 1.0)),
+    }
+    out_dir = root / "selection"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out = out_dir / f"{day}.json"
+    tmp = out_dir / f"{day}.json.tmp"
+    tmp.write_text(json.dumps(doc, indent=2))
+    os.replace(tmp, out)
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -317,10 +410,23 @@ def main() -> int:
     if last_refit is None or (date.fromisoformat(today) -
                               date.fromisoformat(last_refit)
                               >= timedelta(days=cfg.refit_days)):
-        state["models"] = refit_models(np.log(bars), cfg)
+        logp = np.log(bars)
+        sel = select_pairs(logp, cfg.candidates, cfg.selection)
+        state["models"] = _models_from_selection(sel, logp, cfg)
         state["last_refit"] = today
         print(f"refit: {len(state['models'])} tradeable pairs "
               f"{sorted(state['models'])}")
+        # Observational: persist WHY each candidate passed/failed. Guarded so a
+        # diagnostics-write hiccup can never stop the day's trading/snapshot.
+        try:
+            path = write_selection_diagnostics(root, today, sel, len(bars), cfg)
+            counts = {}
+            for _, r in sel.iterrows():
+                if not r.passed:
+                    counts[r.reject_reason] = counts.get(r.reject_reason, 0) + 1
+            print(f"selection diagnostics -> {path} | rejects: {counts}")
+        except Exception as e:                       # noqa: BLE001 (non-critical)
+            print(f"WARNING: selection diagnostics not written: {e!r}")
 
     orders = run_daily(broker, state, bars, cfg, today)
     state["last_run"] = today
