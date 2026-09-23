@@ -1767,7 +1767,8 @@ section existed; that is what it is for.
 | ~~**Give the droplet a GitHub deploy key**~~ **DONE 2026-09-21.** ed25519 key with write access, remote on SSH, `core.sshCommand` set repo-scoped. Droplet pushes to its **own** branch `live/track-record` — the cron suggested in `record_state.py`'s docstring targets `claude/offline-competition-deploy-*`, which would race this log's branch and fail non-fast-forward. **53 files, 86,746 insertions**: 54 rows of state history (2026-07-30 → 09-21) and 50 days of venue-reconciled fills, plus both universe manifests. Two hazards found en route — `.rapidx/` untracked **and not ignored** (now in `.gitignore`, `56fb5e5`) and a stray empty `ssh` file, deleted. **Still to do: the cron, and the Phase II reasoning-log export** (`reasoning_log.py --out track_record/phase2_submission`) | 2026-07-30 | closed; the two follow-ons are the row below |
 | ~~**Finish the droplet's push loop**~~ **DONE 2026-09-21.** Phase II ledger slice published as `track_record/ltp_ledger_phase2.jsonl` — **498 trading records, 311K, from a 67M file**, with 4,959 `ai_deep_review` records excluded (advisory bulk, and that window is contaminated). Cron added at **23:58**, deliberately not bolted onto the 23:50 line: fills are written at 23:55, so the docstring's suggestion would have put every day's fills a day late, silently, forever | 2026-09-21 | closed |
 | ~~**Build `deploy/export_phase_ledger.py`**~~ **DONE 2026-09-22.** `--since` (default the Phase II open), `--out`, `--include-reviews`; prints the event breakdown, the first and last record, **the last record's age in hours**, and past three hours says outright that a quiet ledger cannot distinguish idle from stopped and that `status.py` settles it. **Atomic write** — an interrupted run leaves the previously published file intact rather than a truncated one that looks complete, which matters because a cron and the dispatch runbook both commit whatever is on disk. Eight tests; suite 256 → 264. Step 0 of the dispatch runbook is now one command | 2026-09-21 | closed |
-| **Log the refit rejection breakdown to the ledger — AND WHICH END OF EACH BAND.** The `refit` record carries `passed`, `tested`, `active` and per-pair `bands`, but not why candidates were rejected; that lives only in the droplet's systemd journal, which rotates. **Sharpened 2026-09-22: the gate name alone is not enough.** `half-life out of band` is ambiguous between `min_half_life = 6.0` (compression — task 05's hypothesis) and `max_half_life = 168.0` (**a trending market**, where the AR(1) coefficient approaches 1 and the spread stops oscillating). **Those are opposite diagnoses implying opposite remedies, and the current log cannot tell them apart.** Same for any other two-sided gate. Add `rejects=` with the direction — read-only instrumentation, no trading path. Without it, analysis of the gate sees **survivors only**, a selected sample biased in exactly the direction task 05's 4b asks about | 2026-09-22 | build window, with the banked-MDD and deployed-version lines |
+| **Log the refit rejection breakdown to the ledger — AND WHICH END OF EACH BAND.** The `refit` record carries `passed`, `tested`, `active` and per-pair `bands`, but not why candidates were rejected; that lives only in the droplet's systemd journal, which rotates. **Sharpened 2026-09-22: the gate name alone is not enough.** `half-life out of band` is ambiguous between `min_half_life = 6.0` (compression — task 05's hypothesis) and `max_half_life = 168.0` (**a trending market**, where the AR(1) coefficient approaches 1 and the spread stops oscillating). **Those are opposite diagnoses implying opposite remedies, and the current log cannot tell them apart.** Same for any other two-sided gate. Add `rejects=` with the direction — read-only instrumentation, no trading path. Without it, analysis of the gate sees **survivors only**, a selected sample biased in exactly the direction task 05's 4b asks about. **Confirmed 2026-09-23: task 05 declined 4b for exactly this reason** — survivors sit at 12.5–33.8h against [6, 168], near neither bound, which fits both readings. Log each candidate's **fitted half-life**, not just the gate that killed it | 2026-09-22 | **Sun 2026-09-27 review, with the fixed-window sigma row below.** Needs the operator's go; read-only |
+| **PROPOSED 2026-09-23: log a fixed-window sigma beside the live one.** Task 05 found that window and half-life are **one variable** (r = +0.9996), so no observational test can ever separate "short window" from "fast pair". The only test that can is counterfactual: at each bar on an open position, record sigma over a **fixed** window (Cowork suggested 72 bars) beside the live `max(3*half_life, 24)` one, plus the z each implies. Every future stop then carries a "would it have fired under a fixed window?" answer. **Read-only, no trading path** — it changes nothing the agent does. Natural home: the same pass as the sub-hourly z capture, which also logs on open positions | 2026-09-23 | **Sun 2026-09-27 review.** Needs the operator's go. Not urgent: task 05 says the window is not causing the stops, so this confirms a negative rather than chasing a live problem |
 | ~~**Re-run the Phase II ledger slice before Wednesday**~~ **DONE 2026-09-22** (523 records, last 09-21T10:01) and now superseded: the refresh is **step 0 of the dispatch runbook**, so it happens every Wednesday by procedure rather than by anyone remembering | 2026-09-21 | closed |
 | **`record_state.py`'s docstring is now wrong in two ways** — it suggests bolting the git push onto the 23:50 line (which would publish each day's fills a day late, since `fills_report` runs at 23:55) and it pushes to `claude/offline-competition-deploy-*` (which would race this log's branch and fail non-fast-forward). A future session following it rebuilds both faults. **Third fault, found 2026-09-23:** `--show` prints nothing and exits 0 when the history file is absent (`_load()` returns `[]`), which is every checkout but the droplet's — so it reports "no history" where the truth is "wrong branch". `CLAUDE.md` now routes around it; the script should say so itself, on stderr | 2026-09-21 | next doc pass; small, but it is a trap laid for a cold reader — the same shape as the `README_ltp.md` sandbox-host row |
 | **Have `status.py` report the deployed code version.** On 2026-09-21 the droplet was found running **2026-09-12 code** — the `constraint_prompt` fix had been in git since 09-15 and never deployed, so six extra days of deep reviews ran on the premise the phase was over, while this log said it was fixed. **Nothing in the daily glance could have shown that**: `status.py` reports every live fact except which version of the code produces them. Print the HEAD short-sha and whether it matches `origin`. **It was found by accident**, falling out of the deploy-key work — a gap only findable by accident will recur | 2026-09-21 | build window, with the banked-MDD line; same file, same pass |
@@ -1813,7 +1814,7 @@ section existed; that is what it is for.
 | **BUILD: sub-hourly z capture on open positions.** Read-only, open positions only, **no trading path touched** — log z every few minutes so the next stop can say *when* the spread crossed the threshold. This was already the decision on 2026-09-13 (*"build the instrumentation instead… which answers at the next stop what a month of re-reading this ledger cannot"*) and **was never built. Three stops have happened since**, each exactly the event it was meant to characterise: −3.54 (frame-drifted), **+3.764** and **+4.125**, the last two with `mu_shift_sigma = 0.0` — provably stable frames, so the spread genuinely gapped inside one hourly bar. Today's overshoot cost ~3.2 of a 13.46 loss. **Without this, the next stop teaches us nothing the last three did not** | 2026-09-17 | **DECIDED at the 09-20 review: BUILD** (week 7, decision 2). **Unbuilt at 2026-09-23 and awaiting the operator's go — the only overdue item on this table.** ~90 min by the record's own estimate. NOTE it also bears on a closed decision: the intra-bar monitor was dropped because four of eight stops never reached 4.0σ — **+4.125 is the first that did.** One observation does not reopen it; the logging is what would |
 | **Reconcile the leaderboard's "Total Trades" against our ledger.** It showed **78** for Team NDAR on 2026-09-17 against 44 lifetime `enter` records and far fewer in Phase II. Probably legs or fills rather than round trips, but unverified. **Do not quote that figure until it reconciles** — a number we cannot reproduce is exactly what this record has twice had to retract | 2026-09-17 | next organizer contact, or work it out from the fills snapshots; low priority, but it sits in a column an audit may read |
 | **`status.py` should show BANKED max drawdown beside current.** `status.py:180` computes `(1 - equity/peak)`, which **falls on recovery**; the competition's MDD is the max over hourly snapshots and is monotone. On 2026-09-21 the line read `dd 2.26%` while the scored figure was stuck at **≥2.88%** — and this review nearly recorded that as an improvement before checking the definition. Show both, labelled | 2026-09-20 | build window. Small, and it prevents a misread that has already come close once |
-| **DISPATCH task 05 — `05-sigma-window-and-stops.md`.** The queue refilled at this review with the only *mechanical* account of the Phase II stop cluster: `sigma` is estimated over `max(3*half_life, 24)` bars, so as the fitted half-life compresses the window shrinks with it — **56 → 37 bars across week 7** — and a smaller sigma inflates z for the same raw move. Both stable-frame stops overshot (3.76, 4.13) on **small raw moves** (1.4%, 3.4% of log spread). **Hypothesis, not finding**: two points on two pairs cannot test it | 2026-09-20 | **Wed 2026-09-23**, one line to Cowork. ~~Note the brief tells it to answer on Phase I, since the Phase II ledger is not in the repo~~ **Corrected 2026-09-23:** the brief was rewritten on 09-21 to compute on Phase I and corroborate on Phase II. The Phase II inputs live **only on `live/track-record`** and reach the research branch **because runbook step 1 now pulls them**; before that fix this dispatch would have repeated task 02's failure. **Run step 0 first**: the 09-22 refresh (546 records, last 15:00 UTC) is already a day old |
+| ~~**DISPATCH task 05**~~ **DONE 2026-09-23 — answer: COINCIDENCE.** Stop rate 25.0% vs 25.0% either side of a 50-bar window (Fisher p = 1.0000); stops come on raw moves **2.19× larger** than non-stops; in 1000SHIB/DOGE sigma **doubled** as the window fell 56 → 43. And the window is `int(3 × half_life)` over the whole observed range (the 24-bar floor has never bound), r = +0.9996, so the hypothesis is **unidentifiable** from observational records. The "1.4%" below was wrong: it is 5.43%. See the 2026-09-23 task 05 entry. Original text: The queue refilled at this review with the only *mechanical* account of the Phase II stop cluster: `sigma` is estimated over `max(3*half_life, 24)` bars, so as the fitted half-life compresses the window shrinks with it — **56 → 37 bars across week 7** — and a smaller sigma inflates z for the same raw move. Both stable-frame stops overshot (3.76, 4.13) on **small raw moves** (1.4%, 3.4% of log spread). **Hypothesis, not finding**: two points on two pairs cannot test it | 2026-09-20 | **Wed 2026-09-23**, one line to Cowork. ~~Note the brief tells it to answer on Phase I, since the Phase II ledger is not in the repo~~ **Corrected 2026-09-23:** the brief was rewritten on 09-21 to compute on Phase I and corroborate on Phase II. The Phase II inputs live **only on `live/track-record`** and reach the research branch **because runbook step 1 now pulls them**; before that fix this dispatch would have repeated task 02's failure. **Run step 0 first**: the 09-22 refresh (546 records, last 15:00 UTC) is already a day old |
 | ~~**DECIDE: does the re-entry block survive pair eviction?**~~ **DECIDED 2026-09-20: DOCUMENT, DO NOT CHANGE.** It has never demonstrably cost us — task 02 found the XLM/XRP block ended by eviction and that episode *saved* +7.97; a returning pair carries a new beta/mu/sigma so an old-frame block measures against coordinates that no longer exist; `refit_drop` is 4 lifetime. `CLAUDE.md` invariant 4 now states the real lifetime and `tests/test_ltp_blocked_skip.py::test_the_block_does_not_survive_pair_eviction` pins it, so the doc and the code cannot drift apart again | 2026-09-16 | closed |
 | ~~**DECIDE: should `risk_per_pair` fall while the universe is thin?**~~ **DECIDED 2026-09-20: NO CHANGE, with a pre-committed trigger.** One pair surviving the gate means we run **0.2% of NAV against a designed 0.8%** — under-risked, not over. Sharpe is scale-invariant so a cut moves none of the 40%; it cuts PnL+ROI (45%) and helps only MDD (15%), the mirror of the asymmetry that decided the 0.002→0.004 question in August. The kill switch at 889.46 is the designed response | 2026-09-17 | **Trigger, so this is not re-litigated weekly: revisit only if equity closes below 950.** ~38 below the 09-21 reading and ~60 above the kill switch |
 | ~~**Push task 02's output** — `deploy/research_queue/out/02-side-blocked-earned-its-keep.md` is on `research/side-blocked` on the operator's laptop. Then land it on the working branch and `git mv` the task into `done/`, per README step 4~~ **DONE 2026-09-16 (`0eb284f`) — this row was stale**, found on the 2026-09-23 cold start. Both paths resolve on the working branch | 2026-09-16 | closed |
@@ -1825,6 +1826,7 @@ section existed; that is what it is for.
 | ~~**Land the three research outputs on the working branch**~~ **DONE 2026-09-14.** All three `out/` files (1,322 lines) taken file-by-file off their research branches; `done/` created and tasks 01, 03, 04 moved into it, leaving 02 alone in the queue. Scope audit while the branches were in hand: one new file each, nothing else. README step 4 rewritten so "pushed the branch" is no longer mistaken for finished | 2026-09-14 | closed |
 | **Disclose the `entry_beta` fix in `LTP_STRATEGY.md`** — ~~missing since 2026-09-09~~ **DONE 2026-09-14**, addendum written naming `entry_frame` and `entry_beta` | 2026-09-14 | closed |
 | **Ask the organizers whether the Binance-vs-OKX venue choice is still open** now that Phase II has started, and whether the primary account is provisioned as a **Sub Portfolio** (if so the key can read but not trade it — `Edit API` fixes it in one click), and whether their side needs an IP whitelisted. The last two were asked of @LTP_Tracey on 2026-09-07 and **never answered** | 2026-09-07 / 2026-09-08 | next organizer contact — bundle with the CSV-export and AI-floor questions already owed |
+| **The runbook and the export tool tell the operator to run `status.py` without loading the env.** On 2026-09-23 step 0's age warning fired as designed, the operator ran `.venv/bin/python deploy/status.py` in a fresh SSH shell, and equity, positions and AI spend all came back `UNAVAILABLE — RCLI01003 LTP_API_HOST is required`. The agent was fine; the shell had no `/root/ltp.env`. Both places — README step 0 and `export_phase_ledger.py`'s NOTE — should give `set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py`. (`status.py`'s own docstring says plain `source`, which does not export a shell-format file to a child process either) | 2026-09-23 | needs the operator's go; two strings and a docstring |
 | ~~**`CLAUDE.md` points a cold reader at the wrong places.** Its cold-start step 4 reads `track_record/ltp_state_history.jsonl`, which is **not on the working branch** — it lives on `live/track-record`. Also stale: the header's "Phase I runs to 2026-08-21" framing and "27 tests"~~ **DONE 2026-09-23**, same session, on the operator's go. Step 4 now gives the `git show origin/live/track-record:…` command and says `--show` works only on the droplet; header states Phase II; the test count is **dropped rather than updated**, since a copied count is a remembered number. Pinned by `test_every_track_record_file_claude_md_names_is_reachable_from_here` | 2026-09-23 | closed |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
@@ -4892,7 +4894,15 @@ smaller sigma inflates z for the same raw move**, and stops then fire on moves
 that would have been unremarkable a week earlier.
 
 What is consistent with it: both stable-frame stops had **small raw moves** —
-1.4% and 3.4% of log spread — yet produced z of **3.76** and **4.13**.
+~~1.4%~~ and 3.4% of log spread — yet produced z of **3.76** and **4.13**.
+
+> **CORRECTED 2026-09-23 by task 05 — the premise above is false.** NEAR/ICP's
+> raw move was **0.0543 = 5.43%** of log spread, the **largest in either
+> phase**, as the `raw 0.0543` in the block below already says; "1.4%" was its
+> z move of 1.393 read as a percentage. Recomputed independently from the
+> ledger's enter/stop prints before this note was written. The hypothesis this
+> decision proposed was then tested and came back **coincidence** — see the
+> 2026-09-23 task 05 entry.
 
 ```
 NEAR/ICP 09-15>16     hl 26.58h  window 79  sigma_eq 0.038992  raw 0.0543 / 1.393 z
@@ -5763,6 +5773,102 @@ The two fixes today share a root, and it is worth one sentence: **"in the repo"
 has been this project's default phrasing for data that actually lives on one
 particular branch.** Both places a reader is sent for data are now pinned by
 tests to name a branch that carries it.
+
+---
+
+## 2026-09-23 — task 05: coincidence, and the brief's key figure was ours and wrong
+
+### Live, 19:09 UTC
+
+Flat, zero pairs. The 1000SHIB/DOGE position exited **reverted** at 09:00 and
+the 10:00 refit passed **0/15** — the sixth empty gate of Phase II's 15 refits.
+Service up since 09-16, restarts 0, bar 370, not halted. Since the 09-22 23:50
+row: enter +1, exit +2, **stop +0**. Equity was **not read** (see the
+`status.py` env row in Open commitments); last recorded figure is 1000.77 at
+09-22 23:50.
+
+The export's age warning (9.1h) fired as designed and `status.py` settled it in
+one line: idle, not stopped.
+
+### The dispatch worked end to end on the fixed runbook
+
+Step 3 showed exactly the three predicted lines; step 4 landed one new file and
+the move to `done/`. The landed `out/05` is byte-identical to the research
+branch, and the research branch carries the 593-record slice the answer was
+computed on (`c4e7f89`). **First dispatch with Phase II actually in reach** —
+Cowork opened by confirming the file was present rather than scoping itself down.
+
+### The answer: COINCIDENCE, on three independent tests
+
+```
+stop rate, window < 50 bars    3 / 12 = 25.0%
+stop rate, window >= 50 bars   8 / 32 = 25.0%      Fisher p = 1.0000
+median raw move, stops         0.019746
+median raw move, non-stops     0.008998            stops 2.19x LARGER
+1000SHIB/DOGE, window 56 -> 43  implied sigma 0.004294 -> 0.008942  (doubled)
+```
+
+The mechanism needed small raw moves at stops and a shrinking sigma with a
+shrinking window. **Both came out backwards.** The two shortest windows ever run
+(37 bars) both reverted; the two longest (79, 85) both stopped.
+
+And the deeper result, which no sample size fixes: **the 24-bar floor has never
+bound** — the smallest half-life fitted at any refit is 15.63h in Phase I and
+12.48h in Phase II, checked independently here — so the window is exactly
+`int(3 × half_life)` and correlates with it at **r = +0.9996**. "Short window"
+and "fast pair" are one variable. The hypothesis could not have been confirmed
+from these records even if the signs had gone its way. The only test that can
+separate them is counterfactual — a fixed-window sigma logged beside the live
+one. **New row in Open commitments, proposed for Sunday.**
+
+**Week 7 decision 1 is withdrawn.** The stop cluster goes back to being
+unexplained, which is the honest place to stand. Week 7's "next week" called the
+window-tracks-stop-rate claim *"a prediction, and therefore checkable"*. It was
+checked, and it does not.
+
+### The brief's load-bearing figure was wrong, and it was this log's error
+
+Week 7 and task 05's brief both said the stable-frame stops came on "small raw
+moves (1.4%, 3.4%)". The very next line of both carried `raw 0.0543` for
+NEAR/ICP — **5.43%**, the largest raw move in either phase, on the
+second-*longest* window. "1.4%" was its z displacement of 1.393 read as a
+percentage. **Recomputed here from the ledger's enter/stop prints on the entry
+beta: 0.054313 over dz 1.3929; 1000SHIB/DOGE 0.033737 over dz 2.8811, sigma
+0.011710.** Both match Cowork to six figures.
+
+So the evidence offered *for* the hypothesis was its strongest counter-example.
+It went unnoticed from 09-20 to 09-23 across a review, a brief revision and a
+cold start, and was caught only because the brief told its reader to trust no
+figure in it, **including the brief's own.** That instruction has now falsified
+two briefs out of five (task 03 found the `entry_beta` bug the same way). Keep
+it in every brief.
+
+Corrected in place, visibly, in all three homes: week 7 decision 1, the task 05
+Open-commitments row, and `done/05`'s own text. Cowork also noted the brief dated
+1000SHIB/DOGE's 18.67h fit to 09-15 rather than 09-14 — immaterial, the
+arithmetic stands.
+
+### 4b — declined, correctly
+
+Rejected candidates' half-lives are nowhere in the repo, and survivors (12.5–
+33.8h against a [6, 168] band) sit near neither bound, which fits compression and
+the rally reading equally. **The rally reading is no worse supported than the
+compression one.** Cowork also undercut the "one story" framing on its own
+terms: an empty gate is not new — Phase I ran four consecutive 0/15 refits,
+08-13 → 08-16. The rejection-logging row is sharpened to log each candidate's
+fitted half-life, not just the gate.
+
+### For Sunday, 2026-09-27
+
+Three read-only instrumentation items, all logging and none trading, all needing
+the operator's go, and they belong in one pass:
+
+1. **Sub-hourly z capture on open positions** — decided BUILD 09-20, overdue.
+2. **Fixed-window sigma beside the live one** — new today.
+3. **Per-candidate half-life and rejection reason at each refit** — sharpened today.
+
+Plus the task 03 re-read carried from 09-20. The research queue is **empty**; no
+Wednesday dispatch next week unless Sunday adds a task.
 
 ---
 

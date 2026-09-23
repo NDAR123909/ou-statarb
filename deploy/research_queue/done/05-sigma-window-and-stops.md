@@ -44,7 +44,13 @@ NEAR/ICP 09-15>16     hl 26.58h  window 79  sigma_eq 0.038992  raw move 0.0543 o
 ```
 
 Both stops **overshot** — 3.76 and 4.13 against a 3.5 band — on **small raw
-moves**, 1.4% and 3.4% of log spread.
+moves**, ~~1.4%~~ and 3.4% of log spread.
+
+> **WRONG, caught by the task itself (out/05 §0b), confirmed 2026-09-23.**
+> NEAR/ICP's raw move is the `0.0543` in the block above: **5.43%**, the
+> largest in either phase. "1.4%" was the z move of 1.393 read as a percentage.
+> Left visible rather than silently fixed, because the brief's framing rested
+> on it and the task was right not to trust it.
 
 **That is suggestive and it is not evidence.** Two points, two different pairs,
 whose sigmas are not comparable to each other. The hypothesis survives because

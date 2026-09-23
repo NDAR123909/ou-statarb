@@ -242,11 +242,11 @@ travelling inside each PROMPT block is what did that, so keep copying them.
 
 | # | task | status |
 |---|---|---|
-| 05 | `05-sigma-window-and-stops.md` — does the shrinking sigma window explain the stops? | **open · run next** (Wed 2026-09-23) |
+| — | *(empty since 2026-09-23 — skip Wednesday unless a review adds a task)* | |
 
-The queue emptied on 2026-09-16 and refilled at the 09-20 review, which is the
-cadence the top of this file predicts: reviews generate roughly one or two
-research questions, not ten.
+The queue emptied on 2026-09-16, refilled at the 09-20 review, and emptied
+again on 09-23. That is the cadence the top of this file predicts: reviews
+generate roughly one or two research questions, not ten.
 
 ## Done
 
@@ -259,8 +259,9 @@ here, not on the research branches.
 | 03 | `done/03-frame-drift-cost.md` | `out/03-frame-drift-cost.md` | **2026-09-11.** Mislabelling cost nothing, drift cost one stop; n=9 closes, not enough to act on. **Falsified its own brief's anchor case**, which found the `entry_beta` bug |
 | 04 | `done/04-entry-depth-vs-stops.md` | `out/04-entry-depth-vs-stops.md` | **2026-09-13.** Depth does not predict stop-outs (Fisher p=1.00); damage is in the middle bucket. **DO NOTHING** |
 | 02 | `done/02-side-blocked-earned-its-keep.md` | `out/02-side-blocked-earned-its-keep.md` | **2026-09-16. The block EARNS ITS KEEP on drawdown.** The "ten refusals" are **two episodes** (entry fires only when `side == 0`). Net −3.5 (~0.34% NAV), but MDD **2.273% → 1.779%** — a 28% relative cut in permanent drawdown. Also found: `blocked` does **not** survive pair eviction (`ltp_agent.py:302–306`), an undocumented third exit from the block |
+| 05 | `done/05-sigma-window-and-stops.md` | `out/05-sigma-window-and-stops.md` | **2026-09-23. COINCIDENCE.** Stop rate 25% vs 25% (Fisher p = 1.00); stops come on raw moves 2.19× **larger**; sigma **grew** as the window shrank. Window = `int(3 × half_life)` everywhere observed (r = +0.9996), so it is **unidentifiable** without a counterfactual fixed-window sigma. **Falsified its own brief's key figure** (NEAR/ICP 5.43%, not 1.4%). Declined 4b: rejected half-lives are not logged. First dispatch with the Phase II inputs pulled onto the research branch |
 
-Run order was **01 → 04 → 03 → 02**, not numeric. 04 jumped to the front on
+Run order was **01 → 04 → 03 → 02 → 05**, not numeric. 04 jumped to the front on
 2026-09-13: it gates a live sizing decision, and the agent had just entered at
 0.09 sigma from its own stop. 03 came before 02 because two independent analyses
 landed on the same mechanism within a day of each other without either looking
