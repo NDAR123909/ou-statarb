@@ -5900,6 +5900,12 @@ Suite **269 → 271**. `status.py` changed only in its docstring; nothing
 deployed needs to change, though the droplet's copy of the docstring and
 export NOTE stay old until it next pulls those files.
 
+**First live run of the canonical line, 19:33 UTC — it works, and it fills the
+gap above:** equity **1006.89**, peak 1010.75, current dd 0.38%, headroom
+117.44 to the kill switch, AI spend $1.1534 cleared, flat, not halted. **Phase II
+to date +0.69%.** Banked MDD unchanged at **2.88%** — the recovery buys nothing
+on the 15% MDD carries.
+
 ---
 
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
