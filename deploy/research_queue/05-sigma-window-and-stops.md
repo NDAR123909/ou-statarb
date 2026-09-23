@@ -84,6 +84,11 @@ nothing has tested it, which is not the same as support.
 >   excluded** — they are advisory, they are ~99% of the raw ledger by volume,
 >   and that window is independently known to be contaminated.
 >
+> **If `track_record/ltp_ledger_phase2.jsonl` is not in your folder, stop and
+> say so** — do not proceed on Phase I alone. Its absence means a dispatch step
+> was skipped, which the operator can fix in a minute; a Phase-I-only answer
+> would silently drop the two cleanest cases question 3 depends on.
+>
 > **Phase II is small but unusually clean for this question.** It holds the
 > three stops that prompted the task, and **two of them carry
 > `mu_shift_sigma = 0.0`** — a provably stationary frame during the hold, which

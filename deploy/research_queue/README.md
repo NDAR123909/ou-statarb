@@ -85,7 +85,22 @@ $T = "05-sigma-window-and-stops"        # <- the ONLY thing you change
 git checkout claude/offline-competition-deploy-nuk5tz
 git pull
 git checkout -b research/$T
+git fetch origin live/track-record
+git checkout origin/live/track-record -- track_record/ltp_ledger_phase2.jsonl track_record/ltp_state_history.jsonl
 ```
+
+**The last two lines are not optional.** The published Phase II data lives on
+`live/track-record`, the droplet's branch — **not on this one.** Without them
+the research branch carries Phase I only, and every brief that says "both phases
+are in the repo" is false for the tool reading it. That is exactly the
+2026-09-16 task 02 failure, and it was found on 2026-09-23, the night before
+task 05 would have repeated it.
+
+They only *read* from `live/track-record`; nothing in this runbook pushes to it
+(standing rule). And the data is pulled here rather than kept on the working
+branch on purpose: a copy there would be a second home for a fact that changes
+daily and would go stale the way the coverage note below did twice. Pulled right
+after step 0 refreshed it, it is fresh by construction.
 
 ### 2. Dispatch — Claude Desktop → Cowork, pointed at the repo folder
 
@@ -104,15 +119,31 @@ them.
 git status --short
 ```
 
-**Confirm it created only `deploy/research_queue/out/$T.md` and nothing else.**
-All four dispatches so far have been clean — that is the rules working rather
-than luck, and it is worth verifying each time rather than assuming.
+**Expect exactly three lines** — the two inputs you staged in step 1, and the one
+file the tool created:
+
+```
+A  track_record/ltp_ledger_phase2.jsonl
+A  track_record/ltp_state_history.jsonl
+?? deploy/research_queue/out/<your $T>.md
+```
+
+**Anything else is a scope violation — including `AM` on either input, which
+means the tool edited its own data.** All four dispatches so far have been clean
+— that is the rules working rather than luck, and it is worth verifying each
+time rather than assuming.
 
 ```powershell
 git add deploy\research_queue\out\$T.md
 git commit -m "research: $T"
 git push -u origin research/$T
 ```
+
+The commit carries the two inputs as well as the answer. That is deliberate: the
+research branch then records **exactly which slice the answer was computed on**,
+which is otherwise lost the next time step 0 overwrites it. Step 4 lands only the
+answer, and switching back to the working branch removes the inputs from your
+checkout.
 
 ### 4. Land it — part of the job, not an afterthought
 
@@ -156,14 +187,22 @@ eventually be dispatched without being read.
 
 ## What the research lane can and cannot see — CHECK THIS BEFORE WRITING A BRIEF
 
-**Both phases are in the repo since 2026-09-21, and they are not equivalent.**
-`track_record/phase1_submission/reasoning.jsonl` is **Phase I**, ending
-2026-08-21T16:00:23Z — the larger sample, and usually the primary test bed.
-`track_record/ltp_ledger_phase2.jsonl` is **Phase II** from 2026-09-08T16:00,
-**trading records only**: `ai_deep_review` is excluded (advisory, ~99% of the
-raw ledger by volume, and that window is independently known to be
-contaminated). The raw `deploy/ltp_ledger.jsonl` is gitignored and stays on the
-droplet.
+**Both phases reach a research branch, by two different routes, and they are not
+equivalent.**
+
+- `track_record/phase1_submission/reasoning.jsonl` is **Phase I**, ending
+  2026-08-21T16:00:23Z — the larger sample, and usually the primary test bed.
+  It is **on this branch**, so every research branch inherits it.
+- `track_record/ltp_ledger_phase2.jsonl` is **Phase II** from 2026-09-08T16:00,
+  **trading records only**: `ai_deep_review` is excluded (advisory, ~99% of the
+  raw ledger by volume, and that window is independently known to be
+  contaminated). It and `track_record/ltp_state_history.jsonl` live **only on
+  `live/track-record`**, and reach a research branch **because step 1 checks
+  them out onto it.** Skip that and they are absent.
+
+The raw `deploy/ltp_ledger.jsonl` is gitignored and stays on the droplet.
+`tests/test_research_queue.py` fails if an open brief names a `track_record/`
+file that is neither on this branch nor pulled by step 1.
 
 **The Phase II file is a periodic export and lags** — step 0 of the dispatch
 refreshes it, and every brief should tell its reader to check the last
@@ -174,6 +213,12 @@ timestamp rather than assume it runs to today.
 > after the slice landed — the same stale claim was fixed in task 05's brief
 > and missed here. **A coverage note is a fact about the repo, and facts about
 > the repo change.** Re-check it when writing any brief.
+>
+> **And then it was wrong the other way, 2026-09-21 → 09-23.** The correction
+> said "both phases are in the repo", which was true of the *repository* and
+> false of the *branch the tool is handed* — the slice was only ever on
+> `live/track-record`. Found on the cold start the night before task 05's
+> dispatch. "In the repo" is not specific enough: say **which branch**.
 
 This was learned the expensive way on 2026-09-16. Task 02's brief had been
 updated twice with Phase II material — the live `blocked=1`, the 09-15 churn
