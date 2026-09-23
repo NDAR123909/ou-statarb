@@ -127,6 +127,34 @@ def test_cold_start_protocol_is_documented():
         "that is the finding a cold start exists to produce")
 
 
+def test_every_track_record_file_claude_md_names_is_reachable_from_here():
+    """A cold reader must be pointed at data it can actually open.
+
+    Until 2026-09-23 step 4 of the cold start read
+    `track_record/ltp_state_history.jsonl` via `record_state.py --show`. That
+    file is published only to the droplet's `live/track-record` branch, so from
+    any other checkout the command printed nothing and exited 0 -- "no history"
+    where the truth was "wrong branch". The same mistake had just been found in
+    the research-queue runbook (`tests/test_research_queue.py`).
+
+    So: every `track_record/*.jsonl` path CLAUDE.md names must either exist on
+    this branch, or CLAUDE.md must say how to read it from `live/track-record`.
+    On the droplet the files exist and this passes trivially; everywhere else it
+    holds the pointer honest.
+    """
+    with open(CLAUDE_MD) as fh:
+        body = fh.read()
+    unreachable = [
+        p for p in sorted(set(re.findall(r"track_record/[\w./-]+\.jsonl", body)))
+        if not os.path.exists(os.path.join(ROOT, p))
+        and f"origin/live/track-record:{p}" not in body
+    ]
+    assert not unreachable, (
+        f"CLAUDE.md points a cold reader at {unreachable}, which this branch "
+        f"does not carry. Say how to read it from live/track-record "
+        f"(git show origin/live/track-record:<path>), or commit it here.")
+
+
 def test_review_log_points_at_the_cold_start_protocol():
     """The record should tell a cold reader how it is meant to be entered."""
     with open(REVIEW) as fh:

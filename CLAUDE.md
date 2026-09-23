@@ -3,7 +3,8 @@
 ## If the task involves the LTP competition, READ THIS FIRST
 
 The agent is **live in the LTP Liquidity Arena 2026 competition** (Track A,
-Phase I runs to 2026-08-21). Before answering questions about it, reviewing its
+**Phase II, live capital, 2026-09-09 → 2026-11-04**; Phase I closed 2026-08-21
+and we advanced 6th of 30). Before answering questions about it, reviewing its
 performance, or changing anything under `deploy/`, read
 **`deploy/WEEKLY_REVIEW.md`** — it is the durable record that survives context
 loss: standing rules and scoring, what each weekly review decided and why,
@@ -40,8 +41,22 @@ makes anyone *read* it.
 3. `deploy/LTP_STRATEGY.md` — the pre-registration and every disclosed
    behavioural change, newest addendum first.
 4. `track_record/ltp_state_history.jsonl` — what was *true*, not what was
-   decided. `python deploy/record_state.py --show 5`, or read the last lines
-   directly if the droplet is out of reach.
+   decided. **It is not on this branch.** The droplet's 23:58 cron publishes it
+   to the droplet's own branch, `live/track-record`, so from any checkout but
+   the droplet's, read it there:
+
+   ```bash
+   git fetch origin live/track-record
+   git show origin/live/track-record:track_record/ltp_state_history.jsonl | tail -5
+   ```
+
+   `python deploy/record_state.py --show 5` works **only on the droplet**.
+   Anywhere else it prints nothing and exits 0, which reads as "no history"
+   rather than "wrong branch" — found on the 2026-09-23 cold start. The same
+   branch carries the Phase II ledger slice
+   (`git show origin/live/track-record:track_record/ltp_ledger_phase2.jsonl`).
+   **Read from `live/track-record`, never push to it:** a push from anywhere
+   but the droplet makes its nightly commit fail on non-fast-forward, silently.
 5. `git log --oneline -15` — what shipped since the last written entry. A
    commit with no matching review-log line is exactly the gap to report.
 6. Live truth, if reachable: `python deploy/status.py`. **Claude has no access
@@ -131,7 +146,8 @@ quantconnect/main.py   deployable multi-pair LEAN algorithm (sector-restricted
                        candidates, weekly refit gate, vol targeting, z-stops).
 examples/real_data_portfolio.py   the real-data validation run; treat its
                                   printed numbers as the reference baseline.
-tests/                 27 tests. test_viability.py pins the v0.2 math
+tests/                 behavioural contracts; pytest prints the count, so it is
+                       not copied here. test_viability.py pins the v0.2 math
                        (passage times vs Monte Carlo, stop caps losses, FDR).
 ```
 
@@ -163,7 +179,7 @@ tests/                 27 tests. test_viability.py pins the v0.2 math
 
 ```bash
 pip install -e . && pip install statsmodels pytest
-pytest                                   # 27 tests, ~20s
+pytest                                   # full suite, ~10s
 python examples/real_data_portfolio.py  # real-data reference run (~5-10 min,
                                          # downloads DJIA csv from GitHub)
 ```

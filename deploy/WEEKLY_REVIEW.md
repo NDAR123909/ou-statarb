@@ -1769,7 +1769,7 @@ section existed; that is what it is for.
 | ~~**Build `deploy/export_phase_ledger.py`**~~ **DONE 2026-09-22.** `--since` (default the Phase II open), `--out`, `--include-reviews`; prints the event breakdown, the first and last record, **the last record's age in hours**, and past three hours says outright that a quiet ledger cannot distinguish idle from stopped and that `status.py` settles it. **Atomic write** — an interrupted run leaves the previously published file intact rather than a truncated one that looks complete, which matters because a cron and the dispatch runbook both commit whatever is on disk. Eight tests; suite 256 → 264. Step 0 of the dispatch runbook is now one command | 2026-09-21 | closed |
 | **Log the refit rejection breakdown to the ledger — AND WHICH END OF EACH BAND.** The `refit` record carries `passed`, `tested`, `active` and per-pair `bands`, but not why candidates were rejected; that lives only in the droplet's systemd journal, which rotates. **Sharpened 2026-09-22: the gate name alone is not enough.** `half-life out of band` is ambiguous between `min_half_life = 6.0` (compression — task 05's hypothesis) and `max_half_life = 168.0` (**a trending market**, where the AR(1) coefficient approaches 1 and the spread stops oscillating). **Those are opposite diagnoses implying opposite remedies, and the current log cannot tell them apart.** Same for any other two-sided gate. Add `rejects=` with the direction — read-only instrumentation, no trading path. Without it, analysis of the gate sees **survivors only**, a selected sample biased in exactly the direction task 05's 4b asks about | 2026-09-22 | build window, with the banked-MDD and deployed-version lines |
 | ~~**Re-run the Phase II ledger slice before Wednesday**~~ **DONE 2026-09-22** (523 records, last 09-21T10:01) and now superseded: the refresh is **step 0 of the dispatch runbook**, so it happens every Wednesday by procedure rather than by anyone remembering | 2026-09-21 | closed |
-| **`record_state.py`'s docstring is now wrong in two ways** — it suggests bolting the git push onto the 23:50 line (which would publish each day's fills a day late, since `fills_report` runs at 23:55) and it pushes to `claude/offline-competition-deploy-*` (which would race this log's branch and fail non-fast-forward). A future session following it rebuilds both faults | 2026-09-21 | next doc pass; small, but it is a trap laid for a cold reader — the same shape as the `README_ltp.md` sandbox-host row |
+| **`record_state.py`'s docstring is now wrong in two ways** — it suggests bolting the git push onto the 23:50 line (which would publish each day's fills a day late, since `fills_report` runs at 23:55) and it pushes to `claude/offline-competition-deploy-*` (which would race this log's branch and fail non-fast-forward). A future session following it rebuilds both faults. **Third fault, found 2026-09-23:** `--show` prints nothing and exits 0 when the history file is absent (`_load()` returns `[]`), which is every checkout but the droplet's — so it reports "no history" where the truth is "wrong branch". `CLAUDE.md` now routes around it; the script should say so itself, on stderr | 2026-09-21 | next doc pass; small, but it is a trap laid for a cold reader — the same shape as the `README_ltp.md` sandbox-host row |
 | **Have `status.py` report the deployed code version.** On 2026-09-21 the droplet was found running **2026-09-12 code** — the `constraint_prompt` fix had been in git since 09-15 and never deployed, so six extra days of deep reviews ran on the premise the phase was over, while this log said it was fixed. **Nothing in the daily glance could have shown that**: `status.py` reports every live fact except which version of the code produces them. Print the HEAD short-sha and whether it matches `origin`. **It was found by accident**, falling out of the deploy-key work — a gap only findable by accident will recur | 2026-09-21 | build window, with the banked-MDD line; same file, same pass |
 | ~~**Give the droplet a non-interactive git credential** (deploy key or stored PAT), then extend the 23:50 UTC cron to `git add track_record/ && git commit && git push`~~ **DONE 2026-09-21 — this row was stale**, found on the 2026-09-23 cold start. A duplicate of the deploy-key row above. Note the push is its **own 23:58 line, not bolted onto 23:50** as this row proposed: fills are written at 23:55 | 2026-07-30 | closed |
 | ~~Re-check rank~~ **DONE 2026-08-02**: #2 of 29, score 94.4 | 2026-07-30 | closed |
@@ -1825,7 +1825,7 @@ section existed; that is what it is for.
 | ~~**Land the three research outputs on the working branch**~~ **DONE 2026-09-14.** All three `out/` files (1,322 lines) taken file-by-file off their research branches; `done/` created and tasks 01, 03, 04 moved into it, leaving 02 alone in the queue. Scope audit while the branches were in hand: one new file each, nothing else. README step 4 rewritten so "pushed the branch" is no longer mistaken for finished | 2026-09-14 | closed |
 | **Disclose the `entry_beta` fix in `LTP_STRATEGY.md`** — ~~missing since 2026-09-09~~ **DONE 2026-09-14**, addendum written naming `entry_frame` and `entry_beta` | 2026-09-14 | closed |
 | **Ask the organizers whether the Binance-vs-OKX venue choice is still open** now that Phase II has started, and whether the primary account is provisioned as a **Sub Portfolio** (if so the key can read but not trade it — `Edit API` fixes it in one click), and whether their side needs an IP whitelisted. The last two were asked of @LTP_Tracey on 2026-09-07 and **never answered** | 2026-09-07 / 2026-09-08 | next organizer contact — bundle with the CSV-export and AI-floor questions already owed |
-| **`CLAUDE.md` points a cold reader at the wrong places.** Its cold-start step 4 reads `track_record/ltp_state_history.jsonl`, which is **not on the working branch** — it lives on `live/track-record` (`git show origin/live/track-record:track_record/ltp_state_history.jsonl`). The 2026-09-23 cold start only found the latest state row because it went looking. Also stale: the header's "Phase I runs to 2026-08-21" framing and "27 tests" (268) | 2026-09-23 | needs the operator's go; small doc pass. Same root as the dispatch fix: **"in the repo" is not specific enough — say which branch** |
+| ~~**`CLAUDE.md` points a cold reader at the wrong places.** Its cold-start step 4 reads `track_record/ltp_state_history.jsonl`, which is **not on the working branch** — it lives on `live/track-record`. Also stale: the header's "Phase I runs to 2026-08-21" framing and "27 tests"~~ **DONE 2026-09-23**, same session, on the operator's go. Step 4 now gives the `git show origin/live/track-record:…` command and says `--show` works only on the droplet; header states Phase II; the test count is **dropped rather than updated**, since a copied count is a remembered number. Pinned by `test_every_track_record_file_claude_md_names_is_reachable_from_here` | 2026-09-23 | closed |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
 > *below* the closing horizontal rule since 2026-08-09 — outside the table, where
@@ -5740,6 +5740,29 @@ OKX orderability (09-13), the task 03 re-read (09-20), and sub-hourly z capture
 - **`CLAUDE.md`'s cold-start step 4** points at a state-history path that does
   not exist on this branch, and its header still frames Phase I as current. New
   row in Open commitments, awaiting a go.
+
+### (later) `CLAUDE.md` fixed on the operator's go
+
+- **Header**: Phase II, live capital, 2026-09-09 → 2026-11-04; Phase I closed,
+  advanced 6th.
+- **Cold-start step 4**: reads the state history with `git show
+  origin/live/track-record:…`, verified to return the 09-22 23:50 row, and
+  says `record_state.py --show` works only on the droplet. **Worse than a wrong
+  path:** off the droplet `--show` prints nothing and exits 0, so step 4 as
+  written answered "no history". Added to the existing `record_state.py`
+  docstring row, since that is the same file and the same future pass. Step 4
+  also now says to read from `live/track-record` and never push to it.
+- **Test counts removed, not updated.** "27 tests" went stale silently and "268"
+  would too; pytest prints the real number.
+- **Pinned:** `test_every_track_record_file_claude_md_names_is_reachable_from_here`
+  — the same rule as the research-queue test, applied to the file every cold
+  start reads first. Fails on the old `CLAUDE.md`, passes on the new. Suite
+  **268 → 269**.
+
+The two fixes today share a root, and it is worth one sentence: **"in the repo"
+has been this project's default phrasing for data that actually lives on one
+particular branch.** Both places a reader is sent for data are now pinned by
+tests to name a branch that carries it.
 
 ---
 
