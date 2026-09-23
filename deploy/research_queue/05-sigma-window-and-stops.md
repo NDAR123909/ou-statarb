@@ -124,6 +124,59 @@ nothing has tested it, which is not the same as support.
 >    compression persists across refits or oscillates, and whether it coincides
 >    with realised volatility falling.
 >
+> 4b. **Is compression universe-wide, or only on the pairs we hold?** This
+>    matters more than it looks, and it was added on 2026-09-22 after an
+>    observation the task did not have when it was written.
+>
+>    The gate accepts half-lives in a band — `min_half_life = 6.0` bars,
+>    `max_half_life = 168.0` (`AgentConfig`). On **2026-09-21 the refit passed
+>    0 of 15** and the rejection mix was *split-half cointegration 6, **half-life
+>    out of band 4**, mean crossings 3, Hurst 2*. On 09-20 it was *split-half 5,
+>    **half-life 5**, Hurst 2, crossings 2*. **FDR rejected nothing on either
+>    day** — every candidate died at an earlier gate.
+>
+>    So: **if half-lives are compressing across the whole candidate set, the
+>    same mechanism would explain both the stop cluster and the gate emptying**
+>    — pairs we hold get a shrinking sigma window, and pairs we don't hold fall
+>    out of the band. That is one story instead of two, which is a reason to
+>    test it carefully rather than a reason to believe it.
+>
+>    **WHICH END OF THE BAND? This is the question, and the first version of
+>    this task assumed the answer.** It said candidates "fall out of the
+>    **bottom**", which presumes compression. The opposite is at least as
+>    likely:
+>
+>    - **Shorter** half-lives → failures at `min_half_life = 6.0` → consistent
+>      with the compression hypothesis this whole task is testing.
+>    - **Longer** half-lives → failures at `max_half_life = 168.0` → consistent
+>      with a **trending market**, where the fitted AR(1) coefficient approaches
+>      1 and the spread stops oscillating at all.
+>
+>    The second reading has live support the task did not have when written. The
+>    organizer's 2026-09-22 market note reports **BTC rallying from below $80K
+>    to ~$85K that week**, with ETH following — and the 0-of-15 refit fell in the
+>    middle of it. The same mix shows **"too few mean crossings" 3**, which is
+>    exactly what a trending spread produces. A hard directional rally is the
+>    classic regime in which pairs stop mean-reverting.
+>
+>    **These are opposite diagnoses and they imply opposite remedies**, so do
+>    not let either the prose above or the phrase "out of band" decide it.
+>    Compute the fitted half-life distribution across **all** candidates at each
+>    refit, not just survivors, track whether its centre moves, **and state
+>    which side of the band the failures sit on.** If the answer is "longer",
+>    the compression hypothesis is wrong about the universe even if it is right
+>    about the pairs we hold — and saying so is the finding.
+>
+>    **A coverage warning specific to this sub-question.** The `refit` ledger
+>    record carries `passed`, `tested`, `active` and per-pair `bands` — **it does
+>    not carry the rejection breakdown**, which exists only in the droplet's
+>    systemd journal and is not in this repo. The two mixes quoted above were
+>    read from there by hand. So you can get half-lives for **survivors** from
+>    the ledger, and for **rejected** candidates you cannot — say so plainly
+>    rather than inferring the distribution from the survivors, which are a
+>    selected sample by construction and would bias exactly the quantity in
+>    question.
+>
 > 5. **The obvious confound, stated up front.** A short half-life means a fast
 >    pair, and fast pairs may simply be worse to trade for reasons unrelated to
 >    the window. **Try to separate "short window" from "fast pair."** If you
