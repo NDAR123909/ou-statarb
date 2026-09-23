@@ -182,10 +182,16 @@ position mode, funded 1000 USDT.
 - Honesty over performance: never loosen a statistical gate to manufacture
   trades or flatter numbers, and say plainly when a result is unflattering.
 
-**Daily glance (operator's routine).** `.venv/bin/python deploy/status.py`.
-Escalate immediately on: `halted YES`; service not `active/running` or restarts
+**Daily glance (operator's routine).** From `/root/ou-statarb`:
+`( set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py )`.
+**The env load is not optional.** A fresh SSH shell has no `LTP_API_HOST`, so
+without it equity, positions and AI spend all read `UNAVAILABLE — RCLI01003`
+and a healthy agent looks like an outage — which is what happened on
+2026-09-23, when this line gave the bare command. The parentheses keep the
+credentials out of the interactive shell afterwards. Escalate immediately on: `halted YES`; service not `active/running` or restarts
 climbing; equity down >~5% in a day or headroom-to-kill under ~40; `equity
-UNAVAILABLE` / `bad_read` / repeated errors; a position open for days; any
+UNAVAILABLE` **with the env loaded** (without it, that line means nothing) /
+`bad_read` / repeated errors; a position open for days; any
 organizer message. Normal and ignorable: stop-outs, pairs cycling flat↔open,
 small drawdowns, `reconcile` lines, `ai_spread_assessment` volume.
 
@@ -1826,7 +1832,7 @@ section existed; that is what it is for.
 | ~~**Land the three research outputs on the working branch**~~ **DONE 2026-09-14.** All three `out/` files (1,322 lines) taken file-by-file off their research branches; `done/` created and tasks 01, 03, 04 moved into it, leaving 02 alone in the queue. Scope audit while the branches were in hand: one new file each, nothing else. README step 4 rewritten so "pushed the branch" is no longer mistaken for finished | 2026-09-14 | closed |
 | **Disclose the `entry_beta` fix in `LTP_STRATEGY.md`** — ~~missing since 2026-09-09~~ **DONE 2026-09-14**, addendum written naming `entry_frame` and `entry_beta` | 2026-09-14 | closed |
 | **Ask the organizers whether the Binance-vs-OKX venue choice is still open** now that Phase II has started, and whether the primary account is provisioned as a **Sub Portfolio** (if so the key can read but not trade it — `Edit API` fixes it in one click), and whether their side needs an IP whitelisted. The last two were asked of @LTP_Tracey on 2026-09-07 and **never answered** | 2026-09-07 / 2026-09-08 | next organizer contact — bundle with the CSV-export and AI-floor questions already owed |
-| **The runbook and the export tool tell the operator to run `status.py` without loading the env.** On 2026-09-23 step 0's age warning fired as designed, the operator ran `.venv/bin/python deploy/status.py` in a fresh SSH shell, and equity, positions and AI spend all came back `UNAVAILABLE — RCLI01003 LTP_API_HOST is required`. The agent was fine; the shell had no `/root/ltp.env`. Both places — README step 0 and `export_phase_ledger.py`'s NOTE — should give `set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py`. (`status.py`'s own docstring says plain `source`, which does not export a shell-format file to a child process either) | 2026-09-23 | needs the operator's go; two strings and a docstring |
+| ~~**The runbook and the export tool tell the operator to run `status.py` without loading the env.**~~ **DONE 2026-09-23**, same evening, on the operator's go — and it was **five** places, not two: the **daily glance in the standing context** (the worst, since `equity UNAVAILABLE` is on its escalate-immediately list), `CLAUDE.md` step 6, runbook step 0, the export's NOTE, and `status.py`'s docstring. All now give `( set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py )`. Pinned by `test_every_instruction_to_run_status_py_loads_the_env_first` and `test_the_staleness_note_gives_a_command_that_works`. Original row: On 2026-09-23 step 0's age warning fired as designed, the operator ran `.venv/bin/python deploy/status.py` in a fresh SSH shell, and equity, positions and AI spend all came back `UNAVAILABLE — RCLI01003 LTP_API_HOST is required`. The agent was fine; the shell had no `/root/ltp.env`. Both places — README step 0 and `export_phase_ledger.py`'s NOTE — should give `set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py`. (`status.py`'s own docstring says plain `source`, which does not export a shell-format file to a child process either) | 2026-09-23 | needs the operator's go; two strings and a docstring |
 | ~~**`CLAUDE.md` points a cold reader at the wrong places.** Its cold-start step 4 reads `track_record/ltp_state_history.jsonl`, which is **not on the working branch** — it lives on `live/track-record`. Also stale: the header's "Phase I runs to 2026-08-21" framing and "27 tests"~~ **DONE 2026-09-23**, same session, on the operator's go. Step 4 now gives the `git show origin/live/track-record:…` command and says `--show` works only on the droplet; header states Phase II; the test count is **dropped rather than updated**, since a copied count is a remembered number. Pinned by `test_every_track_record_file_claude_md_names_is_reachable_from_here` | 2026-09-23 | closed |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
@@ -5869,6 +5875,30 @@ the operator's go, and they belong in one pass:
 
 Plus the task 03 re-read carried from 09-20. The research queue is **empty**; no
 Wednesday dispatch next week unless Sunday adds a task.
+
+### (later) The `status.py` env line, fixed in five places
+
+On the operator's go. Asked for as "two strings and a docstring"; a grep for
+every instruction to run `status.py` found **five**, and the worst was not one I
+had listed: **the daily glance in this file's standing context** gave the bare
+command, while its own escalation list says to escalate immediately on
+`equity UNAVAILABLE` — the exact output the bare command produces from a fresh
+shell. The operator's daily routine was one SSH login away from a false alarm.
+`CLAUDE.md` step 6 had the same gap, so a cold session asking for a status paste
+would have handed over the broken command.
+
+All five now give one canonical line,
+`( set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py )` —
+a subshell, so the credentials are not left exported in the SSH session, which
+is the pattern `README_ltp.md` already used for `rapidx auth check`. The glance
+now says `equity UNAVAILABLE` escalates **only with the env loaded**.
+
+Two tests: a scan that every runnable `status.py` instruction in the operator-
+facing files loads the env first (catches the three bare commands in the old
+files), and one that the export's staleness NOTE prints the working command.
+Suite **269 → 271**. `status.py` changed only in its docstring; nothing
+deployed needs to change, though the droplet's copy of the docstring and
+export NOTE stay old until it next pulls those files.
 
 ---
 

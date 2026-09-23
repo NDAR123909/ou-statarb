@@ -144,6 +144,26 @@ def test_age_hours_is_computed_not_eyeballed():
     assert age_hours(None) is None
 
 
+def test_the_staleness_note_gives_a_command_that_works(tmp_path, monkeypatch,
+                                                       capsys):
+    """On 2026-09-23 the note said "Run deploy/status.py"; the operator ran
+    exactly that in a fresh SSH shell and equity, positions and spend all read
+    UNAVAILABLE on a healthy agent, because nothing had loaded /root/ltp.env.
+    The note is the instruction someone follows at the moment of doubt, so it
+    must carry the env load itself."""
+    from deploy import export_phase_ledger as m
+    ledger = _ledger(tmp_path, [{"ts": "2026-09-09T01:00:00+00:00",
+                                 "event": "refit"}])
+    monkeypatch.setattr(sys, "argv", ["x", "--ledger", str(ledger),
+                                      "--out", str(tmp_path / "o.jsonl")])
+    assert m.main() == 0
+    printed = capsys.readouterr().out
+    assert "NOTE" in printed
+    assert m.STATUS_CMD in printed
+    assert "set -a" in m.STATUS_CMD and "/root/ltp.env" in m.STATUS_CMD
+    assert m.STATUS_CMD.index("set -a") < m.STATUS_CMD.index("deploy/status.py")
+
+
 def test_the_default_cut_is_the_phase_open_and_says_why():
     """2026-09-08T16:00 UTC is 00:00 GMT+8 on 09-09 -- the organizer's clock,
     not ours. A future session changing this must change it knowingly."""
