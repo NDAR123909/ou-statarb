@@ -85,7 +85,22 @@ $T = "05-sigma-window-and-stops"        # <- the ONLY thing you change
 git checkout claude/offline-competition-deploy-nuk5tz
 git pull
 git checkout -b research/$T
+git fetch origin live/track-record
+git checkout origin/live/track-record -- track_record/ltp_ledger_phase2.jsonl track_record/ltp_state_history.jsonl
 ```
+
+**The last two lines are not optional.** The published Phase II data lives on
+`live/track-record`, the droplet's branch — **not on this one.** Without them
+the research branch carries Phase I only, and every brief that says "both phases
+are in the repo" is false for the tool reading it. That is exactly the
+2026-09-16 task 02 failure, and it was found on 2026-09-23, the night before
+task 05 would have repeated it.
+
+They only *read* from `live/track-record`; nothing in this runbook pushes to it
+(standing rule). And the data is pulled here rather than kept on the working
+branch on purpose: a copy there would be a second home for a fact that changes
+daily and would go stale the way the coverage note below did twice. Pulled right
+after step 0 refreshed it, it is fresh by construction.
 
 ### 2. Dispatch — Claude Desktop → Cowork, pointed at the repo folder
 
@@ -104,15 +119,31 @@ them.
 git status --short
 ```
 
-**Confirm it created only `deploy/research_queue/out/$T.md` and nothing else.**
-All four dispatches so far have been clean — that is the rules working rather
-than luck, and it is worth verifying each time rather than assuming.
+**Expect exactly three lines** — the two inputs you staged in step 1, and the one
+file the tool created:
+
+```
+A  track_record/ltp_ledger_phase2.jsonl
+A  track_record/ltp_state_history.jsonl
+?? deploy/research_queue/out/<your $T>.md
+```
+
+**Anything else is a scope violation — including `AM` on either input, which
+means the tool edited its own data.** All four dispatches so far have been clean
+— that is the rules working rather than luck, and it is worth verifying each
+time rather than assuming.
 
 ```powershell
 git add deploy\research_queue\out\$T.md
 git commit -m "research: $T"
 git push -u origin research/$T
 ```
+
+The commit carries the two inputs as well as the answer. That is deliberate: the
+research branch then records **exactly which slice the answer was computed on**,
+which is otherwise lost the next time step 0 overwrites it. Step 4 lands only the
+answer, and switching back to the working branch removes the inputs from your
+checkout.
 
 ### 4. Land it — part of the job, not an afterthought
 
@@ -156,14 +187,22 @@ eventually be dispatched without being read.
 
 ## What the research lane can and cannot see — CHECK THIS BEFORE WRITING A BRIEF
 
-**Both phases are in the repo since 2026-09-21, and they are not equivalent.**
-`track_record/phase1_submission/reasoning.jsonl` is **Phase I**, ending
-2026-08-21T16:00:23Z — the larger sample, and usually the primary test bed.
-`track_record/ltp_ledger_phase2.jsonl` is **Phase II** from 2026-09-08T16:00,
-**trading records only**: `ai_deep_review` is excluded (advisory, ~99% of the
-raw ledger by volume, and that window is independently known to be
-contaminated). The raw `deploy/ltp_ledger.jsonl` is gitignored and stays on the
-droplet.
+**Both phases reach a research branch, by two different routes, and they are not
+equivalent.**
+
+- `track_record/phase1_submission/reasoning.jsonl` is **Phase I**, ending
+  2026-08-21T16:00:23Z — the larger sample, and usually the primary test bed.
+  It is **on this branch**, so every research branch inherits it.
+- `track_record/ltp_ledger_phase2.jsonl` is **Phase II** from 2026-09-08T16:00,
+  **trading records only**: `ai_deep_review` is excluded (advisory, ~99% of the
+  raw ledger by volume, and that window is independently known to be
+  contaminated). It and `track_record/ltp_state_history.jsonl` live **only on
+  `live/track-record`**, and reach a research branch **because step 1 checks
+  them out onto it.** Skip that and they are absent.
+
+The raw `deploy/ltp_ledger.jsonl` is gitignored and stays on the droplet.
+`tests/test_research_queue.py` fails if an open brief names a `track_record/`
+file that is neither on this branch nor pulled by step 1.
 
 **The Phase II file is a periodic export and lags** — step 0 of the dispatch
 refreshes it, and every brief should tell its reader to check the last
@@ -174,6 +213,12 @@ timestamp rather than assume it runs to today.
 > after the slice landed — the same stale claim was fixed in task 05's brief
 > and missed here. **A coverage note is a fact about the repo, and facts about
 > the repo change.** Re-check it when writing any brief.
+>
+> **And then it was wrong the other way, 2026-09-21 → 09-23.** The correction
+> said "both phases are in the repo", which was true of the *repository* and
+> false of the *branch the tool is handed* — the slice was only ever on
+> `live/track-record`. Found on the cold start the night before task 05's
+> dispatch. "In the repo" is not specific enough: say **which branch**.
 
 This was learned the expensive way on 2026-09-16. Task 02's brief had been
 updated twice with Phase II material — the live `blocked=1`, the 09-15 churn
@@ -197,11 +242,11 @@ travelling inside each PROMPT block is what did that, so keep copying them.
 
 | # | task | status |
 |---|---|---|
-| 05 | `05-sigma-window-and-stops.md` — does the shrinking sigma window explain the stops? | **open · run next** (Wed 2026-09-23) |
+| — | *(empty since 2026-09-23 — skip Wednesday unless a review adds a task)* | |
 
-The queue emptied on 2026-09-16 and refilled at the 09-20 review, which is the
-cadence the top of this file predicts: reviews generate roughly one or two
-research questions, not ten.
+The queue emptied on 2026-09-16, refilled at the 09-20 review, and emptied
+again on 09-23. That is the cadence the top of this file predicts: reviews
+generate roughly one or two research questions, not ten.
 
 ## Done
 
@@ -214,8 +259,9 @@ here, not on the research branches.
 | 03 | `done/03-frame-drift-cost.md` | `out/03-frame-drift-cost.md` | **2026-09-11.** Mislabelling cost nothing, drift cost one stop; n=9 closes, not enough to act on. **Falsified its own brief's anchor case**, which found the `entry_beta` bug |
 | 04 | `done/04-entry-depth-vs-stops.md` | `out/04-entry-depth-vs-stops.md` | **2026-09-13.** Depth does not predict stop-outs (Fisher p=1.00); damage is in the middle bucket. **DO NOTHING** |
 | 02 | `done/02-side-blocked-earned-its-keep.md` | `out/02-side-blocked-earned-its-keep.md` | **2026-09-16. The block EARNS ITS KEEP on drawdown.** The "ten refusals" are **two episodes** (entry fires only when `side == 0`). Net −3.5 (~0.34% NAV), but MDD **2.273% → 1.779%** — a 28% relative cut in permanent drawdown. Also found: `blocked` does **not** survive pair eviction (`ltp_agent.py:302–306`), an undocumented third exit from the block |
+| 05 | `done/05-sigma-window-and-stops.md` | `out/05-sigma-window-and-stops.md` | **2026-09-23. COINCIDENCE.** Stop rate 25% vs 25% (Fisher p = 1.00); stops come on raw moves 2.19× **larger**; sigma **grew** as the window shrank. Window = `int(3 × half_life)` everywhere observed (r = +0.9996), so it is **unidentifiable** without a counterfactual fixed-window sigma. **Falsified its own brief's key figure** (NEAR/ICP 5.43%, not 1.4%). Declined 4b: rejected half-lives are not logged. First dispatch with the Phase II inputs pulled onto the research branch |
 
-Run order was **01 → 04 → 03 → 02**, not numeric. 04 jumped to the front on
+Run order was **01 → 04 → 03 → 02 → 05**, not numeric. 04 jumped to the front on
 2026-09-13: it gates a live sizing decision, and the agent had just entered at
 0.09 sigma from its own stop. 03 came before 02 because two independent analyses
 landed on the same mechanism within a day of each other without either looking

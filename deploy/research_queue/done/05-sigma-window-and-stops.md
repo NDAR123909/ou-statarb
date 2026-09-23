@@ -44,7 +44,13 @@ NEAR/ICP 09-15>16     hl 26.58h  window 79  sigma_eq 0.038992  raw move 0.0543 o
 ```
 
 Both stops **overshot** — 3.76 and 4.13 against a 3.5 band — on **small raw
-moves**, 1.4% and 3.4% of log spread.
+moves**, ~~1.4%~~ and 3.4% of log spread.
+
+> **WRONG, caught by the task itself (out/05 §0b), confirmed 2026-09-23.**
+> NEAR/ICP's raw move is the `0.0543` in the block above: **5.43%**, the
+> largest in either phase. "1.4%" was the z move of 1.393 read as a percentage.
+> Left visible rather than silently fixed, because the brief's framing rested
+> on it and the task was right not to trust it.
 
 **That is suggestive and it is not evidence.** Two points, two different pairs,
 whose sigmas are not comparable to each other. The hypothesis survives because
@@ -83,6 +89,11 @@ nothing has tested it, which is not the same as support.
 >   `ai_spread_assessment`. **`ai_deep_review` records are deliberately
 >   excluded** — they are advisory, they are ~99% of the raw ledger by volume,
 >   and that window is independently known to be contaminated.
+>
+> **If `track_record/ltp_ledger_phase2.jsonl` is not in your folder, stop and
+> say so** — do not proceed on Phase I alone. Its absence means a dispatch step
+> was skipped, which the operator can fix in a minute; a Phase-I-only answer
+> would silently drop the two cleanest cases question 3 depends on.
 >
 > **Phase II is small but unusually clean for this question.** It holds the
 > three stops that prompted the task, and **two of them carry
