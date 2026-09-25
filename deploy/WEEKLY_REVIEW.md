@@ -1809,7 +1809,7 @@ section existed; that is what it is for.
 | **Two-venue execution is unmodelled.** A cross-venue pair has legs on two venues; a fill on one without the other leaves a naked directional position, and the maintenance-window guard reasons about one venue's blackout. The scan can now find such pairs before the agent can trade them safely | 2026-09-11 | **before any cross-venue pair reaches `CANDIDATES`.** Not urgent while cost_z likely refuses them anyway |
 | **Chase the OKX 300-bar klines cap.** Binance returns 1000 on an identical request; OKX returns 300 for symbols with years of history. `KlinesInput` is `additionalProperties: false` with only symbol/interval/limit, so pagination cannot be expressed, and `limit` carries no documented maximum — a bug, not a feature request. Raised 2026-09-10 | 2026-09-10 | **still blocks the universe scan.** 300 bars = 12.5 days, which silently narrows the effective half-life band to ~6–48h. **Do not scan OKX at 300 bars and report the result as a regime measurement.** Re-test on each RapidX release |
 | **Verify OKX instruments are actually ORDERABLE**, not merely readable. `symbol-info` succeeding is not proof; the organizer's test is "any instrument you are able to place orders on". The check is `order place-preview`, classed **TRADE_WRITE** — decide it deliberately at a review, not casually against live capital | 2026-09-10 | ~~Sun 2026-09-13 review~~ **not taken at 09-13 or 09-20; carried to week 8, Sun 2026-09-27.** Not urgent while nothing on OKX is in `CANDIDATES` |
-| **Scan the full Phase II universe, grouped by DRIVER not venue.** The top-50 whitelist is gone and the organizer confirmed (2026-09-09) that **any orderable instrument counts, crypto or not** — commodity and tokenised-equity perps score identically. The 0/55 result is a **one-factor** problem: every crypto perp shares BTC beta, so widening within crypto cannot fix it. Non-crypto breaks the factor | 2026-09-09, reshaped 2026-09-10 | highest-priority research item. Hedges recorded in the 09-10 entry: liquidity, weekend gaps in the underlying, corporate actions, FDR, 960-bar data depth |
+| **Scan the full Phase II universe, grouped by DRIVER not venue.** The top-50 whitelist is gone and the organizer confirmed (2026-09-09) that **any orderable instrument counts, crypto or not** — commodity and tokenised-equity perps score identically. The 0/55 result is a **one-factor** problem: every crypto perp shares BTC beta, so widening within crypto cannot fix it. Non-crypto breaks the factor | 2026-09-09, reshaped 2026-09-10 | highest-priority research item. Hedges recorded in the 09-10 entry: liquidity, weekend gaps in the underlying, corporate actions, FDR, 960-bar data depth. **Added 2026-09-24: venue delisting.** OKX is cutting 72 perps on 09-28, dense with equity/index contracts (US500, US100, WMT, XOM, KO, JNJ…), at ~4.5 days' notice. None of our nine non-crypto symbols is on it — checked against both manifests — but a pair in this category can lose a leg to a venue decision, so check delisting notices at every refit, not only at entry |
 | **Resolve the taker-fee discrepancy** — API reports `level=1`, taker 3.5 bps; this record has it *measured* at 1.75 bps/side. VIP 5 is "being applied" per LTP. Re-measure once it lands; `optimal_bands` consumes it, so it decides which passing pairs are tradeable | 2026-09-09 | when LTP confirms VIP 5, and at the next review regardless |
 | ~~**Synthesise the ~3,400 deep reviews**~~ **DONE 2026-09-09** via Claude Cowork — `deploy/DEEP_REVIEW_SYNTHESIS.md` on branch `research/deep-review-synthesis`. Found the corpus's most convergent claim to be a prompt artefact of our own making; that bug is now fixed and pinned | 2026-08-12 | closed — but the surviving claims still need reading before Sunday |
 | ~~**Watch `bad_read`**~~ **CLOSED 2026-09-08** — frozen at 307 across seven hours on the production host. The guard fired every bar through the dead-credential window and has not fired since | 2026-09-08 | closed |
@@ -5931,6 +5931,43 @@ carried one residual hole: `stream.urgent.wait()` can wake the agent mid-hour to
 only enter the universe at a refit — the next is 14 bars out (~10:00 UTC on
 09-24), after the window closes. **Nothing can be held during it, so there is
 nothing to de-risk.**
+
+---
+
+## 2026-09-24 — two OKX delisting notices: not us, but OKX is culling equity perps
+
+Two RapidX notices, both **OKX only**:
+
+```
+posted 09-23 ~15:48 UTC   liquidation 09-28 09:00 UTC (17:00 UTC+8)
+  OKX spot: ~115 pairs, incl. every tokenized-stock X-pair (XAAPL, XNVDA, XSPY...)
+  OKX perp:  72 contracts, incl. US500, US100, WMT, XOM, KO, JNJ, CRM, PYPL,
+             OPENAI, ANTHROPIC, LUNA ...
+posted 09-24               liquidation 10-03 06:00 UTC
+  OKX spot: DORA, ELF, ICX, STORJ
+```
+
+**The live book: untouched, by construction.** All 15 `CANDIDATES` pairs are
+`BINANCE_PERP_`; `grep` finds no OKX symbol anywhere in `ltp_agent.py`. The one
+near-match is instructive: **`OKX_SPOT_ZEC_USDC` shares its base with our
+`BINANCE_PERP_ZEC_USDT`** (XMR/ZEC) and fails on venue, product *and* quote —
+the "check the product type, not just the symbol" reflex, now with a third
+filter. ICX recurs (perp 09-15, spot now); still not ICP.
+
+**The research universe: untouched, checked rather than assumed.** Both probe
+manifests on `live/track-record` (`universe_manifest.json`, 110 symbols;
+`universe_manifest_nc.json`, 18) were matched against all 72 delisted perp bases:
+**zero overlap.** The non-crypto set — AAPL, MSFT, NVDA, TSLA, **SPX**, CL, BZ,
+NG, ZS — all survive. Note `OKX_PERP_US500` is being cut but it is **not**
+`OKX_PERP_SPX`, the contract behind the open SPX-beta question.
+
+**What it does bear on.** The cut list is dense with equity and index perps. The
+highest-priority research item is that non-crypto instruments break the
+one-factor crypto problem; this is the venue actively pruning that category, at
+~4.5 days' notice. **A hedge for that row, not a reason to drop it:** any
+equity-perp pair needs a delisting check at refit, not just at entry, and the
+two-venue execution gap already open gets worse if one leg's venue culls it.
+Added to the universe-scan row.
 
 ---
 
