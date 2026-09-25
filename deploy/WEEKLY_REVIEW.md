@@ -5971,6 +5971,40 @@ Added to the universe-scan row.
 
 ---
 
+## 2026-09-25 — reboot on the flat book, kernel 139 → 142, and the Thursday window verified
+
+**The Thursday maintenance window passed with zero impact, as predicted.** Bar
+370 at 09-23 19:33 → **399 at 09-25 00:39**: 29 bars in 29 hours, so every tick
+landed, including through 08:05–08:30 UTC on 09-24. One refit on 09-24, 0 pass.
+Equity flat at 1006.89, as it should be with nothing held.
+
+**Reboot, taken because the book was flat.** The login banner showed
+`*** System restart required ***` with 9 updates pending. `apt full-upgrade`
+applied 17 packages — curl, libexpat, krb5, apparmor, netplan among them, 5 of
+them LTS security updates — and flagged the running kernel 6.8.0-139 as
+behind the installed **6.8.0-142**. Rebooted ~00:5x UTC.
+
+```
+kernel      6.8.0-142-generic      updates pending 0, restart banner gone
+service     active/running since 2026-09-25 00:52:19 UTC
+equity      1006.89   peak 1010.75   halted no     <- state survived
+bar         399 -> 400                             <- counter survived
+```
+
+Third clean reboot on a flat book (08-06, 09-16, today), no top-of-hour tick
+inside the downtime. Noise in the output, not faults: an `apparmor.postinst`
+`[: Illegal number: yes` from the package's own script (profiles reloaded
+normally); needrestart deferring `ltp-agent` (the reboot superseded it); 2
+phased `libaudit` updates; 3 ESM-only updates to *system* pip/wheel, which the
+agent's `.venv` does not use.
+
+**Refit hour moved ~10:00 → ~09:00 UTC** — the startup tick counts as a bar
+(`next in 9` before, `next in 8` after), exactly the drift the 09-16 entry
+describes. Still after the 08:05–08:30 slot every recent maintenance window has
+used; read `status.py`'s "next in N bars" rather than assuming the hour.
+
+---
+
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
 
 > **STATUS 2026-09-08, read this before the list.** The build window closed and
