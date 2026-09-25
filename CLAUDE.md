@@ -59,9 +59,12 @@ makes anyone *read* it.
    but the droplet makes its nightly commit fail on non-fast-forward, silently.
 5. `git log --oneline -15` — what shipped since the last written entry. A
    commit with no matching review-log line is exactly the gap to report.
-6. Live truth, if reachable: `python deploy/status.py`. **Claude has no access
-   to the droplet** — ask the operator to paste it rather than assuming the
-   repo reflects the running agent.
+6. Live truth, if reachable: on the droplet, from `/root/ou-statarb`,
+   `( set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py )`.
+   **Claude has no access to the droplet** — ask the operator to paste it
+   rather than assuming the repo reflects the running agent. Give them that
+   exact line: without the env load, equity reads `UNAVAILABLE — RCLI01003` and
+   a healthy agent looks like an outage.
 
 **Then summarise back to the operator before doing anything else** — no edits,
 no orders, no analysis. The summary must cover:

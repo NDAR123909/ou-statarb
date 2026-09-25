@@ -182,10 +182,16 @@ position mode, funded 1000 USDT.
 - Honesty over performance: never loosen a statistical gate to manufacture
   trades or flatter numbers, and say plainly when a result is unflattering.
 
-**Daily glance (operator's routine).** `.venv/bin/python deploy/status.py`.
-Escalate immediately on: `halted YES`; service not `active/running` or restarts
+**Daily glance (operator's routine).** From `/root/ou-statarb`:
+`( set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py )`.
+**The env load is not optional.** A fresh SSH shell has no `LTP_API_HOST`, so
+without it equity, positions and AI spend all read `UNAVAILABLE — RCLI01003`
+and a healthy agent looks like an outage — which is what happened on
+2026-09-23, when this line gave the bare command. The parentheses keep the
+credentials out of the interactive shell afterwards. Escalate immediately on: `halted YES`; service not `active/running` or restarts
 climbing; equity down >~5% in a day or headroom-to-kill under ~40; `equity
-UNAVAILABLE` / `bad_read` / repeated errors; a position open for days; any
+UNAVAILABLE` **with the env loaded** (without it, that line means nothing) /
+`bad_read` / repeated errors; a position open for days; any
 organizer message. Normal and ignorable: stop-outs, pairs cycling flat↔open,
 small drawdowns, `reconcile` lines, `ai_spread_assessment` volume.
 
@@ -1803,7 +1809,7 @@ section existed; that is what it is for.
 | **Two-venue execution is unmodelled.** A cross-venue pair has legs on two venues; a fill on one without the other leaves a naked directional position, and the maintenance-window guard reasons about one venue's blackout. The scan can now find such pairs before the agent can trade them safely | 2026-09-11 | **before any cross-venue pair reaches `CANDIDATES`.** Not urgent while cost_z likely refuses them anyway |
 | **Chase the OKX 300-bar klines cap.** Binance returns 1000 on an identical request; OKX returns 300 for symbols with years of history. `KlinesInput` is `additionalProperties: false` with only symbol/interval/limit, so pagination cannot be expressed, and `limit` carries no documented maximum — a bug, not a feature request. Raised 2026-09-10 | 2026-09-10 | **still blocks the universe scan.** 300 bars = 12.5 days, which silently narrows the effective half-life band to ~6–48h. **Do not scan OKX at 300 bars and report the result as a regime measurement.** Re-test on each RapidX release |
 | **Verify OKX instruments are actually ORDERABLE**, not merely readable. `symbol-info` succeeding is not proof; the organizer's test is "any instrument you are able to place orders on". The check is `order place-preview`, classed **TRADE_WRITE** — decide it deliberately at a review, not casually against live capital | 2026-09-10 | ~~Sun 2026-09-13 review~~ **not taken at 09-13 or 09-20; carried to week 8, Sun 2026-09-27.** Not urgent while nothing on OKX is in `CANDIDATES` |
-| **Scan the full Phase II universe, grouped by DRIVER not venue.** The top-50 whitelist is gone and the organizer confirmed (2026-09-09) that **any orderable instrument counts, crypto or not** — commodity and tokenised-equity perps score identically. The 0/55 result is a **one-factor** problem: every crypto perp shares BTC beta, so widening within crypto cannot fix it. Non-crypto breaks the factor | 2026-09-09, reshaped 2026-09-10 | highest-priority research item. Hedges recorded in the 09-10 entry: liquidity, weekend gaps in the underlying, corporate actions, FDR, 960-bar data depth |
+| **Scan the full Phase II universe, grouped by DRIVER not venue.** The top-50 whitelist is gone and the organizer confirmed (2026-09-09) that **any orderable instrument counts, crypto or not** — commodity and tokenised-equity perps score identically. The 0/55 result is a **one-factor** problem: every crypto perp shares BTC beta, so widening within crypto cannot fix it. Non-crypto breaks the factor | 2026-09-09, reshaped 2026-09-10 | highest-priority research item. Hedges recorded in the 09-10 entry: liquidity, weekend gaps in the underlying, corporate actions, FDR, 960-bar data depth. **Added 2026-09-24: venue delisting.** OKX is cutting 72 perps on 09-28, dense with equity/index contracts (US500, US100, WMT, XOM, KO, JNJ…), at ~4.5 days' notice. None of our nine non-crypto symbols is on it — checked against both manifests — but a pair in this category can lose a leg to a venue decision, so check delisting notices at every refit, not only at entry |
 | **Resolve the taker-fee discrepancy** — API reports `level=1`, taker 3.5 bps; this record has it *measured* at 1.75 bps/side. VIP 5 is "being applied" per LTP. Re-measure once it lands; `optimal_bands` consumes it, so it decides which passing pairs are tradeable | 2026-09-09 | when LTP confirms VIP 5, and at the next review regardless |
 | ~~**Synthesise the ~3,400 deep reviews**~~ **DONE 2026-09-09** via Claude Cowork — `deploy/DEEP_REVIEW_SYNTHESIS.md` on branch `research/deep-review-synthesis`. Found the corpus's most convergent claim to be a prompt artefact of our own making; that bug is now fixed and pinned | 2026-08-12 | closed — but the surviving claims still need reading before Sunday |
 | ~~**Watch `bad_read`**~~ **CLOSED 2026-09-08** — frozen at 307 across seven hours on the production host. The guard fired every bar through the dead-credential window and has not fired since | 2026-09-08 | closed |
@@ -1826,7 +1832,7 @@ section existed; that is what it is for.
 | ~~**Land the three research outputs on the working branch**~~ **DONE 2026-09-14.** All three `out/` files (1,322 lines) taken file-by-file off their research branches; `done/` created and tasks 01, 03, 04 moved into it, leaving 02 alone in the queue. Scope audit while the branches were in hand: one new file each, nothing else. README step 4 rewritten so "pushed the branch" is no longer mistaken for finished | 2026-09-14 | closed |
 | **Disclose the `entry_beta` fix in `LTP_STRATEGY.md`** — ~~missing since 2026-09-09~~ **DONE 2026-09-14**, addendum written naming `entry_frame` and `entry_beta` | 2026-09-14 | closed |
 | **Ask the organizers whether the Binance-vs-OKX venue choice is still open** now that Phase II has started, and whether the primary account is provisioned as a **Sub Portfolio** (if so the key can read but not trade it — `Edit API` fixes it in one click), and whether their side needs an IP whitelisted. The last two were asked of @LTP_Tracey on 2026-09-07 and **never answered** | 2026-09-07 / 2026-09-08 | next organizer contact — bundle with the CSV-export and AI-floor questions already owed |
-| **The runbook and the export tool tell the operator to run `status.py` without loading the env.** On 2026-09-23 step 0's age warning fired as designed, the operator ran `.venv/bin/python deploy/status.py` in a fresh SSH shell, and equity, positions and AI spend all came back `UNAVAILABLE — RCLI01003 LTP_API_HOST is required`. The agent was fine; the shell had no `/root/ltp.env`. Both places — README step 0 and `export_phase_ledger.py`'s NOTE — should give `set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py`. (`status.py`'s own docstring says plain `source`, which does not export a shell-format file to a child process either) | 2026-09-23 | needs the operator's go; two strings and a docstring |
+| ~~**The runbook and the export tool tell the operator to run `status.py` without loading the env.**~~ **DONE 2026-09-23**, same evening, on the operator's go — and it was **five** places, not two: the **daily glance in the standing context** (the worst, since `equity UNAVAILABLE` is on its escalate-immediately list), `CLAUDE.md` step 6, runbook step 0, the export's NOTE, and `status.py`'s docstring. All now give `( set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py )`. Pinned by `test_every_instruction_to_run_status_py_loads_the_env_first` and `test_the_staleness_note_gives_a_command_that_works`. Original row: On 2026-09-23 step 0's age warning fired as designed, the operator ran `.venv/bin/python deploy/status.py` in a fresh SSH shell, and equity, positions and AI spend all came back `UNAVAILABLE — RCLI01003 LTP_API_HOST is required`. The agent was fine; the shell had no `/root/ltp.env`. Both places — README step 0 and `export_phase_ledger.py`'s NOTE — should give `set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py`. (`status.py`'s own docstring says plain `source`, which does not export a shell-format file to a child process either) | 2026-09-23 | needs the operator's go; two strings and a docstring |
 | ~~**`CLAUDE.md` points a cold reader at the wrong places.** Its cold-start step 4 reads `track_record/ltp_state_history.jsonl`, which is **not on the working branch** — it lives on `live/track-record`. Also stale: the header's "Phase I runs to 2026-08-21" framing and "27 tests"~~ **DONE 2026-09-23**, same session, on the operator's go. Step 4 now gives the `git show origin/live/track-record:…` command and says `--show` works only on the droplet; header states Phase II; the test count is **dropped rather than updated**, since a copied count is a remembered number. Pinned by `test_every_track_record_file_claude_md_names_is_reachable_from_here` | 2026-09-23 | closed |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
@@ -5869,6 +5875,99 @@ the operator's go, and they belong in one pass:
 
 Plus the task 03 re-read carried from 09-20. The research queue is **empty**; no
 Wednesday dispatch next week unless Sunday adds a task.
+
+### (later) The `status.py` env line, fixed in five places
+
+On the operator's go. Asked for as "two strings and a docstring"; a grep for
+every instruction to run `status.py` found **five**, and the worst was not one I
+had listed: **the daily glance in this file's standing context** gave the bare
+command, while its own escalation list says to escalate immediately on
+`equity UNAVAILABLE` — the exact output the bare command produces from a fresh
+shell. The operator's daily routine was one SSH login away from a false alarm.
+`CLAUDE.md` step 6 had the same gap, so a cold session asking for a status paste
+would have handed over the broken command.
+
+All five now give one canonical line,
+`( set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py )` —
+a subshell, so the credentials are not left exported in the SSH session, which
+is the pattern `README_ltp.md` already used for `rapidx auth check`. The glance
+now says `equity UNAVAILABLE` escalates **only with the env loaded**.
+
+Two tests: a scan that every runnable `status.py` instruction in the operator-
+facing files loads the env first (catches the three bare commands in the old
+files), and one that the export's staleness NOTE prints the working command.
+Suite **269 → 271**. `status.py` changed only in its docstring; nothing
+deployed needs to change, though the droplet's copy of the docstring and
+export NOTE stay old until it next pulls those files.
+
+**First live run of the canonical line, 19:33 UTC — it works, and it fills the
+gap above:** equity **1006.89**, peak 1010.75, current dd 0.38%, headroom
+117.44 to the kill switch, AI spend $1.1534 cleared, flat, not halted. **Phase II
+to date +0.69%.** Banked MDD unchanged at **2.88%** — the recovery buys nothing
+on the 15% MDD carries.
+
+---
+
+## 2026-09-23 — fourth maintenance window, and the first with nothing exposed
+
+RapidX announced **Thu 2026-09-24, 16:05–16:30 HKT = 08:05–08:30 UTC** —
+WebSocket, REST, Algo API and dashboard trading. Fourth window in ten days
+(09-15, 09-17, 09-22, 09-24), and the same 25-minute shape and slot as 09-22.
+
+By the rule in the 09-21 entry, not by judgement:
+
+```
+08:00:05 -> before the window
+09:00:05 -> after it
+ticks inside the window: NONE   (it crosses no hour boundary)
+```
+
+**Guard NOT armed.**
+
+**This is the first window with zero accepted exposure.** Every previous verdict
+carried one residual hole: `stream.urgent.wait()` can wake the agent mid-hour to
+`derisk()` on critical news, and inside a window that call hits a dead API. At
+19:33 UTC on 09-23 the book is **flat with zero active pairs**, and a pair can
+only enter the universe at a refit — the next is 14 bars out (~10:00 UTC on
+09-24), after the window closes. **Nothing can be held during it, so there is
+nothing to de-risk.**
+
+---
+
+## 2026-09-24 — two OKX delisting notices: not us, but OKX is culling equity perps
+
+Two RapidX notices, both **OKX only**:
+
+```
+posted 09-23 ~15:48 UTC   liquidation 09-28 09:00 UTC (17:00 UTC+8)
+  OKX spot: ~115 pairs, incl. every tokenized-stock X-pair (XAAPL, XNVDA, XSPY...)
+  OKX perp:  72 contracts, incl. US500, US100, WMT, XOM, KO, JNJ, CRM, PYPL,
+             OPENAI, ANTHROPIC, LUNA ...
+posted 09-24               liquidation 10-03 06:00 UTC
+  OKX spot: DORA, ELF, ICX, STORJ
+```
+
+**The live book: untouched, by construction.** All 15 `CANDIDATES` pairs are
+`BINANCE_PERP_`; `grep` finds no OKX symbol anywhere in `ltp_agent.py`. The one
+near-match is instructive: **`OKX_SPOT_ZEC_USDC` shares its base with our
+`BINANCE_PERP_ZEC_USDT`** (XMR/ZEC) and fails on venue, product *and* quote —
+the "check the product type, not just the symbol" reflex, now with a third
+filter. ICX recurs (perp 09-15, spot now); still not ICP.
+
+**The research universe: untouched, checked rather than assumed.** Both probe
+manifests on `live/track-record` (`universe_manifest.json`, 110 symbols;
+`universe_manifest_nc.json`, 18) were matched against all 72 delisted perp bases:
+**zero overlap.** The non-crypto set — AAPL, MSFT, NVDA, TSLA, **SPX**, CL, BZ,
+NG, ZS — all survive. Note `OKX_PERP_US500` is being cut but it is **not**
+`OKX_PERP_SPX`, the contract behind the open SPX-beta question.
+
+**What it does bear on.** The cut list is dense with equity and index perps. The
+highest-priority research item is that non-crypto instruments break the
+one-factor crypto problem; this is the venue actively pruning that category, at
+~4.5 days' notice. **A hedge for that row, not a reason to drop it:** any
+equity-perp pair needs a delisting check at refit, not just at entry, and the
+two-venue execution gap already open gets worse if one leg's venue culls it.
+Added to the universe-scan row.
 
 ---
 

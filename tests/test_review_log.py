@@ -155,6 +155,42 @@ def test_every_track_record_file_claude_md_names_is_reachable_from_here():
         f"(git show origin/live/track-record:<path>), or commit it here.")
 
 
+def test_every_instruction_to_run_status_py_loads_the_env_first():
+    """`status.py` with nothing loaded reports equity, positions and AI spend as
+    UNAVAILABLE on a healthy agent -- and `equity UNAVAILABLE` is on the daily
+    glance's escalate-immediately list. On 2026-09-23 four places gave the bare
+    command, including the daily glance itself; the operator followed one of
+    them in a fresh SSH shell and got exactly that.
+
+    So every line that tells someone to run it must load `/root/ltp.env` with
+    `set -a` on the same line, before the call. Historical log entries are
+    exempt: they record what was run, not what to run.
+    """
+    with open(REVIEW) as fh:
+        review = fh.read()
+    standing = review[review.index("## Standing context"):
+                      review.index("## Week 1")]
+    sources = {"WEEKLY_REVIEW.md standing context": standing}
+    for rel in ("CLAUDE.md", "deploy/research_queue/README.md",
+                "deploy/status.py", "deploy/export_phase_ledger.py"):
+        with open(os.path.join(ROOT, rel)) as fh:
+            sources[rel] = fh.read()
+
+    bad = []
+    for name, text in sources.items():
+        # join wrapped prose so a command split across two lines is one line
+        for line in re.sub(r"\n[ \t]+", " ", text).splitlines():
+            if not re.search(r"python deploy/status\.py", line):
+                continue
+            ok = ("set -a" in line and "ltp.env" in line
+                  and line.index("set -a") < line.index("deploy/status.py"))
+            if not ok:
+                bad.append(f"{name}: {line.strip()[:90]}")
+    assert not bad, (
+        "these tell someone to run status.py without loading the env, which "
+        "makes a healthy agent read as an outage: " + " | ".join(bad))
+
+
 def test_review_log_points_at_the_cold_start_protocol():
     """The record should tell a cold reader how it is meant to be entered."""
     with open(REVIEW) as fh:

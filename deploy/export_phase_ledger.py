@@ -55,6 +55,14 @@ PHASE_II_OPEN = "2026-09-08T16:00"
 # Advisory bulk, not audit chain. See the module docstring.
 BULK_EVENTS = frozenset({"ai_deep_review"})
 
+# What the staleness note tells the operator to run. The env load is part of the
+# command, not a footnote: on 2026-09-23 this note said "Run deploy/status.py",
+# the operator did exactly that in a fresh SSH shell, and equity, positions and
+# spend all came back UNAVAILABLE on a healthy agent. The subshell keeps the
+# credentials out of the interactive shell afterwards.
+STATUS_CMD = ("( set -a; source /root/ltp.env; set +a; "
+              ".venv/bin/python deploy/status.py )")
+
 
 def export(ledger: Path = LEDGER, out: Path = DEFAULT_OUT,
            since: str = PHASE_II_OPEN,
@@ -155,8 +163,8 @@ def main() -> int:
     if hrs is not None and hrs > 3.0:
         print(f"  NOTE: newest record is {hrs:.1f}h old. That is normal if the "
               f"universe is empty (no pairs -> nothing to screen -> no records). "
-              f"Run deploy/status.py to tell idle from stopped before relying "
-              f"on this file.")
+              f"Tell idle from stopped before relying on this file:\n"
+              f"        {STATUS_CMD}")
     if s["kept"] == 0:
         print("  WARNING: nothing matched. Check --since against the ledger's "
               "own timestamps before publishing this.", file=sys.stderr)

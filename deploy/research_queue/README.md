@@ -62,7 +62,18 @@ exit
 hours and, past three, says plainly that a quiet ledger is ambiguous: an empty
 universe silences the sentinel (`ltp_agent.py`, `if assets:`), so "idle and
 healthy" and "stopped" look identical from the file. `deploy/status.py` is what
-settles it. **Do not dispatch against a slice you have not looked at.**
+settles it — **run it before you `exit`, with the env loaded:**
+
+```bash
+( set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py )
+```
+
+Without the env load, equity, positions and AI spend all read
+`UNAVAILABLE — RCLI01003 LTP_API_HOST is required`, which looks like an outage
+and is only the shell (2026-09-23, the first time this warning fired). The
+parentheses keep the credentials out of your SSH session afterwards.
+
+**Do not dispatch against a slice you have not looked at.**
 
 Defaults: cut at the Phase II open (2026-09-08T16:00 UTC = 00:00 GMT+8 on
 09-09), `ai_deep_review` excluded. `--since`, `--out` and `--include-reviews`

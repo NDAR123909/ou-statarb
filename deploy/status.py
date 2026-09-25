@@ -14,11 +14,22 @@ cancels, or closes anything, and it makes no AI calls — so running it can
 neither move the book nor touch the organizer-AI budget. That keeps it clear
 of the Track A trading/AI rules: it is an operator's dashboard, not a trader.
 
-    source /root/ltp.env
-    python deploy/status.py                 # full snapshot
-    python deploy/status.py --ledger 15     # more decision history
-    python deploy/status.py --no-marks      # skip live z (no mark calls)
-    python deploy/status.py --json          # machine-readable
+    cd /root/ou-statarb
+    ( set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py )
+
+    # flags go inside the parentheses, after status.py:
+    #   --ledger 15     more decision history
+    #   --no-marks      skip live z (no mark calls)
+    #   --json          machine-readable
+
+`/root/ltp.env` is shell-format (`KEY=value`), so `set -a` is what exports its
+variables to this process; the review log's standing context has required it
+for manual commands since July, and this docstring said plain `source` until
+2026-09-23. With nothing loaded — a fresh SSH shell — every venue read fails
+with `RCLI01003 LTP_API_HOST is required`, and the snapshot reports equity,
+positions and spend as UNAVAILABLE on a perfectly healthy agent, which is how it
+read on 2026-09-23. The subshell keeps the credentials out of the interactive
+shell afterwards.
 """
 
 from __future__ import annotations
