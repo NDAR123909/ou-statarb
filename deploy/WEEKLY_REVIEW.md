@@ -1808,7 +1808,7 @@ section existed; that is what it is for.
 | ~~**Ask whether the portfolio may trade BOTH venues**~~ **ANSWERED 2026-09-11: both, one portfolio, perpetuals only.** No venue decision to make; take the union, 62 bases. NG joins energy (1 pair -> 3) and ~52 same-underlying cross-venue pairs become formable | 2026-09-11 | closed |
 | **Two-venue execution is unmodelled.** A cross-venue pair has legs on two venues; a fill on one without the other leaves a naked directional position, and the maintenance-window guard reasons about one venue's blackout. The scan can now find such pairs before the agent can trade them safely | 2026-09-11 | **before any cross-venue pair reaches `CANDIDATES`.** Not urgent while cost_z likely refuses them anyway |
 | **Chase the OKX 300-bar klines cap.** Binance returns 1000 on an identical request; OKX returns 300 for symbols with years of history. `KlinesInput` is `additionalProperties: false` with only symbol/interval/limit, so pagination cannot be expressed, and `limit` carries no documented maximum — a bug, not a feature request. Raised 2026-09-10 | 2026-09-10 | **still blocks the universe scan.** 300 bars = 12.5 days, which silently narrows the effective half-life band to ~6–48h. **Do not scan OKX at 300 bars and report the result as a regime measurement.** Re-test on each RapidX release |
-| **Verify OKX instruments are actually ORDERABLE**, not merely readable. `symbol-info` succeeding is not proof; the organizer's test is "any instrument you are able to place orders on". The check is `order place-preview`, classed **TRADE_WRITE** — decide it deliberately at a review, not casually against live capital | 2026-09-10 | ~~Sun 2026-09-13 review~~ **not taken at 09-13 or 09-20; carried to week 8, Sun 2026-09-27.** Not urgent while nothing on OKX is in `CANDIDATES`. **Week 8: recommended converting to trigger-only** — check the day an OKX pair is proposed for `CANDIDATES`, not weekly — since OKX is culling exactly that category and the check is TRADE_WRITE. **Operator's answer pending** |
+| ~~**Verify OKX instruments are actually ORDERABLE**~~ **CONVERTED TO A TRIGGER 2026-09-27**, on the operator's yes at the week 8 review. No longer carried weekly. **Trigger: the day an OKX pair is proposed for `CANDIDATES`** — run `order place-preview` then, deliberately, and not before. Original text: not merely readable. `symbol-info` succeeding is not proof; the organizer's test is "any instrument you are able to place orders on". The check is `order place-preview`, classed **TRADE_WRITE** — decide it deliberately at a review, not casually against live capital | 2026-09-10 | **trigger-only** (see above) — OKX is culling exactly that category, and the check is TRADE_WRITE |
 | **Scan the full Phase II universe, grouped by DRIVER not venue.** The top-50 whitelist is gone and the organizer confirmed (2026-09-09) that **any orderable instrument counts, crypto or not** — commodity and tokenised-equity perps score identically. The 0/55 result is a **one-factor** problem: every crypto perp shares BTC beta, so widening within crypto cannot fix it. Non-crypto breaks the factor | 2026-09-09, reshaped 2026-09-10 | highest-priority research item. Hedges recorded in the 09-10 entry: liquidity, weekend gaps in the underlying, corporate actions, FDR, 960-bar data depth. **Added 2026-09-24: venue delisting.** OKX is cutting 72 perps on 09-28, dense with equity/index contracts (US500, US100, WMT, XOM, KO, JNJ…), at ~4.5 days' notice. None of our nine non-crypto symbols is on it — checked against both manifests — but a pair in this category can lose a leg to a venue decision, so check delisting notices at every refit, not only at entry |
 | **Resolve the taker-fee discrepancy** — API reports `level=1`, taker 3.5 bps; this record has it *measured* at 1.75 bps/side. VIP 5 is "being applied" per LTP. Re-measure once it lands; `optimal_bands` consumes it, so it decides which passing pairs are tradeable | 2026-09-09 | when LTP confirms VIP 5, and at the next review regardless |
 | ~~**Synthesise the ~3,400 deep reviews**~~ **DONE 2026-09-09** via Claude Cowork — `deploy/DEEP_REVIEW_SYNTHESIS.md` on branch `research/deep-review-synthesis`. Found the corpus's most convergent claim to be a prompt artefact of our own making; that bug is now fixed and pinned | 2026-08-12 | closed — but the surviving claims still need reading before Sunday |
@@ -6190,6 +6190,108 @@ and only the last was true.** The same field had already produced a headline
    pair traded in Phase II, so its max-hold clock runs ~100+ bars.
 4. **Standing:** 950 trigger · AI spend both ends · leaderboard with the
    Little-J rule in mind · the OKX answer.
+
+---
+
+## 2026-09-27 (after the review) — three yeses, and the logging pass designed
+
+The operator said **yes** to all three week 8 proposals, asking for the logging
+pass to be **described before any code is written**:
+
+- **(b) OKX orderability → trigger-only.** Done; the row now fires only when an
+  OKX pair is proposed for `CANDIDATES`.
+- **(c) Task 06 written** — `research_queue/06-frame-drift-single-beta.md`, for
+  Wed 2026-09-30. It tests the week 8 decomposition independently and restates
+  task 03's sample on one beta. Scoped to Phase II's full-price records, with
+  Phase I's two events through task 03's reconstructions, because Phase I close
+  records carry no leg prices. Its first instruction is to say so if the week 8
+  table is wrong, since three corrections rest on it.
+- **(a) The logging pass — design below, AWAITING THE GO ON THE DESIGN.**
+
+### The logging pass: what each piece does
+
+**Invariant for all five: nothing the agent trades changes.** No gate, band,
+size, stop, block or order path is touched. Every change is either a new ledger
+record, a new field on an existing ledger record, or a value computed at refit
+that only logging reads.
+
+**1. Sub-hourly z capture — new `z_sample` record.**
+- `AgentConfig.z_sample_minutes = 5` (0 disables). The sleep loop in `main()`
+  currently waits on `stream.urgent` until the next `:00:05`; it would instead
+  wake at the earlier of that deadline and the next 5-minute sample, keeping the
+  same deadline and the same urgent-news path.
+- On a sample wake, **only if a position is open** and maintenance is not
+  `active`: two `mark_price` reads per held pair, then one `z_sample` record with
+  `z` (live frame — what the stop uses), `z_entry` (entry frame, via the fixed
+  `entry_frame`), `z_fixed` (item 2), both prices, `side` and `hold`.
+- **It never acts.** A sample at z = 5 logs z = 5 and does nothing; the stop
+  still fires only on the hourly bar. The intra-bar *monitor* stays dropped
+  (09-13); this measures what one would have done.
+- Isolated: wrapped so any exception is one log line; skipped if within 60 s
+  of the hourly deadline so it can never delay a bar; writes no state.
+- Cost: ~11 extra wakes an hour; 4 mark reads per wake with two pairs held;
+  ~24 records an hour, ~120 KB/day of ledger. Exported (not bulk-excluded) —
+  it is exactly what research needs.
+
+**2. Fixed-window sigma beside the live one.**
+- At refit, per pair: `sigma_fixed` over the last **72 bars** (task 05's
+  suggestion; `AgentConfig.fixed_sigma_window`), stored on the pair and logged
+  in the `refit` record beside `sigma`, `mu`, `beta` and the live window length.
+- `z_fixed = (spread − mu) / sigma_fixed` on every `z_sample` and on `enter`,
+  `exit` and `stop` records. `None` for pairs fitted before the deploy.
+- This is task 05's counterfactual: every future stop carries "would it have
+  fired under a fixed window?".
+
+**3. Refit rejections, per candidate.**
+- The `refit` record gains `rejects` (the counts already computed and logged to
+  the journal) and `candidates`: one compact entry per tested pair — pair,
+  passed, reason, `half_life`, **band side** (`below`/`above`/`in`, against
+  `min_half_life`/`max_half_life`), adf p, hurst, crossings, beta. ~15 entries
+  a day.
+- Answers task 05's 4b directly: which end of the half-life band candidates
+  fail at, measured on **all** candidates rather than survivors.
+
+**4. `mu_shift_sigma` on the entry beta.**
+- At refit, for each pair **holding a position**: `mu_on_entry_beta = mean(log_a
+  − entry_beta·log_b)` over the same `int(3 × half_life)` window as the live
+  `mu`. Stored on the pair.
+- `entry_frame()` computes the shift against that value when beta has changed,
+  against live `mu` when it has not (identical then), and returns `None` when
+  neither is available — so `reversion_note()` stays silent rather than printing
+  a number that means nothing, the function's own stated rule.
+- Close records gain `mu_shift_basis: "entry_beta"`, so the published ledger
+  distinguishes post-fix records from the five pre-fix ones. **No back-fill.**
+- `LTP_STRATEGY.md` addendum: the defect, the two exit reasonings that carry
+  false magnitudes (09-14 "+12.55", 09-27 "+91.96"), and the fix.
+
+**5. Hourly NAV — new `nav` record, and banked MDD in `status.py`.**
+- `trade_step()` already reads NAV every bar; after the bad-read guard it writes
+  `nav`, `peak`, `dd`. Timestamped at the read — a few seconds after `:00:05`,
+  up to ~1–2 min on refit bars — **not exactly the scorer's instant**, and said
+  so in the record.
+- `status.py` gains a **banked MDD** line: the max over `nav` records of
+  (running peak − nav)/running peak, labelled "since <first nav record>". It
+  cannot see before the deploy, so the leaderboard's 3.1% stays the floor until
+  our own series exceeds it. Closes most of the open banked-MDD row. Later it
+  can reproduce the scorer's 00:00→23:00 daily returns, and so the Sharpe.
+
+### Tests, one per claim
+
+`mu_shift` on a synthetic stationary spread with a refit that changes beta: the
+old formula reproduces the artefact, the new one gives ~0 · the sampler logs
+only when holding and makes **no write call** (a fake broker that raises on any
+order method) · a sample never runs within 60 s of the deadline (pure scheduling
+helper) · a failing mark read is swallowed · candidate band side is correct on
+both ends · `sigma_fixed` is the 72-bar sd · banked MDD from a `nav` series,
+including recovery (it must not fall).
+
+### Deploy
+
+On the droplet, check out `deploy/ltp_agent.py` and `deploy/status.py` from the
+working branch, then `systemctl restart ltp-agent` **on a flat book**
+(`open positions (0)`). The restart moves the refit hour one earlier. Verify:
+`z_sample` records appear only while holding, the next `refit` record carries
+`candidates`, and a `nav` record lands every hour.
 
 ---
 

@@ -253,10 +253,10 @@ travelling inside each PROMPT block is what did that, so keep copying them.
 
 | # | task | status |
 |---|---|---|
-| — | *(empty since 2026-09-23 — skip Wednesday unless a review adds a task)* | |
+| 06 | `06-frame-drift-single-beta.md` — how much frame drift is there, measured on one beta? | **open · run next** (Wed 2026-09-30) |
 
-The queue emptied on 2026-09-16, refilled at the 09-20 review, and emptied
-again on 09-23. That is the cadence the top of this file predicts: reviews
+The queue emptied on 2026-09-16, refilled at the 09-20 review, emptied again on
+09-23, and refilled at the week 8 review on 09-27. That is the cadence the top of this file predicts: reviews
 generate roughly one or two research questions, not ten.
 
 ## Done
