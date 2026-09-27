@@ -108,6 +108,16 @@ This task is the independent check, and the extension to everything.
 >    *double-digit events with consistent direction*. Where does the corrected
 >    sample stand against that bar?
 >
+>    **Be careful with the 0.10 threshold itself.** A same-beta shift is the
+>    difference of two window means taken a refit apart, and on an
+>    autocorrelated spread those means wander by more than one window-sd between
+>    refits, because the sd of ~39 autocorrelated bars understates the process
+>    variance. Building the logging fix on 2026-09-27, a synthetic stationary
+>    spread with AR(1) φ = 0.95 gave correct same-beta shifts of 0.3–4.1σ₀
+>    across seeds. So "≥ 0.10" may count ordinary refit noise as drift. Estimate
+>    what these spreads' own autocorrelation implies for the noise band, and
+>    report the count against that as well as against 0.10.
+>
 > 6. **Did the frame choice change any outcome?** Separately from the
 >    artefact: when beta and sigma change at a refit, the entry frame and the
 >    live frame genuinely disagree about z. For each close whose hold spanned a
