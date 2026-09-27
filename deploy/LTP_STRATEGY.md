@@ -1165,6 +1165,107 @@ deep-review corpus from that window must discount every constraint-conditioned
 answer**, which is the whole of the fifth follow-up in each run.
 
 
+## Addendum — a published frame-drift figure measured two betas, and five read-only additions (2026-09-27)
+
+**No change to what the agent trades.** No gate, band, size, stop, re-entry
+block or order path is touched. What changes is what the agent records — and
+one thing it had been recording falsely.
+
+### The defect: `mu_shift_sigma` compared means fitted on two different betas
+
+`entry_frame()` in `deploy/ltp_agent.py` reports, at every close, where the
+spread sits in the frame the position was opened in, and how far the
+equilibrium moved during the hold. The 2026-09-09 addendum above fixed the
+first of those — `z_in_entry_coords` now rebuilds the spread on `entry_beta`.
+The line beside it was not fixed: `mu_shift_sigma = (live_mu − entry_mu) /
+entry_sigma`, where `live_mu` is fitted on the **live** beta's spread. A refit
+that moves beta shifts the spread's level by ≈ (β₁ − β₀)·mean(log price_b),
+which says nothing about the equilibrium and, divided by a small σ₀, is large.
+
+Found at the 2026-09-27 review, reconstructing the entry frame of the 09-26
+stop from the ledger's own prints. **Every nonzero Phase II `mu_shift_sigma` is
+≥90% this artefact:**
+
+| close | Δβ | reported | same-beta shift (approx.) |
+|---|---|---|---|
+| 09-14 exit, 1000SHIB/DOGE | +0.047 | 12.55 | ~+1.4 |
+| 09-15 stop, 1000SHIB/DOGE | +0.023 | 13.24 | ~−0.3 |
+| 09-21 exit, 1000SHIB/DOGE | +0.015 | 5.92 | ~−0.1 |
+| 09-26 stop, 1000SHIB/DOGE | +0.002 | 1.12 | ~−0.1 |
+| 09-27 exit, ETH/BTC | −0.042 | 91.96 | ~+0.7 |
+
+(Live betas from 3-dp state rows; research task 06 re-derives these
+independently.)
+
+**What it put into the published record.** `equilibrium_reestimated` keys on
+this field, and `reversion_note()` keys on that, so **two exit reasonings in the
+Reasoning Log state false magnitudes**: the 2026-09-14 1000SHIB/DOGE exit
+("re-estimated by +12.55 sigma") and the 2026-09-27 ETH/BTC exit
+("re-estimated by +91.96 sigma"). Their entry-frame z values are correct; the
+sigma figures are not. The review log's 09-15 headline "13.24σ, the largest
+frame drift on record, sigma nearly quintupled" was the same artefact, and fed
+a week 7 decision; it is corrected in place there.
+
+**What it did not touch:** trading. `reverted` and `stopped` are computed on the
+live z, independently of this field.
+
+### The fix
+
+- `refit()` stores, for each pair **holding a position**, `mu_entry_beta` —
+  the mean of `log_a − entry_beta·log_b` over the same `int(3 × half_life)`
+  window as the live `mu` — tagged `mu_entry_beta_basis` with the beta it was
+  computed for (`window_mean_on_beta`).
+- `entry_frame()` measures the shift against that (`live_mu_on_entry_beta`):
+  live `mu` when beta has not changed, `mu_entry_beta` when the tag matches,
+  otherwise **None** — and `reversion_note()` then stays silent rather than
+  print a number that means nothing.
+- Every close record now carries `mu_shift_basis` (`"entry_beta"` or
+  `"unavailable"`), so the published ledger distinguishes post-fix records from
+  the five above.
+
+**Not back-filled.** The ledger records what the agent wrote at the time; the
+correction lives here and in `deploy/WEEKLY_REVIEW.md`.
+
+### The four additions, all logging only
+
+1. **`z_sample`** — every `AgentConfig.z_sample_minutes` (5) between hourly
+   bars, **only while a position is open**: z in the live frame, the entry
+   frame and the fixed-window counterfactual, with both prices.
+   `sample_open_positions()` makes two `mark_price` reads per held pair and
+   nothing else: **it never acts** — a sample past the stop logs and does
+   nothing; the stop still fires only on the hourly bar. Samples fall on
+   wall-clock 5-minute marks and never within 60 s of the bar (`next_wake`),
+   so they cannot delay one. The intra-bar *monitor* dropped on 2026-09-13
+   stays dropped; this measures what it would have done. `stop_analysis.py`
+   builds each pair's z path from every record with a `z`, so it picks these up
+   without change.
+2. **`sigma_fixed`** over `AgentConfig.fixed_sigma_window` (72) bars, fitted at
+   refit beside the live `sigma`, and **`z_fixed`** on every `z_sample`,
+   `enter`, `exit` and `stop` record (`fixed_window_z`). Task 05 found the live
+   sigma window collinear with the half-life (r = +0.9996); only this
+   counterfactual can separate them.
+3. **Per-candidate refit records.** The `refit` record gains `rejects` (the
+   counts previously only in the rotating journal), `candidates` — every tested
+   pair with pass/fail, reason, `half_life` and **`band_side`**
+   (`below`/`above`/`in` against `min_half_life`/`max_half_life`)
+   (`candidate_records`) — and each fitted pair's `beta`, `mu`, `sigma`,
+   `sigma_window` and `sigma_fixed`.
+4. **`nav`** — one record per bar after the bad-read guard: `nav`, `peak`,
+   `dd`. `deploy/status.py` gains a **banked MDD** line (`banked_mdd`), the max
+   of `dd` over those records, which cannot fall on recovery — labelled "since"
+   the first record, because it cannot see before the deploy. Stamped at the
+   read (a few seconds after `:00:05`), close to the scorer's hourly instant,
+   not equal to it.
+
+`status.py`'s recent list hides `z_sample` and `nav` (still tallied). Tests:
+`tests/test_ltp_entry_frame.py` (the beta-invariance of the shift, a genuine
+move adding exactly 2.00σ, a stale tag reading as unavailable, and the week 8
+table's 09-15 and 09-26 rows pinned) and `tests/test_ltp_instrumentation.py`
+(the sampler against a broker that fails on any non-read call, state unchanged
+by a sample past the stop, `refit()` run end to end, `nav` skipped on a bad
+read, banked MDD not falling). Suite 271 → 291.
+
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;
