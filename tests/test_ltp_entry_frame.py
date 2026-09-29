@@ -197,3 +197,136 @@ def test_the_note_tests_its_own_claim_instead_of_asserting_it():
     # Same drift, but the spread genuinely came back past the exit band in the
     # entry frame too. The exit was honest and the note must stay silent.
     assert reversion_note(_frame(moved, spread=-0.1964), 0.0, side=1) == ""
+
+
+# --------------------------------------------------------------------------
+# The same bug class, one line over: `mu_shift_sigma` across two betas.
+#
+# The 09-09 fix rebuilt the SPREAD on the entry beta and left `mu_shift`
+# comparing `entry_mu` (fitted on beta0) with a live `mu` fitted on beta1. A
+# refit that moves beta shifts the spread's LEVEL by ~(beta1-beta0)*mean(log_b)
+# -- nothing to do with the equilibrium -- and a small sigma0 turns that into
+# double-digit sigmas. Found at the 2026-09-27 review; every nonzero Phase II
+# shift was >=90% this.
+# --------------------------------------------------------------------------
+
+import numpy as np                                        # noqa: E402
+
+from deploy.ltp_agent import (                            # noqa: E402
+    live_mu_on_entry_beta, window_mean_on_beta,
+)
+
+
+def _stationary_pair(beta0=0.7119, dbeta=0.023, shift_sigmas=0.0, seed=7):
+    """A spread stationary on beta0 (optionally with a real equilibrium shift
+    added late), a position opened at bar 800, and a refit at bar 900 that
+    fits a different beta -- the 09-15 geometry."""
+    rng = np.random.default_rng(seed)
+    n, hl = 960, 13.0
+    lb = np.log(0.083) + np.cumsum(rng.normal(0, 0.004, n))   # DOGE-like leg
+    eps = np.zeros(n)
+    for t in range(1, n):                                     # AR(1) noise
+        eps[t] = 0.5 * eps[t - 1] + rng.normal(0, 0.003)
+    la = -3.18 + beta0 * lb + eps
+    w = int(3 * hl)
+    s0 = la[:800] - beta0 * lb[:800]
+    mu0, sig0 = float(np.mean(s0[-w:])), float(np.std(s0[-w:], ddof=1))
+    la = la.copy()
+    la[850:] += shift_sigmas * sig0                           # a REAL move
+    beta1 = beta0 + dbeta
+    s1 = la[:900] - beta1 * lb[:900]
+    pair = {"entry_mu": mu0, "entry_sigma": sig0, "entry_beta": beta0,
+            "beta": beta1, "mu": float(np.mean(s1[-w:])),
+            "sigma": float(np.std(s1[-w:], ddof=1)),
+            "mu_entry_beta": window_mean_on_beta(la[:900], lb[:900], beta0, hl),
+            "mu_entry_beta_basis": beta0}
+    return pair, la[899], lb[899]
+
+
+def _shifts(**kw):
+    pair, la, lb = _stationary_pair(**kw)
+    old = (pair["mu"] - pair["entry_mu"]) / pair["entry_sigma"]   # the old line
+    frame = entry_frame(pair, la - pair["beta"] * lb, log_a=la, log_b=lb)
+    return old, frame
+
+
+def test_a_beta_change_alone_no_longer_moves_the_shift():
+    """The exact property: the refit's beta must not enter the shift at all.
+    The old line swings by tens of sigma across plausible beta changes -- the
+    09-26 (+0.0018), 09-15 (+0.023) and 09-27 ETH/BTC (-0.042) sizes -- while
+    the new one is identical to machine precision."""
+    runs = [_shifts(dbeta=d) for d in (0.0018, 0.023, -0.042)]
+    olds = [o for o, _ in runs]
+    news = [f["mu_shift_sigma"] for _, f in runs]
+    assert max(olds) - min(olds) > 10          # the artefact, reproduced
+    assert max(news) - min(news) < 1e-9        # the fix: beta-invariant
+    assert all(f["mu_shift_basis"] == "entry_beta" for _, f in runs)
+
+
+def test_a_genuine_equilibrium_move_still_registers_exactly():
+    """The fix must not blind the field. A real 2-sigma move in the spread,
+    on the entry beta, adds exactly 2.00 to the shift."""
+    _, still = _shifts(shift_sigmas=0.0)
+    _, moved = _shifts(shift_sigmas=2.0)
+    assert abs((moved["mu_shift_sigma"] - still["mu_shift_sigma"]) - 2.0) < 1e-9
+    assert moved["equilibrium_reestimated"] is True
+
+
+def test_a_value_computed_for_another_position_is_never_used():
+    """`mu_entry_beta` survives until the next refit. If the position closes
+    and a new one opens on a different beta inside that window, the old value
+    is for the wrong spread -- so it is tagged, and a mismatched tag means
+    'unavailable', never 'no drift'."""
+    pair, la, lb = _stationary_pair()
+    pair["mu_entry_beta_basis"] = pair["entry_beta"] + 0.05
+    frame = entry_frame(pair, la - pair["beta"] * lb, log_a=la, log_b=lb)
+    assert frame["mu_shift_sigma"] is None
+    assert frame["mu_shift_basis"] == "unavailable"
+    assert frame["equilibrium_reestimated"] is False
+    assert reversion_note(frame, 0.0, side=-1) == ""
+    # ...while the entry-frame z, which never depended on it, is still there.
+    assert frame["z_in_entry_coords"] is not None
+
+
+def test_an_unchanged_beta_uses_the_live_mean_directly():
+    p = {"beta": 0.8, "mu": -1.0}
+    assert live_mu_on_entry_beta(p, 0.8) == -1.0
+    assert live_mu_on_entry_beta({"beta": 0.9, "mu": -1.0}, 0.8) is None
+
+
+def test_the_refit_reexpresses_held_pairs_on_their_entry_beta():
+    with open(os.path.join(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))), "deploy", "ltp_agent.py")) as fh:
+        src = fh.read()
+    block = src[src.index("def refit("):src.index("def leg_close(")]
+    assert "window_mean_on_beta(" in block
+    assert '"mu_entry_beta_basis"' in block
+
+
+# The week 8 table, pinned. These are the record's own numbers, recomputed
+# from the ledger's enter/stop prints; if the decomposition is wrong, this is
+# where it should fail rather than in a paragraph nobody re-reads.
+
+def _decompose(b0, pa0, pb0, z0, pa1, pb1, ze, ms, b1):
+    s0e = math.log(pa0) - b0 * math.log(pb0)
+    s0c = math.log(pa1) - b0 * math.log(pb1)
+    sig0 = (s0c - s0e) / (ze - z0)
+    artefact = -(b1 - b0) * math.log(pb1) / sig0
+    return sig0, artefact, ms - artefact
+
+
+def test_the_2026_09_15_thirteen_sigma_drift_was_the_beta_change():
+    sig0, art, same = _decompose(
+        0.7118725634324035, 0.00515347, 0.08266, -0.9568413930801298,
+        0.00500676, 0.08083938, -3.991, 13.242116734981003, 0.735)
+    assert round(sig0, 5) == 0.00429
+    assert 13.0 < art < 14.0          # the whole reported 13.24
+    assert abs(same) < 0.6            # on one beta: nothing material
+
+
+def test_the_2026_09_26_stop_shift_was_the_beta_change():
+    sig0, art, same = _decompose(
+        0.8401811669626558, 0.00594101, 0.09851, 0.608,
+        0.00607, 0.09839, 7.3334732640404, 1.1186371304814982, 0.842)
+    assert round(sig0, 6) == 0.003346
+    assert abs(same) < 0.3

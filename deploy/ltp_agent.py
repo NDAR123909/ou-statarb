@@ -140,6 +140,18 @@ class AgentConfig:
     initial_equity: float = 1000.0
     # Minutes before an announced venue maintenance window to go flat.
     maintenance_lead_minutes: int = 30
+    # READ-ONLY INSTRUMENTATION (2026-09-27, week 8). Neither field changes a
+    # trading decision; both change only what is logged.
+    # Minutes between `z_sample` records on OPEN positions, between hourly
+    # bars. The stop still fires only on the hourly bar -- the samples record
+    # WHEN a spread crossed, which four overshooting stops (3.76, 4.13, 5.38
+    # among them) could not tell us. 0 disables.
+    z_sample_minutes: int = 5
+    # Bars in the counterfactual sigma logged beside the live one, whose window
+    # is int(max(3*half_life, 24)) and so moves with the fitted half-life.
+    # Task 05 found window and half-life collinear (r = +0.9996), so only a
+    # fixed-window comparison can separate "short window" from "fast pair".
+    fixed_sigma_window: int = 72
 
 
 def log(msg: str) -> None:
@@ -228,6 +240,46 @@ def fetch_panel(broker: RapidXBroker, symbols: list[str],
     return np.log(panel)
 
 
+def _num(x) -> float | None:
+    """A finite float or None -- NaN is not JSON, and a degenerate candidate
+    carries NaN statistics."""
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return None
+    return v if np.isfinite(v) else None
+
+
+def candidate_records(table: pd.DataFrame, cfg: AgentConfig) -> list[dict]:
+    """One compact record per tested candidate, passed or not.
+
+    The refit record carried survivors only, and the rejection counts lived in
+    the journal, which rotates. Task 05's question 4b -- are candidates failing
+    the half-life band at the BOTTOM (compression) or the TOP (a trending
+    market) -- was unanswerable for exactly that reason: survivors are selected
+    on the quantity in question. `band_side` answers it per candidate, for
+    every candidate, including ones rejected by an earlier gate (their fitted
+    half-life is still a measurement of the market).
+    """
+    out = []
+    for _, r in table.iterrows():
+        hl = _num(r.get("half_life"))
+        side = (None if hl is None else
+                "below" if hl < cfg.min_half_life else
+                "above" if hl > cfg.max_half_life else "in")
+        out.append({
+            "pair": f"{r.a.split('_')[2]}/{r.b.split('_')[2]}",
+            "passed": bool(r.passed),
+            "reason": str(r.reject_reason or ""),
+            "half_life": hl, "band_side": side,
+            "adf_p": _num(r.get("adf_pvalue")), "hurst": _num(r.get("hurst")),
+            "crossings": (None if _num(r.get("crossings")) is None
+                          else int(r.get("crossings"))),
+            "beta": _num(r.get("beta")),
+        })
+    return out
+
+
 def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict,
           analyst=None) -> None:
     """Weekly-refit equivalent: selection + OU fit + cost-aware bands."""
@@ -293,6 +345,9 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                                   ddof=1)),
             "entry_z": bands.entry_z, "exit_z": bands.exit_z,
             "dvol": float(np.std(np.diff(spread), ddof=1)),
+            # Logged, never traded on: see AgentConfig.fixed_sigma_window.
+            "sigma_fixed": float(np.std(spread[-cfg.fixed_sigma_window:],
+                                        ddof=1)),
         }
 
     # keep the fastest-reverting max_pairs; preserve live trade state
@@ -317,6 +372,19 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict,
             "entry_beta": old.get(k, {}).get("entry_beta")}
         for k in keep_keys
     }
+    # A held pair's live mean, re-expressed on the beta its position was
+    # opened on, so `entry_frame` measures the equilibrium shift in ONE
+    # coordinate system. Logging only -- nothing trades on it. See
+    # `live_mu_on_entry_beta` for why, and what it replaced.
+    for k in keep_keys:
+        o = old.get(k, {})
+        beta0 = o.get("entry_beta")
+        if o.get("side", 0) != 0 and beta0 is not None:
+            a, b = fits[k]["a"], fits[k]["b"]
+            state["pairs"][k]["mu_entry_beta"] = window_mean_on_beta(
+                logp[a].values, logp[b].values, beta0, fits[k]["half_life"])
+            state["pairs"][k]["mu_entry_beta_basis"] = beta0
+
     # anything dropped by the refit gets flattened by the trade step
     for k, v in old.items():
         if k not in keep_keys and v.get("side", 0) != 0:
@@ -325,7 +393,18 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict,
     ledger("refit", passed=int(len(passed)), tested=int(len(table)),
            active=sorted(keep_keys),
            bands={k: {"entry_z": f["entry_z"], "exit_z": f["exit_z"],
-                      "half_life": f["half_life"]} for k, f in fits.items()})
+                      "half_life": f["half_life"],
+                      # The frame itself, so a later reader can rebuild z
+                      # without reconstructing it from price prints (task 03
+                      # and task 06 both had to).
+                      "beta": f["beta"], "mu": f["mu"], "sigma": f["sigma"],
+                      "sigma_window": int(max(3 * f["half_life"], 24)),
+                      "sigma_fixed": f["sigma_fixed"]}
+                  for k, f in fits.items()},
+           # Why the others failed -- previously only in the journal, which
+           # rotates -- and, per candidate, which END of each band.
+           rejects=reject_counts,
+           candidates=candidate_records(table, cfg))
 
     # STRATEGY ADAPTATION (Track A reasoning audit): the organizer LLM reads
     # today's selection outcome and records an honest account of how the
@@ -384,6 +463,22 @@ def entry_frame(pair: dict, spread: float,
     require sigma0 = -0.0099. That value is quoted in the Reasoning Log as
     evidence of honest frame accounting.
 
+    **The mean shift must be measured on the entry beta too.** The 09-09 fix
+    rebuilt the spread for `z_in_entry_coords` and left the line beside it
+    alone: `mu_shift` subtracted `entry_mu` from a live `mu` fitted on the
+    LIVE beta's spread. A refit that moves beta changes the spread's *level*
+    by roughly (beta1 - beta0) * mean(log_b), which says nothing about the
+    equilibrium and, divided by a small sigma0, is enormous. Found at the
+    2026-09-27 review: every nonzero Phase II shift was >=90% that artefact --
+    13.24 sigma on the 09-15 stop (recorded for twelve days as "the largest
+    frame drift on record"), 91.96 on a 09-27 ETH/BTC exit where ln(BTC) is
+    ~11.35 -- and `reversion_note` printed both magnitudes into the published
+    reasoning. So the live equilibrium is now re-expressed on the entry beta
+    (`live_mu_on_entry_beta`), and when that is impossible the shift is None:
+    the note then stays silent rather than state a number that means nothing.
+    `mu_shift_basis` marks records written after the fix, so the published
+    ledger can tell them from the five that were not.
+
     Returns {} when it cannot be computed correctly -- a position opened before
     these were recorded, a degenerate sigma, or leg prices not supplied -- so
     callers treat absence as "unknown". Logging nothing beats logging a number
@@ -400,16 +495,57 @@ def entry_frame(pair: dict, spread: float,
         return {}
     spread = log_a - beta0 * log_b
     z_entry_frame = (spread - mu0) / sig0
-    live_mu = pair.get("mu")
+    live_mu = live_mu_on_entry_beta(pair, beta0)
     mu_shift = None if live_mu is None else (live_mu - mu0) / sig0
     return {
         "z_in_entry_coords": float(z_entry_frame),
         "mu_shift_sigma": None if mu_shift is None else float(mu_shift),
+        "mu_shift_basis": "entry_beta" if mu_shift is not None else "unavailable",
         # The load-bearing flag: did the spread actually come back to the level
         # we entered against, or did the reference point come to us?
         "equilibrium_reestimated": bool(
             mu_shift is not None and abs(mu_shift) >= MU_SHIFT_MATERIAL),
     }
+
+
+def live_mu_on_entry_beta(pair: dict, beta0: float) -> float | None:
+    """The live equilibrium, expressed on the spread the position was opened on.
+
+    Three cases. No refit has moved the hedge ratio since entry: the live `mu`
+    was fitted on this very spread, so it is the answer. A refit moved it: the
+    refit stored `mu_entry_beta` -- the same window's mean of
+    log_a - beta0*log_b -- tagged with the beta it was computed for, and it is
+    used only if that tag matches, so a value left over from an earlier
+    position can never be read against a later one. Otherwise: None, and the
+    shift is reported as unavailable rather than guessed.
+    """
+    if pair.get("beta", beta0) == beta0:
+        return pair.get("mu")
+    if pair.get("mu_entry_beta_basis") == beta0:
+        return pair.get("mu_entry_beta")
+    return None
+
+
+def window_mean_on_beta(log_a, log_b, beta: float, half_life: float) -> float:
+    """Mean of log_a - beta*log_b over the live `mu` window, int(3*half_life).
+
+    The same window `refit` uses for `mu`, so re-expressing the live mean on a
+    different beta changes only the beta and nothing else.
+    """
+    w = int(3 * half_life)
+    la = np.asarray(log_a, dtype=float)[-w:]
+    lb = np.asarray(log_b, dtype=float)[-w:]
+    return float(np.mean(la - beta * lb))
+
+
+def fixed_window_z(pair: dict, spread: float) -> float | None:
+    """z against the live mean but a FIXED-window sigma -- the counterfactual
+    ruler task 05 asked for. Logged beside the live z; nothing trades on it.
+    None for a pair fitted before `sigma_fixed` existed."""
+    sf, mu = pair.get("sigma_fixed"), pair.get("mu")
+    if mu is None or not sf or sf <= 0:
+        return None
+    return float((spread - mu) / sf)
 
 
 def reversion_note(frame: dict, exit_z: float, side: int) -> str:
@@ -437,6 +573,66 @@ def reversion_note(frame: dict, exit_z: float, side: int) -> str:
             f"the entry's own coordinates the spread is at z={ze:+.2f}, which "
             f"would NOT have triggered this exit. The reversion is partly the "
             f"target moving, not only the spread returning.")
+
+
+def next_wake(now: float, deadline: float, sample_s: float) -> tuple[float, bool]:
+    """When the sleep loop should next wake, and whether that wake is a sample.
+
+    Samples fall on wall-clock multiples of `sample_s` (so :05, :10 ... on a
+    5-minute cadence, comparable across days), and never within 60 s of the
+    hourly deadline: a sample must not be able to delay a bar, and the bar
+    reads z itself anyway. `sample_s <= 0` disables sampling entirely.
+    """
+    if sample_s <= 0:
+        return deadline, False
+    nxt = (int(now // sample_s) + 1) * sample_s
+    if nxt > deadline - 60.0:
+        return deadline, False
+    return nxt, True
+
+
+def sample_open_positions(broker: RapidXBroker, cfg: AgentConfig,
+                          state: dict) -> int:
+    """Log z for every OPEN position between hourly bars. Read-only.
+
+    Four stops have now overshot the 3.5 band between hourly readings -- 3.76,
+    4.13, and on 2026-09-26 a jump from 2.90 to 5.38 inside one bar -- and in
+    each case the record could not say whether the spread crossed five minutes
+    or fifty before the bar closed. That is the only fact that sizes what an
+    intra-bar monitor could recover, and the monitor was dropped on 2026-09-13
+    for want of it. This measures; it does not act.
+
+    **It never acts.** A sample at z = 5 logs z = 5 and nothing else: no
+    order, no stop, no change to `side`, `hold`, `blocked` or any other state.
+    The stop still fires only on the hourly bar. Each record carries z three
+    ways -- the live frame the stop uses, the frame the position was opened
+    in, and the fixed-window counterfactual -- plus the two prices, so any of
+    them can be rebuilt later. Any failure costs one sample, never the loop.
+    Returns the number of records written.
+    """
+    n = 0
+    for key, pair in list(state.get("pairs", {}).items()):
+        if pair.get("side", 0) == 0:
+            continue
+        try:
+            a, b = pair["a"], pair["b"]
+            pa, pb = broker.mark_price(a), broker.mark_price(b)
+            la, lb = float(np.log(pa)), float(np.log(pb))
+            if not pair.get("sigma") or pair["sigma"] <= 0:
+                continue
+            spread = la - pair["beta"] * lb
+            frame = entry_frame(pair, spread, la, lb)
+            ledger("z_sample", pair=f"{a.split('_')[2]}/{b.split('_')[2]}",
+                   side=pair["side"],
+                   z=float((spread - pair["mu"]) / pair["sigma"]),
+                   z_entry=frame.get("z_in_entry_coords"),
+                   z_fixed=fixed_window_z(pair, spread),
+                   price_a=pa, price_b=pb, hold_bars=pair.get("hold", 0),
+                   stop_z=cfg.stop_z)
+            n += 1
+        except Exception as exc:          # noqa: BLE001 -- a sample is optional
+            log(f"  z_sample {key}: skipped ({type(exc).__name__}: {exc})")
+    return n
 
 
 def flatten_everything(broker: RapidXBroker, state: dict, nav: float,
@@ -766,6 +962,15 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
     state["peak_equity"] = max(state["peak_equity"], nav)
     save_hwm(cfg.hwm_path, state["peak_equity"])   # ratchet the durable mark
     dd = 1.0 - nav / state["peak_equity"] if state["peak_equity"] > 0 else 0.0
+    # One NAV reading per bar, after the bad-read guard so a phantom zero never
+    # enters the series. The competition scores MDD over HOURLY snapshots and
+    # the daily return from 00:00 and 23:00 UTC NAV; on 2026-09-27 it showed
+    # MDD 3.1% against our daily 2.88%, and Sharpe -0.06 against our
+    # close-to-close +0.91, and we could reproduce neither. Stamped at the
+    # read -- a few seconds after :00:05, up to a minute or two on refit bars
+    # -- which is close to the scorer's instant, not equal to it.
+    ledger("nav", nav=nav, peak=state["peak_equity"], dd=dd,
+           bar=state.get("bar"))
 
     if state["halted"]:
         # Halt has latched: never open new risk again. Keep RE-attempting the
@@ -994,6 +1199,7 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
             log(f"  {short_name}: ENTER {'long' if want > 0 else 'short'} spread "
                 f"z={z:+.2f} g={g:.1f} USDT")
             ledger("enter", pair=short_name, side=want, z=z, g=g,
+                   z_fixed=fixed_window_z(pair, spread),
                    qa=qa, qb=qb, price_a=prices[a], price_b=prices[b],
                    beta=pair["beta"], entry_z=pair["entry_z"],
                    half_life=pair["half_life"], nav=nav, dry=dry,
@@ -1061,6 +1267,7 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
             if stopped:
                 log(f"  {short_name}: Z-STOP z={z:+.2f}, closing + blocking side")
                 ledger("stop", pair=short_name, side=side, z=z,
+                       z_fixed=fixed_window_z(pair, spread),
                        hold_bars=pair["hold"], price_a=prices[a],
                        price_b=prices[b], nav=nav, dry=dry, **frame,
                        reasoning=(f"Spread blew past the structural-break stop "
@@ -1084,6 +1291,7 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                     f"reverting. The model was wrong about the reversion speed; "
                     f"stop paying carry to find out how wrong.")
                 ledger("exit", pair=short_name, side=side, z=z, reason=why,
+                       z_fixed=fixed_window_z(pair, spread),
                        hold_bars=pair["hold"], price_a=prices[a],
                        price_b=prices[b], nav=nav, dry=dry, **frame,
                        reasoning=reason_text)
@@ -1230,16 +1438,19 @@ def main() -> None:
             break
         # Sleep to the top of the next hour (the bar close) — but wake
         # instantly if the news stream flags a critical event, de-risk,
-        # then resume waiting out the remainder of the bar.
+        # then resume waiting out the remainder of the bar. Between bars,
+        # also wake every `z_sample_minutes` to LOG z on open positions
+        # (read-only; see `sample_open_positions`). The deadline is fixed
+        # before the first wait and never moved by a sample.
         deadline = time.time() + max(60.0, 3600 - (time.time() % 3600) + 5)
+        sample_s = 60.0 * cfg.z_sample_minutes
         while True:
-            remaining = deadline - time.time()
-            if remaining <= 0:
+            now = time.time()
+            if deadline - now <= 0:
                 break
-            if stream is None:
-                time.sleep(remaining)
-                break
-            if stream.urgent.wait(timeout=remaining):
+            wake, is_sample = next_wake(now, deadline, sample_s)
+            timeout = max(0.0, wake - now)
+            if stream is not None and stream.urgent.wait(timeout=timeout):
                 stream.urgent.clear()
                 try:
                     derisk(broker, cfg, state, stream.take_critical(),
@@ -1247,6 +1458,15 @@ def main() -> None:
                 except RapidXError as exc:
                     log(f"de-risk error (positions retried next bar): {exc}")
                 save_state(cfg.state_path, state)
+                continue
+            if stream is None:
+                time.sleep(timeout)
+            if is_sample and maintenance_state(
+                    datetime.now(timezone.utc), windows, 0) != "active":
+                try:
+                    sample_open_positions(broker, cfg, state)
+                except Exception as exc:      # noqa: BLE001 -- never the loop
+                    log(f"z sampling error (ignored): {exc}")
 
 
 if __name__ == "__main__":

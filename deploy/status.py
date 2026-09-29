@@ -125,7 +125,56 @@ def _ai_spend() -> dict:
 # entirely -- the glance showed 20 of 20 rows as `ai_deep_review` and the
 # operator could no longer see what the agent had actually done. Hidden from
 # the tail, still counted in the tally.
-GLANCE_HIDE = ("ai_deep_review",)
+# Records that are data, not decisions: bulky, or so frequent they would push
+# every decision out of the `recent` list. `z_sample` lands every 5 minutes per
+# open pair and `nav` every bar (both 2026-09-27). Still counted in the tally.
+GLANCE_HIDE = ("ai_deep_review", "z_sample", "nav")
+
+
+def banked_mdd(nav_records: list[dict]) -> dict | None:
+    """The drawdown the competition has banked, as far as our records can see.
+
+    The scored MDD is the max over hourly NAV snapshots of drawdown from the
+    running peak, and it NEVER falls. `drawdown_pct` above is the current
+    reading, which does fall on recovery: on 2026-09-21 it read 2.26% while the
+    scored figure was stuck at 2.88%, and a review nearly recorded that as an
+    improvement. Each `nav` record carries the agent's own `dd` against its
+    durable peak, which reaches back to the phase open even though the series
+    itself starts at the deploy -- so the max of `dd` is the right statistic,
+    and it is honest only from the first record on. Returns None when there
+    are no records to measure from.
+    """
+    worst, since, n = None, None, 0
+    for r in nav_records:
+        dd = r.get("dd")
+        if dd is None:
+            nav, peak = r.get("nav"), r.get("peak")
+            if not nav or not peak:
+                continue
+            dd = max(0.0, 1.0 - float(nav) / float(peak))
+        dd = float(dd)
+        worst = dd if worst is None else max(worst, dd)
+        since = since or r.get("ts")
+        n += 1
+    if worst is None:
+        return None
+    return {"mdd_pct": round(worst * 100.0, 2), "since": since, "n": n}
+
+
+def _nav_records(path: str) -> list[dict]:
+    """Every `nav` record, cheaply: most ledger lines are skipped unparsed."""
+    p = Path(path)
+    if not p.exists():
+        return []
+    out = []
+    for line in p.read_text(errors="ignore").splitlines():
+        if '"event": "nav"' not in line:
+            continue
+        try:
+            out.append(json.loads(line))
+        except json.JSONDecodeError:
+            pass
+    return out
 
 
 def _tail_ledger(path: str, n: int,
@@ -254,6 +303,7 @@ def build_report(cfg: AgentConfig, use_marks: bool, ledger_n: int) -> dict:
     recent, tally = _tail_ledger(_LEDGER_PATH, ledger_n)
     rep["ledger_tally"] = tally
     rep["recent"] = recent
+    rep["banked_mdd"] = banked_mdd(_nav_records(_LEDGER_PATH))
 
     # News-gate health. The sentinel fails open, so a dead gate does not stop
     # trading — which is exactly why it has to be visible here.
@@ -291,6 +341,14 @@ def _print_human(rep: dict) -> None:
              + (f"  |  headroom {rep['headroom_to_kill']:.2f} to kill, "
                 f"{rep['headroom_to_floor']:.2f} to the 800 floor"
                 if "headroom_to_kill" in rep else ""))
+    bm = rep.get("banked_mdd")
+    if bm:
+        line("banked MDD", f"{bm['mdd_pct']:.2f}%  (max of hourly readings since "
+                           f"{str(bm['since'])[:16]}; never falls — the scored "
+                           f"figure can only be higher, from before that)")
+    else:
+        line("banked MDD", "not measurable yet — no hourly `nav` records "
+                           "(they start with the 2026-09-27 logging pass)")
     line("halted", "YES — trading stopped" if rep["halted"] else "no")
 
     gate = rep.get("news_gate") or {}
