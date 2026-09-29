@@ -43,6 +43,11 @@ the failure this queue was built to prevent.
 the rest is literal. The branch name derives from it deliberately, so there is
 no second thing to remember.
 
+> **First, check the task file for a `Dispatch note`.** A task that needs an
+> extra input (task 07 needs a fresh universe scan) says so there, with the
+> exact extra commands for steps 0, 1 and 3. The note overrides the matching
+> step below; everything else is unchanged.
+
 ### 0. Refresh the Phase II data — droplet, ~1 min
 
 Skip only if the task is Phase-I-only. The published slice is a periodic export
@@ -253,10 +258,13 @@ travelling inside each PROMPT block is what did that, so keep copying them.
 
 | # | task | status |
 |---|---|---|
-| 06 | `06-frame-drift-single-beta.md` — how much frame drift is there, measured on one beta? | **open · run next** (Wed 2026-09-30) |
+| 07 | `07-breadth-honest-options.md` — is there honest breadth, in time to matter? **GATE** | **open · run next** (Wed 2026-09-30) — has a Dispatch note |
+| 06 | `06-frame-drift-single-beta.md` — how much frame drift is there, measured on one beta? | open · Wed 2026-10-07 |
 
 The queue emptied on 2026-09-16, refilled at the 09-20 review, emptied again on
-09-23, and refilled at the week 8 review on 09-27. That is the cadence the top of this file predicts: reviews
+09-23, and refilled at the week 8 review on 09-27. **07 was written on 09-29 and
+jumps 06** as a GATE: it blocks the 10-04 top-3 strategy review, while 06
+improves measurement and moves no decision that week. That is the cadence the top of this file predicts: reviews
 generate roughly one or two research questions, not ten.
 
 ## Done

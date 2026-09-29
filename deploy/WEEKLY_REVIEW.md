@@ -1835,7 +1835,8 @@ section existed; that is what it is for.
 | ~~**FIX `mu_shift_sigma`**~~ **BUILT 2026-09-27, DEPLOYED 2026-09-29 21:15 UTC, verified live.** Re-expressed on the entry beta; `mu_shift_basis` marks post-fix records; disclosed in `LTP_STRATEGY.md`. Original: **FIX `mu_shift_sigma`: it compares means fitted on two different betas.** `entry_frame()` (`ltp_agent.py:393-412`) rebuilds the spread on `entry_beta` for `z_in_entry_coords` — the 2026-09-09 fix — but computes `mu_shift = (live_mu − entry_mu) / entry_sigma` where `live_mu` is fitted on the **live** beta's spread. Any refit that moves beta during a hold adds Δβ·ln(price_b)/σ₀ — **~91σ on the 09-27 ETH/BTC exit** (ln BTC ≈ 11.35), ~13.5σ on the 09-15 stop. **Every nonzero Phase II shift is ≥90% this artefact.** It drives `equilibrium_reestimated` and therefore `reversion_note()`, which has written **false magnitudes into the published reasoning** of two exits ("re-estimated by +91.96 sigma", "+12.55 sigma"). **Trading is unaffected**: `reverted`/`stopped` are computed separately. Fix: re-express `live_mu` on the entry beta (store the refit window's mean of `log_b` for held pairs), plus a test with a beta change and a stationary spread. **Do not back-fill the ledger**; disclose in `LTP_STRATEGY.md` when shipped | 2026-09-27 | **needs the operator's go**; belongs in the logging pass. Found at the week 8 review |
 | ~~**Log hourly NAV**~~ **BUILT 2026-09-27, DEPLOYED 2026-09-29 21:15 UTC, verified live.** Original: **PROPOSED: log hourly NAV.** The scored MDD is **3.1%** while our daily series says 2.88%, and the scored Sharpe is **−0.06** while our close-to-close series gives **+0.91** — and we can reproduce **neither**, because nothing records NAV at the scorer's instants (hourly for MDD; 00:00 and 23:00 UTC for the daily return). One ledger line per tick with `nav` would let `status.py` show the banked MDD exactly (the open banked-MDD row) and reproduce the 40%-weight Sharpe term. Read-only | 2026-09-27 | **needs the operator's go**; same pass |
 | ~~**DEPLOY the 2026-09-27 logging pass**~~ **DONE 2026-09-29 21:15 UTC, mid-position under the revised conditions** (|z| 1.52, 21:13, no window near) — see the 09-29 entry. Original:  — `deploy/ltp_agent.py` and `deploy/status.py` together. On the droplet: `git fetch origin claude/offline-competition-deploy-nuk5tz`, `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py deploy/status.py`, `systemctl restart ltp-agent`. **Verify:** journal shows `self-check PASS`; after the next bar `status.py` prints a `banked MDD` value; after the next refit its record carries `candidates`; `z_sample` records appear only while holding. The restart moves the refit hour one earlier. The checkout stages both files on `live/track-record`, so the 23:58 commit records the deployed version — intended. **REVISED 2026-09-29: deploy mid-position is now acceptable, on conditions.** The flat-book rule was set on 09-27; on 09-29 the operator stated top 3 is the goal with ~36 days left, which makes every stop taken WITHOUT sub-hourly data unrecoverable evidence. The restart's cost is one extra off-schedule bar — the same logic as any hourly bar — and `reconcile_positions` leaves a pair alone when state says open and both legs are live, so held positions survive the restart. **Conditions:** every held pair |z| < 2.5 in `status.py` (not within ~1σ of the stop); restart between :10 and :50 past the hour; not within 30 min of an announced maintenance window. Positions opened before the deploy log `mu_shift_basis: unavailable` until they close (no tagged `mu_entry_beta`) and `z_fixed: null` until the next refit — expected, not a fault | 2026-09-27, revised 2026-09-29 | **next operator session that meets the conditions** |
-| **DECIDE the two remaining top-3 actions** proposed 2026-09-29 after the operator set **top 3 as a must** (9th, score 61.3 vs 3rd at 90.0, ~36 days left): **(2)** make Sun 10-04 a top-3 strategy review with prepared evidence — per-stop overshoot cost, breadth options and their FDR cost, score scenarios per lever; **(3)** swap Wednesday's task 06 (measurement honesty) for a breadth task (which additional pairs could honestly pass the gate). The operator chose to deploy the logging pass first and then judge whether (2) and (3) are rational | 2026-09-29 | **(3) before the Wed 2026-09-30 dispatch** — otherwise task 06 runs as queued; **(2) before Sun 10-04** |
+| ~~**DECIDE the two remaining top-3 actions**~~ **DECIDED 2026-09-29: YES to both.** Task 07 (breadth) written as a GATE for Wed 09-30, ahead of task 06 (now Wed 10-07); Sun 10-04 is the top-3 strategy review — prep in the row below. Original:  proposed 2026-09-29 after the operator set **top 3 as a must** (9th, score 61.3 vs 3rd at 90.0, ~36 days left): **(2)** make Sun 10-04 a top-3 strategy review with prepared evidence — per-stop overshoot cost, breadth options and their FDR cost, score scenarios per lever; **(3)** swap Wednesday's task 06 (measurement honesty) for a breadth task (which additional pairs could honestly pass the gate). The operator chose to deploy the logging pass first and then judge whether (2) and (3) are rational | 2026-09-29 | **(3) before the Wed 2026-09-30 dispatch** — otherwise task 06 runs as queued; **(2) before Sun 10-04** |
+| **PREPARE the 10-04 top-3 strategy review — before the operator arrives, not during it.** (a) **Per-stop cost of every Phase II stop** (six: 09-15, 09-16, 09-17, 09-26, 09-28, 09-29) — loss at the stop versus loss at exactly 3.5, frame changes accounted for, from the fills reports; plus any `z_sample` evidence on when a crossing happened, if a stop occurs after the 09-29 deploy. (b) **Task 07's answer**, read and checked against its own tables. (c) **Score scenarios per lever** — Sharpe/PnL/ROI/MDD under loss-tail control, breadth, sizing — with the Z-score caveat that the pool is unknown. (d) **The honest odds**, restated with a week more data. No recommendation to loosen any gate | 2026-09-29 | **Sun 2026-10-04**, ready at the start of the review |
 | ~~**The runbook and the export tool tell the operator to run `status.py` without loading the env.**~~ **DONE 2026-09-23**, same evening, on the operator's go — and it was **five** places, not two: the **daily glance in the standing context** (the worst, since `equity UNAVAILABLE` is on its escalate-immediately list), `CLAUDE.md` step 6, runbook step 0, the export's NOTE, and `status.py`'s docstring. All now give `( set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py )`. Pinned by `test_every_instruction_to_run_status_py_loads_the_env_first` and `test_the_staleness_note_gives_a_command_that_works`. Original row: On 2026-09-23 step 0's age warning fired as designed, the operator ran `.venv/bin/python deploy/status.py` in a fresh SSH shell, and equity, positions and AI spend all came back `UNAVAILABLE — RCLI01003 LTP_API_HOST is required`. The agent was fine; the shell had no `/root/ltp.env`. Both places — README step 0 and `export_phase_ledger.py`'s NOTE — should give `set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py`. (`status.py`'s own docstring says plain `source`, which does not export a shell-format file to a child process either) | 2026-09-23 | needs the operator's go; two strings and a docstring |
 | ~~**`CLAUDE.md` points a cold reader at the wrong places.** Its cold-start step 4 reads `track_record/ltp_state_history.jsonl`, which is **not on the working branch** — it lives on `live/track-record`. Also stale: the header's "Phase I runs to 2026-08-21" framing and "27 tests"~~ **DONE 2026-09-23**, same session, on the operator's go. Step 4 now gives the `git show origin/live/track-record:…` command and says `--show` works only on the droplet; header states Phase II; the test count is **dropped rather than updated**, since a copied count is a remembered number. Pinned by `test_every_track_record_file_claude_md_names_is_reachable_from_here` | 2026-09-23 | closed |
 
@@ -6183,7 +6184,9 @@ and only the last was true.** The same field had already produced a headline
    refit `rejects=` with per-candidate half-life and band side · `mu_shift` on
    the entry beta · hourly NAV. Each restart moves the refit hour one earlier —
    read "next in N bars".
-2. **Research queue is empty.** Candidate for Wednesday: **re-audit every
+2. **Research queue — superseded 2026-09-29:** task **07 (breadth, GATE)**
+   runs Wed 09-30 and feeds the 10-04 top-3 review; task 06 moves to 10-07.
+   Original candidate: **re-audit every
    frame-drift event in both phases on a single beta** — Phase I's pre-09-09
    `z_in_entry_coords` was already known wrong, and its `mu_shift` has the
    same cross-beta defect. Would make task 03's sample honest. Needs a brief and
@@ -6413,6 +6416,36 @@ fine; a window starting at or before 08:00 would matter.
 
 **Numbers to reconcile at the 10-04 review:** the per-stop P&L of the two new
 stops, from the fills report.
+
+---
+
+## 2026-09-29 (late) — yes to both remaining top-3 actions; task 07 written
+
+The operator judged both remaining actions rational after the deploy:
+
+- **Sun 10-04 becomes a top-3 strategy review.** The prep is in Open
+  commitments as a dated row — per-stop costs, task 07's answer, score
+  scenarios, restated odds — so it is ready when the review starts rather than
+  built during it.
+- **Task 07, "Is there honest breadth, in time to matter?" — GATE, Wed 09-30,**
+  ahead of task 06. **Three expansion sets pre-declared before the scan runs**
+  (A: the current 15; B: plus the non-crypto driver groups; C: the scan's full
+  universe), because choosing the additions by which pairs passed would be the
+  multiple-testing error this project exists to avoid. It must report what each
+  set **gains and loses** against A under pooled FDR (a wider set that admits
+  one pair and ejects the one we trade is not breadth), what one snapshot can
+  support, the operational blockers, and whether four weeks can produce enough
+  trades to register. "No" is named up front as a valuable answer.
+
+**A data gap closed on the way.** The universe scan only ever printed to a
+terminal, so no scan result has been reachable by the research lane. Task 07's
+dispatch note runs it on the droplet with `tee` into
+`track_record/universe_scan_task07.txt` and pulls that onto the research
+branch. The README now tells the operator to check a task for a dispatch note
+first. `tests/test_research_queue.py` was widened from `.jsonl` to any data file
+and credits a brief's own pulls. Its non-vacuity guard had been pointed at task
+05 and **went silent when 05 moved to `done/`** — exactly the failure it
+existed to prevent — and now guards the queue as a whole.
 
 ---
 
