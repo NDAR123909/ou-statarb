@@ -1,0 +1,166 @@
+  ags                not live on OKX     : ['ZS']  <- forms no pair
+  gold               not live on OKX     : ['XAUT', 'PAXG']  <- forms no pair
+  privacy            not live on OKX     : ['XMR']
+  pow                not live on OKX     : ['KAS']
+  l1_enterprise      not live on OKX     : ['VET']
+  memes              not live on OKX     : ['1000SHIB', '1000PEPE']
+  defi_lending       not live on BINANCE : ['MKR']
+  defi_lending       not live on OKX     : ['MKR']
+  liquid_staking     not live on OKX     : ['RPL']  <- forms no pair
+  exchange           not live on BINANCE : ['OKB']  <- forms no pair
+fetching 112 symbols across ['BINANCE', 'OKX'] (960 bars each; this takes a couple minutes) ...
+
+available: 112/112
+dropped (no data): []
+
+cross-venue: 51 same-underlying pairs (purest cointegration here; watch cost_z, not adf_p)
+
+== EXPANDED universe (166 sector pairs, FDR across all): 6/166 pass ==
+   DOGE/WIF       adf_p=0.0001 hurst=0.20 half_life=7h beta=+0.58 crossings=60
+   DOGE/WIF       adf_p=0.0001 hurst=0.20 half_life=8h beta=+0.58 crossings=60
+   AAVE/COMP      adf_p=0.0020 hurst=0.33 half_life=14h beta=+0.98 crossings=52
+   AAVE/COMP      adf_p=0.0021 hurst=0.33 half_life=14h beta=+0.98 crossings=50
+   1000SHIB/WIF       adf_p=0.0059 hurst=0.35 half_life=16h beta=+0.50 crossings=50
+   1000SHIB/DOGE      adf_p=0.0158 hurst=0.34 half_life=13h beta=+0.87 crossings=38
+   rejects: {'half-life out of band': 50, 'hurst too high (not anti-persistent)': 34, 'fails split-half cointegration': 33, 'beta out of range': 21, 'too few mean crossings': 14, 'hedge ratio unstable across halves': 5, 'fails FDR correction': 3}
+
+== CURRENT universe (15 of 15 live pairs): 1/15 pass ==
+   DOGE/1000SHIB  adf_p=0.0142 hurst=0.34 half_life=13h beta=+1.10 crossings=29
+   rejects: {'hurst too high (not anti-persistent)': 4, 'fails split-half cointegration': 4, 'too few mean crossings': 3, 'beta out of range': 2, 'fails FDR correction': 1}
+
+============================================================
+ORIENTATION SENSITIVITY (Engle-Granger is not symmetric)
+============================================================
+
+-- orientation policy: alpha (status quo) -- 6 distinct pairs pass (166 tests)
+   DOGE/WIF       adf_p=0.0001 hurst=0.20 hl=7h beta=+0.58 cross=60
+   DOGE/WIF       adf_p=0.0001 hurst=0.20 hl=8h beta=+0.58 cross=60
+   AAVE/COMP      adf_p=0.0020 hurst=0.33 hl=14h beta=+0.98 cross=52
+   AAVE/COMP      adf_p=0.0021 hurst=0.33 hl=14h beta=+0.98 cross=50
+   1000SHIB/WIF       adf_p=0.0059 hurst=0.35 hl=16h beta=+0.50 cross=50
+   1000SHIB/DOGE      adf_p=0.0158 hurst=0.34 hl=13h beta=+0.87 cross=38
+
+-- orientation policy: vol-rule (a priori) -- 5 distinct pairs pass (166 tests)
+   WIF/DOGE      adf_p=0.0003 hurst=0.18 hl=8h beta=+1.64 cross=54
+   WIF/DOGE      adf_p=0.0003 hurst=0.18 hl=8h beta=+1.64 cross=54
+   AAVE/COMP      adf_p=0.0020 hurst=0.33 hl=14h beta=+0.98 cross=52
+   AAVE/COMP      adf_p=0.0021 hurst=0.33 hl=14h beta=+0.98 cross=50
+   1000SHIB/DOGE      adf_p=0.0158 hurst=0.34 hl=13h beta=+0.87 cross=38
+
+-- orientation policy: both directions (FDR over 2N) -- 6 distinct pairs pass (332 tests)
+   DOGE/WIF       adf_p=0.0001 hurst=0.20 hl=7h beta=+0.58 cross=60
+   DOGE/WIF       adf_p=0.0001 hurst=0.20 hl=8h beta=+0.58 cross=60
+   WIF/DOGE      adf_p=0.0003 hurst=0.18 hl=8h beta=+1.64 cross=54
+   WIF/DOGE      adf_p=0.0003 hurst=0.18 hl=8h beta=+1.64 cross=54
+   AAVE/COMP      adf_p=0.0020 hurst=0.33 hl=14h beta=+0.98 cross=52
+   AAVE/COMP      adf_p=0.0021 hurst=0.33 hl=14h beta=+0.98 cross=50
+   1000SHIB/WIF       adf_p=0.0059 hurst=0.35 hl=16h beta=+0.50 cross=50
+   DOGE/1000SHIB  adf_p=0.0142 hurst=0.34 hl=13h beta=+1.10 cross=29
+   1000SHIB/DOGE      adf_p=0.0158 hurst=0.34 hl=13h beta=+0.87 cross=38
+
+============================================================
+NON-CRYPTO — every pair, with the gate that rejected it
+============================================================
+
+== outside crypto's single factor: 0/29 pass ==
+   TSLA/TSLA      adf_p=0.0000 hurst=0.02 hl=    0.7h beta=+1.00 cross=216  rejected: half-life out of band
+   BZ/BZ        adf_p=0.0002 hurst=0.04 hl=    1.3h beta=+1.00 cross=171  rejected: half-life out of band
+   MSFT/MSFT      adf_p=0.0002 hurst=0.10 hl=    0.9h beta=+1.01 cross=212  rejected: half-life out of band
+   SPX/SPX       adf_p=0.0003 hurst=0.09 hl=    0.9h beta=+1.00 cross=223  rejected: half-life out of band
+   NVDA/NVDA      adf_p=0.0066 hurst=0.05 hl=    1.3h beta=+1.00 cross=208  rejected: half-life out of band
+   CL/CL        adf_p=0.0112 hurst=0.06 hl=    0.8h beta=+1.00 cross=220  rejected: half-life out of band
+   AAPL/AAPL      adf_p=0.2179 hurst=0.19 hl=    3.8h beta=+1.00 cross= 94  rejected: half-life out of band
+   AAPL/SPX       adf_p=0.2743 hurst=0.53 hl=   44.0h beta=-0.15 cross= 38  rejected: beta out of range
+   AAPL/SPX       adf_p=0.2753 hurst=0.53 hl=   44.5h beta=-0.15 cross= 34  rejected: beta out of range
+   MSFT/SPX       adf_p=0.3168 hurst=0.48 hl=   40.6h beta=-0.06 cross= 22  rejected: beta out of range
+   MSFT/SPX       adf_p=0.3246 hurst=0.48 hl=   41.5h beta=-0.06 cross= 22  rejected: beta out of range
+   BZ/CL        adf_p=0.3388 hurst=0.40 hl=   31.3h beta=+0.73 cross= 43  rejected: fails split-half cointegration
+   SPX/TSLA      adf_p=0.3424 hurst=0.47 hl=   53.6h beta=-1.02 cross= 27  rejected: hurst too high (not anti-persistent)
+   SPX/TSLA      adf_p=0.3471 hurst=0.48 hl=   53.2h beta=-1.02 cross= 27  rejected: hurst too high (not anti-persistent)
+   AAPL/MSFT      adf_p=0.3477 hurst=0.49 hl=   61.9h beta=+0.65 cross=  6  rejected: too few mean crossings
+   BZ/CL        adf_p=0.3707 hurst=0.40 hl=   32.5h beta=+0.73 cross= 43  rejected: fails split-half cointegration
+   AAPL/MSFT      adf_p=0.3895 hurst=0.49 hl=   60.6h beta=+0.67 cross=  8  rejected: too few mean crossings
+   MSFT/NVDA      adf_p=0.4228 hurst=0.45 hl=   50.1h beta=+0.21 cross=  9  rejected: too few mean crossings
+   MSFT/NVDA      adf_p=0.4491 hurst=0.45 hl=   50.8h beta=+0.22 cross= 11  rejected: too few mean crossings
+   AAPL/TSLA      adf_p=0.4725 hurst=0.47 hl=   70.1h beta=+0.55 cross= 17  rejected: too few mean crossings
+   AAPL/TSLA      adf_p=0.5381 hurst=0.47 hl=   69.3h beta=+0.56 cross= 17  rejected: too few mean crossings
+   AAPL/NVDA      adf_p=0.5873 hurst=0.51 hl=   97.5h beta=-0.15 cross= 17  rejected: beta out of range
+   AAPL/NVDA      adf_p=0.5896 hurst=0.51 hl=   97.7h beta=-0.16 cross= 17  rejected: beta out of range
+   MSFT/TSLA      adf_p=0.6220 hurst=0.44 hl=   64.9h beta=+0.05 cross= 11  rejected: beta out of range
+   MSFT/TSLA      adf_p=0.6305 hurst=0.44 hl=   66.3h beta=+0.05 cross= 17  rejected: beta out of range
+   NVDA/TSLA      adf_p=0.6340 hurst=0.56 hl=  151.0h beta=-0.01 cross= 14  rejected: beta out of range
+   NVDA/TSLA      adf_p=0.6389 hurst=0.55 hl=  150.8h beta=-0.01 cross= 14  rejected: beta out of range
+   NVDA/SPX       adf_p=0.7704 hurst=0.53 hl=  217.3h beta=+0.06 cross= 10  rejected: beta out of range
+   NVDA/SPX       adf_p=0.7725 hurst=0.53 hl=  218.1h beta=+0.06 cross= 12  rejected: beta out of range
+
+   cost_z = round-trip cost in units of the spread's own sigma.
+   Above ~1 there is no edge left to capture after fees, whatever
+   the statistics say.
+   DOGE/WIF       cost_z= 0.043
+   DOGE/WIF       cost_z= 0.043
+   AAVE/COMP      cost_z= 0.027
+   AAVE/COMP      cost_z= 0.027
+   1000SHIB/WIF       cost_z= 0.033
+   1000SHIB/DOGE      cost_z= 0.056
+   TSLA/TSLA      cost_z= 4.690  [cross-venue]
+   BZ/BZ        cost_z= 3.043  [cross-venue]
+   MSFT/MSFT      cost_z= 2.929  [cross-venue]
+   SPX/SPX       cost_z= 1.147  [cross-venue]
+   NVDA/NVDA      cost_z= 5.163  [cross-venue]
+   CL/CL        cost_z= 4.016  [cross-venue]
+   AAPL/AAPL      cost_z= 2.500  [cross-venue]
+   AAPL/SPX       cost_z= 0.026
+   AAPL/SPX       cost_z= 0.025
+   MSFT/SPX       cost_z= 0.027
+   MSFT/SPX       cost_z= 0.027
+   BZ/CL        cost_z= 0.081
+   SPX/TSLA      cost_z= 0.009
+   SPX/TSLA      cost_z= 0.009
+   AAPL/MSFT      cost_z= 0.036
+   BZ/CL        cost_z= 0.081
+   AAPL/MSFT      cost_z= 0.037
+   MSFT/NVDA      cost_z= 0.030
+   MSFT/NVDA      cost_z= 0.030
+   AAPL/TSLA      cost_z= 0.030
+   AAPL/TSLA      cost_z= 0.030
+   AAPL/NVDA      cost_z= 0.022
+   AAPL/NVDA      cost_z= 0.022
+   MSFT/TSLA      cost_z= 0.023
+   MSFT/TSLA      cost_z= 0.022
+   NVDA/TSLA      cost_z= 0.015
+   NVDA/TSLA      cost_z= 0.015
+   NVDA/SPX       cost_z= 0.014
+   NVDA/SPX       cost_z= 0.014
+   AAVE/AAVE      cost_z= 5.071  [cross-venue]
+   ADA/ADA       cost_z= 2.106  [cross-venue]
+   ALGO/ALGO      cost_z= 1.810  [cross-venue]
+   APT/APT       cost_z= 2.472  [cross-venue]
+   ARB/ARB       cost_z= 3.180  [cross-venue]
+   AR/AR        cost_z= 1.411  [cross-venue]
+   ATOM/ATOM      cost_z= 1.299  [cross-venue]
+   AVAX/AVAX      cost_z= 4.514  [cross-venue]
+   BAND/BAND      cost_z= 1.151  [cross-venue]
+   BCH/BCH       cost_z= 2.391  [cross-venue]
+   BNB/BNB       cost_z= 4.799  [cross-venue]
+
+   agent half-life band: 6h to 168h. A commodity or equity spread rejected for being SLOW
+   is a statement about that band, which was set for hourly crypto, not about
+   whether the relationship exists.
+
+============================================================
+STRATIFIED DIAGNOSTIC — FDR within each stratum, NOT the live gate
+============================================================
+   pooled (live behaviour, invariant 3): 6 pass
+
+   defi_lending@BINANCE1/1    AAVE/COMP
+   defi_lending@OKX  1/1    AAVE/COMP
+   memes@BINANCE     3/6    DOGE/WIF, 1000SHIB/WIF, 1000SHIB/DOGE
+   memes@OKX         1/1    DOGE/WIF
+
+   stratified total: 6 pass vs 6 pooled
+   READ THE DIFFERENCE AS THE PRICE, not as the prize: every extra
+   pass here is a hypothesis the pooled correction was refusing.
+
+============================================================
+VERDICT: breadth helps — 6 genuine pairs pass the unchanged gates vs 1 in the current set. A disclosed CANDIDATES expansion is warranted.
+============================================================
