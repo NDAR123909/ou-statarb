@@ -258,8 +258,7 @@ travelling inside each PROMPT block is what did that, so keep copying them.
 
 | # | task | status |
 |---|---|---|
-| 07 | `07-breadth-honest-options.md` — is there honest breadth, in time to matter? **GATE** | **open · run next** (Wed 2026-09-30) — has a Dispatch note |
-| 06 | `06-frame-drift-single-beta.md` — how much frame drift is there, measured on one beta? | open · Wed 2026-10-07 |
+| 06 | `06-frame-drift-single-beta.md` — how much frame drift is there, measured on one beta? | **open · run next** (Wed 2026-10-07) |
 
 The queue emptied on 2026-09-16, refilled at the 09-20 review, emptied again on
 09-23, and refilled at the week 8 review on 09-27. **07 was written on 09-29 and
@@ -279,8 +278,9 @@ here, not on the research branches.
 | 04 | `done/04-entry-depth-vs-stops.md` | `out/04-entry-depth-vs-stops.md` | **2026-09-13.** Depth does not predict stop-outs (Fisher p=1.00); damage is in the middle bucket. **DO NOTHING** |
 | 02 | `done/02-side-blocked-earned-its-keep.md` | `out/02-side-blocked-earned-its-keep.md` | **2026-09-16. The block EARNS ITS KEEP on drawdown.** The "ten refusals" are **two episodes** (entry fires only when `side == 0`). Net −3.5 (~0.34% NAV), but MDD **2.273% → 1.779%** — a 28% relative cut in permanent drawdown. Also found: `blocked` does **not** survive pair eviction (`ltp_agent.py:302–306`), an undocumented third exit from the block |
 | 05 | `done/05-sigma-window-and-stops.md` | `out/05-sigma-window-and-stops.md` | **2026-09-23. COINCIDENCE.** Stop rate 25% vs 25% (Fisher p = 1.00); stops come on raw moves 2.19× **larger**; sigma **grew** as the window shrank. Window = `int(3 × half_life)` everywhere observed (r = +0.9996), so it is **unidentifiable** without a counterfactual fixed-window sigma. **Falsified its own brief's key figure** (NEAR/ICP 5.43%, not 1.4%). Declined 4b: rejected half-lives are not logged. First dispatch with the Phase II inputs pulled onto the research branch |
+| 07 | `done/07-breadth-honest-options.md` | `out/07-breadth-honest-options.md` | **2026-09-30. NO honest breadth in time to matter.** B (+22 non-crypto pairs) adds **0** — all fail a non-FDR gate, p 0.27–0.77, BZ/CL on split-half. C (166 tests) adds 2 crypto pairs in the live orientation, WIF/DOGE (shares DOGE with the traded pair) and AAVE/COMP — **at most one independent**. Phase II edge t = +0.46 over 22 trips; ~411 trades to distinguish it; C yields ~32–69 by 11-04. **Found: `fetch_panel`'s inner join halves the panel when the symbol list widens** (live refit 80 crossings / p 7.7e-05 vs scan 38 / 0.0158 on the same pair), and the scan's VERDICT double-counts venues and tests the wrong orientation |
 
-Run order was **01 → 04 → 03 → 02 → 05**, not numeric. 04 jumped to the front on
+Run order was **01 → 04 → 03 → 02 → 05 → 07**, not numeric. 04 jumped to the front on
 2026-09-13: it gates a live sizing decision, and the agent had just entered at
 0.09 sigma from its own stop. 03 came before 02 because two independent analyses
 landed on the same mechanism within a day of each other without either looking
