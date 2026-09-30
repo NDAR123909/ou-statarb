@@ -59,7 +59,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from deploy.ltp_broker import RapidXBroker                       # noqa: E402
-from deploy.ltp_agent import AgentConfig, fetch_panel, CANDIDATES  # noqa: E402
+from deploy.ltp_agent import (AgentConfig, fetch_panel, CANDIDATES,  # noqa: E402
+                              orient, pair_frame, panel_summary,
+                              selection_config)
 from statarb.ou import fit_spread_model                         # noqa: E402
 from statarb.selection import SelectionConfig, select_pairs      # noqa: E402
 import numpy as np                                              # noqa: E402
@@ -179,16 +181,10 @@ def live_symbols() -> set[str] | None:
 
 
 def _sel_cfg(cfg: AgentConfig) -> SelectionConfig:
-    """Identical to the SelectionConfig the agent builds in refit()."""
-    return SelectionConfig(
-        fdr_q=cfg.fdr_q,
-        min_half_life=cfg.min_half_life,
-        max_half_life=cfg.max_half_life,
-        periods_per_year=cfg.bars_per_year,
-        min_crossings_per_year=8.0 * (cfg.bars_per_year / 252),
-        min_abs_beta=cfg.min_abs_beta,
-        max_abs_beta=cfg.max_abs_beta,
-    )
+    """The agent's own gate, not a copy of it. Until 2026-09-30 this rebuilt
+    the config by hand and "identical" was a promise; now it is the same
+    function `refit()` calls, including per-pair alignment."""
+    return selection_config(cfg)
 
 
 def _base(sym: str) -> str:
@@ -196,17 +192,33 @@ def _base(sym: str) -> str:
     return parts[2] if len(parts) > 2 else sym
 
 
+def _venue(a: str, b: str) -> str:
+    va, vb = a.split("_")[0], b.split("_")[0]
+    return va if va == vb else "cross"
+
+
+def distinct_pairs(rows) -> set[frozenset]:
+    """Underlying relationships, not rows. The same pair on Binance and OKX is
+    one bet sized twice, not breadth -- and until 2026-09-30 the VERDICT
+    counted it twice ("6 genuine pairs" was 4; task 07 §0b)."""
+    return {frozenset((_base(r.a), _base(r.b))) for _, r in rows.iterrows()}
+
+
 def _report(table, label: str) -> int:
+    """Print every passing ROW, venue-labelled; return DISTINCT pairs."""
     passed = table[table.passed]
-    print(f"\n== {label}: {len(passed)}/{len(table)} pass ==")
+    n = len(distinct_pairs(passed))
+    print(f"\n== {label}: {n} distinct pair(s) pass "
+          f"({len(passed)} row(s) of {len(table)} tests) ==")
     for _, r in passed.sort_values("adf_pvalue").iterrows():
-        print(f"   {_base(r.a)}/{_base(r.b):<9} adf_p={r.adf_pvalue:.4f} "
-              f"hurst={r.hurst:.2f} half_life={r.half_life:.0f}h "
-              f"beta={r.beta:+.2f} crossings={int(r.crossings)}")
+        print(f"   {_base(r.a)}/{_base(r.b)}@{_venue(r.a, r.b):<8} "
+              f"adf_p={r.adf_pvalue:.4f} hurst={r.hurst:.2f} "
+              f"half_life={r.half_life:.0f}h beta={r.beta:+.2f} "
+              f"crossings={int(r.crossings)}")
     if len(passed) < len(table):
         rej = table.loc[~table.passed, "reject_reason"].value_counts().to_dict()
         print(f"   rejects: {rej}")
-    return len(passed)
+    return n
 
 
 def _cost_z(panel, a: str, b: str, cfg: AgentConfig) -> float | None:
@@ -222,7 +234,8 @@ def _cost_z(panel, a: str, b: str, cfg: AgentConfig) -> float | None:
     entitled to say no, and this number is why it would.
     """
     try:
-        m = fit_spread_model(panel[a].values, panel[b].values)
+        pf = pair_frame(panel, a, b)
+        m = fit_spread_model(pf[a].values, pf[b].values)
     except Exception:                                        # noqa: BLE001
         return None
     if not np.isfinite(m.ou.sigma_eq) or m.ou.sigma_eq <= 0:
@@ -253,7 +266,9 @@ def _stratified_diagnostic(panel, groups: dict, sel, pooled_pass: int) -> None:
     for name, pairs in sorted(groups.items()):
         if len(pairs) < 1:
             continue
-        table = select_pairs(panel, candidates=sorted(pairs), cfg=sel)
+        table = select_pairs(panel, candidates=[orient(panel, a, b)
+                                                for a, b in sorted(pairs)],
+                             cfg=sel)
         passed = table[table.passed]
         total += len(passed)
         if len(passed):
@@ -292,10 +307,27 @@ def _report_group(table, bases: set[str], label: str) -> None:
               f"cross={int(r.crossings):>3}  {verdict}")
 
 
+def verdict(n_expanded: int, n_current: int, m: int) -> str:
+    """The closing line, on DISTINCT pairs. A win needs more distinct pairs
+    than the current book AND at least three -- the bar the scan always set."""
+    if n_expanded > n_current and n_expanded >= 3:
+        return (f"VERDICT: breadth may help — {n_expanded} distinct pairs pass "
+                f"the unchanged gates vs {n_current} in the current set. "
+                f"Evidence for a pre-registered expansion, not yet a case for one.")
+    if n_expanded <= 1:
+        return (f"VERDICT: regime — {m} rigorous sector tests yield "
+                f"{n_expanded} distinct pair(s). Mean-reversion is hard right "
+                f"now; idle is the correct, drawdown-protecting state. Do not "
+                f"force trades.")
+    return (f"VERDICT: marginal — {n_expanded} vs {n_current} distinct. Read "
+            f"the reject reasons above before deciding; breadth is not a clear "
+            f"win.")
+
+
 def _return_vol(panel, sym: str) -> float:
-    """Volatility of log returns for one symbol on the panel."""
+    """Volatility of log returns for one symbol, on its own rows."""
     import numpy as np
-    return float(np.std(np.diff(panel[sym].values), ddof=1))
+    return float(np.std(np.diff(panel[sym].dropna().values), ddof=1))
 
 
 def compare_orientations(panel, unordered: list[tuple[str, str]], sel) -> None:
@@ -320,8 +352,7 @@ def compare_orientations(panel, unordered: list[tuple[str, str]], sel) -> None:
     question the numbers have to answer is whether it finds them because the
     relationships are real or because we looked twice."""
     alpha = sorted(unordered)
-    volrule = [(a, b) if _return_vol(panel, a) >= _return_vol(panel, b)
-               else (b, a) for a, b in alpha]
+    volrule = [orient(panel, a, b) for a, b in alpha]   # the live rule
     both = [p for a, b in alpha for p in ((a, b), (b, a))]
 
     for label, cands in (("alpha (status quo)", alpha),
@@ -376,12 +407,20 @@ def main() -> int:
                     tag = "  <- forms no pair" if left < 2 else ""
                     print(f"  {group:<18} not live on {v:<8}: {absent}{tag}")
 
+    from datetime import datetime, timezone
+    print(f"run at {datetime.now(timezone.utc).isoformat(timespec='seconds')}")
     print(f"fetching {len(all_syms)} symbols across {venues} "
           f"({cfg.lookback_bars} bars each; this takes a couple minutes) ...")
-    panel = fetch_panel(broker, all_syms, cfg)
+    # Pairwise, like the live refit: an all-symbol join let the youngest or
+    # gappiest of 112 symbols set every pair's history (task 07 §0b-3).
+    panel = fetch_panel(broker, all_syms, cfg, align="pairwise")
     if panel.empty:
         print("no data panel — aborting.")
         return 1
+    ps = panel_summary(panel, all_syms)
+    print(f"panel: {ps['bars']} bars {ps['first']} -> {ps['last']}; "
+          f"{ps['complete_bars']} complete across ALL symbols "
+          f"(each pair is tested on its own overlap instead)")
 
     available = set(panel.columns)
     missing = sorted(s for s in all_syms if s not in available)
@@ -417,11 +456,24 @@ def main() -> int:
     pairs: set[tuple[str, str]] = set()
     for g in groups.values():
         pairs |= g
-    pairs_list = sorted(pairs)
+    # The headline tests what the live agent would: the vol-rule orientation.
+    # Alphabetical survives only in the orientation-sensitivity section.
+    pairs_alpha = sorted(pairs)
+    pairs_list = [orient(panel, a, b) for a, b in pairs_alpha]
 
     expanded = select_pairs(panel, candidates=pairs_list, cfg=sel)
-    n_expanded = _report(expanded, f"EXPANDED universe ({len(pairs_list)} "
-                                    f"sector pairs, FDR across all)")
+    n_all = _report(expanded, f"EXPANDED, all {len(pairs_list)} tests incl. "
+                              f"same-asset cross-venue (FDR across all)")
+    # Same-asset pairs -- one coin on two venues -- are cointegrated by
+    # construction and never tradeable (cost_z > 1). As tests they are
+    # near-certain discoveries that loosen Benjamini-Hochberg for everything
+    # else; task 07 found the traded pair survived m=166 only because of them.
+    # A real CANDIDATES expansion would never include them, so the VERDICT is
+    # taken on the family without them.
+    tradeable = [p for p in pairs_list if _base(p[0]) != _base(p[1])]
+    expanded_ex = select_pairs(panel, candidates=tradeable, cfg=sel)
+    n_expanded = _report(expanded_ex, f"EXPANDED, {len(tradeable)} tests "
+                                      f"EXCLUDING same-asset (the verdict family)")
 
     # apples-to-apples: the live book, scored on the same panel. Any pair that
     # cannot be scored is NAMED -- a comparison that quietly shrinks its own
@@ -437,6 +489,7 @@ def main() -> int:
         print(f"\n** {len(missing_pairs)} of {len(CANDIDATES)} live candidate "
               f"pairs EXCLUDED for missing data: {missing_pairs}\n"
               f"   The CURRENT result below is NOT the whole book. **")
+    current = [orient(panel, a, b) for a, b in current]     # as refit does
     cur_table = select_pairs(panel, candidates=current, cfg=sel)
     n_current = _report(cur_table, f"CURRENT universe ({len(current)} of "
                                    f"{len(CANDIDATES)} live pairs)")
@@ -444,7 +497,7 @@ def main() -> int:
     print("\n" + "=" * 60)
     print("ORIENTATION SENSITIVITY (Engle-Granger is not symmetric)")
     print("=" * 60)
-    compare_orientations(panel, pairs_list, sel)
+    compare_orientations(panel, pairs_alpha, sel)
 
     # The whole point of the 09-11 expansion: did anything OUTSIDE crypto's
     # single factor pass? A breadth result driven entirely by crypto is the
@@ -462,6 +515,7 @@ def main() -> int:
     interesting = [(r.a, r.b) for _, r in expanded.iterrows()
                    if r.passed or (_base(r.a) in nc_bases
                                    and _base(r.b) in nc_bases)]
+    interesting += [(r.a, r.b) for _, r in expanded_ex.iterrows() if r.passed]
     cross_pairs = groups.get("cross_venue", set())
     interesting += [ab for ab in sorted(cross_pairs)][:12]
     if interesting:
@@ -478,20 +532,13 @@ def main() -> int:
           f"for being SLOW\n   is a statement about that band, which was set "
           f"for hourly crypto, not about\n   whether the relationship exists.")
 
-    _stratified_diagnostic(panel, groups, sel, n_expanded)
+    _stratified_diagnostic(panel, groups, sel, n_all)
 
     print("\n" + "=" * 60)
-    if n_expanded > n_current and n_expanded >= 3:
-        print(f"VERDICT: breadth helps — {n_expanded} genuine pairs pass the "
-              f"unchanged gates vs {n_current} in the current set. A disclosed "
-              f"CANDIDATES expansion is warranted.")
-    elif n_expanded <= 1:
-        print(f"VERDICT: regime — even {len(pairs_list)} rigorous sector pairs "
-              f"yield {n_expanded}. Mean-reversion is hard right now; idle is "
-              f"the correct, drawdown-protecting state. Do not force trades.")
-    else:
-        print(f"VERDICT: marginal — {n_expanded} vs {n_current}. Read the "
-              f"reject reasons above before deciding; breadth is not a clear win.")
+    print(verdict(n_expanded, n_current, len(tradeable)))
+    print("   Counts are DISTINCT pairs in the live orientation, on the family "
+          "without same-asset tests.\n   ONE snapshot: persistence across refits "
+          "is unmeasured, and a pass here is a single observation.")
     print("=" * 60)
     return 0
 
