@@ -174,3 +174,67 @@ def test_the_stratified_pass_is_a_diagnostic_and_says_so():
     assert "not making the change" in src.lower()
     # ...and it must frame extra passes as a cost, not a win.
     assert "PRICE, not as the prize" in src
+
+
+# ---------------------------------------------------------------------------
+# 2026-09-30: task 07 found the scan overstating its own verdict. It counted
+# ROWS (the same pair on two venues twice), led with an orientation the agent
+# does not use, ran on an all-symbol inner join that halved every pair's data,
+# and let untradeable same-asset tests loosen the correction for everything.
+# ---------------------------------------------------------------------------
+
+def test_the_scan_uses_the_agents_own_gate_not_a_copy():
+    from deploy.ltp_agent import AgentConfig, selection_config
+    from deploy.universe_scan import _sel_cfg
+    cfg = AgentConfig()
+    assert _sel_cfg(cfg) == selection_config(cfg)
+    assert _sel_cfg(cfg).align_pairs is True
+
+
+def test_the_same_pair_on_two_venues_counts_once():
+    import pandas as pd
+    from deploy.universe_scan import distinct_pairs
+    rows = pd.DataFrame([
+        {"a": "BINANCE_PERP_WIF_USDT", "b": "BINANCE_PERP_DOGE_USDT"},
+        {"a": "OKX_PERP_WIF_USDT", "b": "OKX_PERP_DOGE_USDT"},
+        {"a": "BINANCE_PERP_AAVE_USDT", "b": "BINANCE_PERP_COMP_USDT"},
+    ])
+    assert len(distinct_pairs(rows)) == 2
+
+
+def test_the_verdict_is_on_distinct_pairs_and_never_says_warranted():
+    from deploy.universe_scan import verdict
+    assert verdict(3, 1, 115).startswith("VERDICT: breadth may help")
+    assert "warranted" not in verdict(3, 1, 115)
+    assert verdict(1, 1, 115).startswith("VERDICT: regime")
+    assert verdict(2, 1, 115).startswith("VERDICT: marginal")
+
+
+def test_main_runs_end_to_end_on_a_gappy_panel(monkeypatch, capsys):
+    """The scan is run by hand on the droplet; a crash there means no scan.
+    Run the whole of main() against a fake venue in which one symbol has
+    only the recent half of the history."""
+    import numpy as np
+    import pandas as pd
+    import deploy.universe_scan as us
+    from deploy.ltp_agent import AgentConfig
+
+    rng = np.random.default_rng(5)
+    n = 300
+
+    class FakeBroker:
+        def klines(self, symbol, interval, limit):
+            px = np.exp(np.log(10.0) + np.cumsum(rng.normal(0, 0.01, n)))
+            df = pd.DataFrame({"close": px})
+            return df.iloc[140:] if "TSLA" in symbol else df   # 160 bars
+
+    monkeypatch.setattr(us, "RapidXBroker", FakeBroker)
+    monkeypatch.setattr(us, "AgentConfig", lambda: AgentConfig(lookback_bars=n))
+    monkeypatch.setattr(us, "live_symbols", lambda: None)
+    monkeypatch.setattr(us.sys, "argv", ["universe_scan.py"])
+    assert us.main() == 0
+    out = capsys.readouterr().out
+    for marker in ("run at ", "panel: 300 bars", "distinct pair",
+                   "EXCLUDING same-asset (the verdict family)", "VERDICT:",
+                   "ONE snapshot"):
+        assert marker in out, marker

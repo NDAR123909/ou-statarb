@@ -110,6 +110,16 @@ class SelectionConfig:
     #                                 genuine pairs for lack of sample, not for
     #                                 lack of cointegration.
     periods_per_year: int = 252
+    # Test each pair on the rows where BOTH of its legs have data, rather than
+    # on the rows where EVERY column does. Off by default, so every existing
+    # caller -- the backtests and the reference run -- is unchanged. The live
+    # agent turns it on (2026-09-30): its panel was an inner join across all
+    # fetched symbols, so one young or market-hours symbol shortened every
+    # pair's history -- the same pair read p 7.7e-05 on 30 symbols and 0.0158
+    # on 112. With it on, a pair whose overlap is under `min_pair_obs` rows is
+    # rejected, and still counted in the FDR family like any other test.
+    align_pairs: bool = False
+    min_pair_obs: int = 0
 
 
 def select_pairs(
@@ -135,7 +145,23 @@ def select_pairs(
 
     rows: list[PairCandidate] = []
     for a, b in cands:
-        la, lb = log_prices[a].values, log_prices[b].values
+        if cfg.align_pairs:
+            # This pair's own overlap -- see SelectionConfig.align_pairs. The
+            # length feeds the split-half cut and the crossings-per-year rate,
+            # so both are recomputed per pair rather than taken from the panel.
+            pair = log_prices[[a, b]].dropna()
+            if len(pair) < max(cfg.min_pair_obs, 4):
+                rows.append(PairCandidate(
+                    a=a, b=b, beta=np.nan, half_life=np.nan, adf_pvalue=1.0,
+                    hurst=np.nan, crossings=0,
+                    beta_first_half=np.nan, beta_second_half=np.nan,
+                    passed=False, reject_reason="insufficient overlap",
+                ))
+                continue
+            la, lb = pair[a].values, pair[b].values
+            n_days, half = len(pair), len(pair) // 2
+        else:
+            la, lb = log_prices[a].values, log_prices[b].values
 
         # A halted or untraded symbol gives a flat log-price series. Feeding
         # one to the regression is a degenerate fit (a constant regressor),

@@ -1834,9 +1834,12 @@ section existed; that is what it is for.
 | **Ask the organizers whether the Binance-vs-OKX venue choice is still open** now that Phase II has started, and whether the primary account is provisioned as a **Sub Portfolio** (if so the key can read but not trade it — `Edit API` fixes it in one click), and whether their side needs an IP whitelisted. The last two were asked of @LTP_Tracey on 2026-09-07 and **never answered** | 2026-09-07 / 2026-09-08 | next organizer contact — bundle with the CSV-export and AI-floor questions already owed |
 | ~~**FIX `mu_shift_sigma`**~~ **BUILT 2026-09-27, DEPLOYED 2026-09-29 21:15 UTC, verified live.** Re-expressed on the entry beta; `mu_shift_basis` marks post-fix records; disclosed in `LTP_STRATEGY.md`. Original: **FIX `mu_shift_sigma`: it compares means fitted on two different betas.** `entry_frame()` (`ltp_agent.py:393-412`) rebuilds the spread on `entry_beta` for `z_in_entry_coords` — the 2026-09-09 fix — but computes `mu_shift = (live_mu − entry_mu) / entry_sigma` where `live_mu` is fitted on the **live** beta's spread. Any refit that moves beta during a hold adds Δβ·ln(price_b)/σ₀ — **~91σ on the 09-27 ETH/BTC exit** (ln BTC ≈ 11.35), ~13.5σ on the 09-15 stop. **Every nonzero Phase II shift is ≥90% this artefact.** It drives `equilibrium_reestimated` and therefore `reversion_note()`, which has written **false magnitudes into the published reasoning** of two exits ("re-estimated by +91.96 sigma", "+12.55 sigma"). **Trading is unaffected**: `reverted`/`stopped` are computed separately. Fix: re-express `live_mu` on the entry beta (store the refit window's mean of `log_b` for held pairs), plus a test with a beta change and a stationary spread. **Do not back-fill the ledger**; disclose in `LTP_STRATEGY.md` when shipped | 2026-09-27 | **needs the operator's go**; belongs in the logging pass. Found at the week 8 review |
 | ~~**Log hourly NAV**~~ **BUILT 2026-09-27, DEPLOYED 2026-09-29 21:15 UTC, verified live.** Original: **PROPOSED: log hourly NAV.** The scored MDD is **3.1%** while our daily series says 2.88%, and the scored Sharpe is **−0.06** while our close-to-close series gives **+0.91** — and we can reproduce **neither**, because nothing records NAV at the scorer's instants (hourly for MDD; 00:00 and 23:00 UTC for the daily return). One ledger line per tick with `nav` would let `status.py` show the banked MDD exactly (the open banked-MDD row) and reproduce the 40%-weight Sharpe term. Read-only | 2026-09-27 | **needs the operator's go**; same pass |
-| ~~**DEPLOY the 2026-09-27 logging pass**~~ **DONE 2026-09-29 21:15 UTC, mid-position under the revised conditions** (|z| 1.52, 21:13, no window near) — see the 09-29 entry. Original:  — `deploy/ltp_agent.py` and `deploy/status.py` together. On the droplet: `git fetch origin claude/offline-competition-deploy-nuk5tz`, `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py deploy/status.py`, `systemctl restart ltp-agent`. **Verify:** journal shows `self-check PASS`; after the next bar `status.py` prints a `banked MDD` value; after the next refit its record carries `candidates`; `z_sample` records appear only while holding. The restart moves the refit hour one earlier. The checkout stages both files on `live/track-record`, so the 23:58 commit records the deployed version — intended. **REVISED 2026-09-29: deploy mid-position is now acceptable, on conditions.** The flat-book rule was set on 09-27; on 09-29 the operator stated top 3 is the goal with ~36 days left, which makes every stop taken WITHOUT sub-hourly data unrecoverable evidence. The restart's cost is one extra off-schedule bar — the same logic as any hourly bar — and `reconcile_positions` leaves a pair alone when state says open and both legs are live, so held positions survive the restart. **Conditions:** every held pair |z| < 2.5 in `status.py` (not within ~1σ of the stop); restart between :10 and :50 past the hour; not within 30 min of an announced maintenance window. Positions opened before the deploy log `mu_shift_basis: unavailable` until they close (no tagged `mu_entry_beta`) and `z_fixed: null` until the next refit — expected, not a fault | 2026-09-27, revised 2026-09-29 | **next operator session that meets the conditions** |
+| ~~**DEPLOY the 2026-09-27 logging pass**~~ **DONE 2026-09-29 21:15 UTC, mid-position under the revised conditions** (|z| 1.52, 21:13, no window near) — see the 09-29 entry. Original:  — `deploy/ltp_agent.py` and `deploy/status.py` together. On the droplet: `git fetch origin claude/offline-competition-deploy-nuk5tz`, `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py deploy/status.py`, `systemctl restart ltp-agent`. **Verify:** journal shows `self-check PASS`; after the next bar `status.py` prints a `banked MDD` value; after the next refit its record carries `candidates`; `z_sample` records appear only while holding. The restart moves the refit hour one earlier. The checkout stages both files on `live/track-record`, so the 23:58 commit records the deployed version — intended. **REVISED 2026-09-29: deploy mid-position is now acceptable, on conditions.** The flat-book rule was set on 09-27; on 09-29 the operator stated top 3 is the goal with ~36 days left, which makes every stop taken WITHOUT sub-hourly data unrecoverable evidence. The restart's cost is one extra off-schedule bar — the same logic as any hourly bar — and `reconcile_positions` leaves a pair alone when state says open and both legs are live, so held positions survive the restart. **Conditions:** every held pair |z| < 2.5 in `status.py` (not within ~1σ of the stop) **AND not within ~0.3 of its exit band — added 2026-09-30, after a restart at z −0.03 exited a short spread mid-hour**; restart between :10 and :50 past the hour; not within 30 min of an announced maintenance window. Positions opened before the deploy log `mu_shift_basis: unavailable` until they close (no tagged `mu_entry_beta`) and `z_fixed: null` until the next refit — expected, not a fault | 2026-09-27, revised 2026-09-29 | **next operator session that meets the conditions** |
 | ~~**DECIDE the two remaining top-3 actions**~~ **DECIDED 2026-09-29: YES to both.** Task 07 (breadth) written as a GATE for Wed 09-30, ahead of task 06 (now Wed 10-07); Sun 10-04 is the top-3 strategy review — prep in the row below. Original:  proposed 2026-09-29 after the operator set **top 3 as a must** (9th, score 61.3 vs 3rd at 90.0, ~36 days left): **(2)** make Sun 10-04 a top-3 strategy review with prepared evidence — per-stop overshoot cost, breadth options and their FDR cost, score scenarios per lever; **(3)** swap Wednesday's task 06 (measurement honesty) for a breadth task (which additional pairs could honestly pass the gate). The operator chose to deploy the logging pass first and then judge whether (2) and (3) are rational | 2026-09-29 | **(3) before the Wed 2026-09-30 dispatch** — otherwise task 06 runs as queued; **(2) before Sun 10-04** |
-| **PREPARE the 10-04 top-3 strategy review — before the operator arrives, not during it.** (a) **Per-stop cost of every Phase II stop** (six: 09-15, 09-16, 09-17, 09-26, 09-28, 09-29) — loss at the stop versus loss at exactly 3.5, frame changes accounted for, from the fills reports; plus any `z_sample` evidence on when a crossing happened, if a stop occurs after the 09-29 deploy. (b) **Task 07's answer**, read and checked against its own tables. (c) **Score scenarios per lever** — Sharpe/PnL/ROI/MDD under loss-tail control, breadth, sizing — with the Z-score caveat that the pool is unknown. (d) **The honest odds**, restated with a week more data. No recommendation to loosen any gate | 2026-09-29 | **Sun 2026-10-04**, ready at the start of the review |
+| **PREPARE the 10-04 top-3 strategy review — before the operator arrives, not during it.** (a) **Per-stop cost of every Phase II stop** (six: 09-15, 09-16, 09-17, 09-26, 09-28, 09-29) — loss at the stop versus loss at exactly 3.5, frame changes accounted for, from the fills reports; plus any `z_sample` evidence on when a crossing happened, if a stop occurs after the 09-29 deploy. (b) ~~**Task 07's answer**, read and checked against its own tables.~~ **DONE 2026-09-30** — see that entry. (c) **Score scenarios per lever** — Sharpe/PnL/ROI/MDD under loss-tail control, breadth, sizing — with the Z-score caveat that the pool is unknown. (d) **The honest odds**, restated with a week more data. No recommendation to loosen any gate | 2026-09-29 | **Sun 2026-10-04**, ready at the start of the review |
+| ~~**`fetch_panel` truncates every pair's data when the symbol list widens.**~~ **BUILT 2026-09-30 on the operator's go — both parts: (1) `refit` records carry `panel` with `complete_bars`; (2) each pair aligned on its own legs (`SelectionConfig.align_pairs`), a no-op on a complete panel by test. Disclosed in `LTP_STRATEGY.md`. NOT YET DEPLOYED — see the deploy row.** Original: `ltp_agent.py`'s `fetch_panel` ends in `pd.DataFrame(frames).dropna()` — an inner join on timestamps across **every** fetched symbol — so one young, gappy or market-hours symbol shortens the panel for all pairs. Found by task 07: the same pair, same orientation, same day read **80 crossings, p 7.7e-05** on the live 30-symbol panel and **38 crossings, p 0.0158** on the scan's 112-symbol panel. **Consequence: any `CANDIDATES` expansion would weaken the evidence for the pair we already trade, on top of the FDR price.** The live panel is not known to be affected today (80 crossings is consistent with a full 960 bars), but nothing logs its length. Proposed: (1) log the panel's bar count and first/last timestamp in every `refit` record (read-only); (2) before ANY candidate change, align each pair on its own two legs rather than on the whole panel — a change to the data selection sees, so disclosed in `LTP_STRATEGY.md` | 2026-09-30 | **(1) needs the operator's go — small; (2) blocks any `CANDIDATES` expansion.** Decide at the 10-04 review |
+| ~~**`universe_scan.py` overstates its own verdict**~~ **FIXED 2026-09-30** — the agent's own gate, pairwise panel, live orientation, distinct pairs, run time and panel span, verdict on the family without same-asset tests. Takes effect on the droplet with the deploy row below. Original: (task 07 §0b): it counts passing **rows**, so the same pair on Binance and OKX counts twice (6 rows = 4 pairs); its headline and CURRENT sections test alphabetical/tuple orientation, not the live vol-rule (under which it is 5 rows, 3 pairs); it prints neither its panel length nor a timestamp; and it hides the same-asset cross-venue p-values that pad Benjamini-Hochberg for everything else. Fix before the next scan is quoted: count distinct pairs, lead with the vol-rule, print panel length and run time, and report the pooled result **with and without** same-asset tests. Tool only, no trading path | 2026-09-30 | needs the operator's go; before any further scan is relied on |
+| ~~**DEPLOY the 2026-09-30 alignment change**~~ **DONE 2026-09-30 19:54 UTC** — check printed `True`, self-check PASS. **The startup bar exited the open position mid-hour** (see the 09-30 deploy entry). Refit hour now ~07:00 UTC; the `panel` check is due after the 10-01 refit. Original: — **three files together**: `statarb/selection.py`, `deploy/ltp_agent.py`, `deploy/universe_scan.py`. **Never the agent without `statarb/selection.py`:** the agent passes `align_pairs=` to `SelectionConfig`, so a half-deploy imports cleanly and then raises a `TypeError` at every refit — caught by the loop, so every fit silently freezes. The post-checkout check therefore CALLS the config, not just imports it: `.venv/bin/python -c "from deploy.ltp_agent import AgentConfig, selection_config; print(selection_config(AgentConfig()).align_pairs)"` must print `True`. Then `systemctl restart ltp-agent` under the 09-29 conditions (|z| < 2.5, :10–:50, clear of windows). **Verify at the next ~08:00 refit:** its record carries `panel`; if `complete_bars == bars` the change altered nothing that day, as expected for the 30-symbol panel | 2026-09-30 | next operator session that meets the conditions; before the 10-01 ~08:00 refit is ideal but not required |
 | ~~**The runbook and the export tool tell the operator to run `status.py` without loading the env.**~~ **DONE 2026-09-23**, same evening, on the operator's go — and it was **five** places, not two: the **daily glance in the standing context** (the worst, since `equity UNAVAILABLE` is on its escalate-immediately list), `CLAUDE.md` step 6, runbook step 0, the export's NOTE, and `status.py`'s docstring. All now give `( set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py )`. Pinned by `test_every_instruction_to_run_status_py_loads_the_env_first` and `test_the_staleness_note_gives_a_command_that_works`. Original row: On 2026-09-23 step 0's age warning fired as designed, the operator ran `.venv/bin/python deploy/status.py` in a fresh SSH shell, and equity, positions and AI spend all came back `UNAVAILABLE — RCLI01003 LTP_API_HOST is required`. The agent was fine; the shell had no `/root/ltp.env`. Both places — README step 0 and `export_phase_ledger.py`'s NOTE — should give `set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py`. (`status.py`'s own docstring says plain `source`, which does not export a shell-format file to a child process either) | 2026-09-23 | needs the operator's go; two strings and a docstring |
 | ~~**`CLAUDE.md` points a cold reader at the wrong places.** Its cold-start step 4 reads `track_record/ltp_state_history.jsonl`, which is **not on the working branch** — it lives on `live/track-record`. Also stale: the header's "Phase I runs to 2026-08-21" framing and "27 tests"~~ **DONE 2026-09-23**, same session, on the operator's go. Step 4 now gives the `git show origin/live/track-record:…` command and says `--show` works only on the droplet; header states Phase II; the test count is **dropped rather than updated**, since a copied count is a remembered number. Pinned by `test_every_track_record_file_claude_md_names_is_reachable_from_here` | 2026-09-23 | closed |
 
@@ -6446,6 +6449,147 @@ first. `tests/test_research_queue.py` was widened from `.jsonl` to any data file
 and credits a brief's own pulls. Its non-vacuity guard had been pointed at task
 05 and **went silent when 05 moved to `done/`** — exactly the failure it
 existed to prevent — and now guards the queue as a whole.
+
+---
+
+## 2026-09-30 — task 07: no honest breadth in time to matter
+
+The first GATE dispatch run on its own dispatch note, and clean: step 0 ran at
+19:12 UTC, the scan ended on its `VERDICT:` line (112/112 symbols fetched,
+nothing dropped), step 3 showed the four predicted lines, and it landed.
+
+### The answer, led with as the brief asked: no
+
+| set | m | distinct passers (live orientation) | new vs status quo | independent new |
+|---|---|---|---|---|
+| A — current 15 | 15 | 1000SHIB/DOGE | — | — |
+| B — + 22 non-crypto pairs | 37 | A's, or fewer | **0** | **0** |
+| C — full scan | 166 | 3 | WIF/DOGE, AAVE/COMP | **≤ 1** |
+
+- **B is breadth in name only.** All 22 non-crypto within-venue pairs fail a
+  non-FDR gate (p 0.27–0.77). **BZ/CL** — the scan's strongest economic prior —
+  sits comfortably inside the half-life band (31h) and fails **split-half
+  cointegration**, so "the band rejects slow commodities" does not arise. The
+  SPX beta anomaly persists (β −0.15 to +0.06 against its own constituents).
+- **C adds two crypto pairs, at most one independent.** WIF/DOGE shares DOGE
+  with the pair we trade, so it is concentration, not diversification.
+  AAVE/COMP is a different sector, with its correlation unmeasured. **Neither
+  WIF nor COMP appears anywhere in this project's record.** One snapshot each.
+- **Even the best case cannot register.** Phase II's per-trade edge: mean
+  +0.519, sd 5.26, **t = +0.46 over 22 round trips**; distinguishing it at two
+  SE takes ~411 trades; C yields ~32–69 by 11-04. Breadth multiplies Sharpe by
+  ≤ √2 and multiplies an edge indistinguishable from zero into one still
+  indistinguishable from zero. **Checked here: both figures reproduce.**
+- **So a top-3 finish does not depend on our universe.** It depends on loss
+  control — the stop days are ≈ −3.3% against a small positive total — and on
+  the field.
+
+### Two findings bigger than the question
+
+**1. `fetch_panel` truncates every pair when the symbol list widens.** An inner
+join on timestamps across all fetched symbols means one young or market-hours
+symbol shortens everyone's data. **Verified here** against the first `refit`
+record carrying the new `candidates` field — the 2026-09-30 08:01 refit, which
+put 1000SHIB/DOGE at **80 crossings, p 7.7e-05**, where the scan eleven hours
+later had **38 and 0.0158**. The logging pass earned its keep on its first
+refit. This is a cost of breadth on top of the FDR price, and it was recorded
+nowhere. New Open-commitments row.
+
+**2. The traded pair survives set C only because untradeable tests loosen the
+correction.** For p = 0.0158 to clear Benjamini-Hochberg at m = 166 it needs
+rank ≥ 27; the scan prints only 11 tests that low. **Checked: 0.0158 ≤
+k × 0.1/166 needs k ≥ 27.** The rest are almost certainly the 51 same-asset
+cross-venue tests — one coin on two venues, cointegrated by construction, `cost_z`
+1.15–5.16, never tradeable. Compliant with invariant 3, since they were tests that
+were run, but it means C's apparent strictness is relaxed by hypotheses we could
+never trade.
+
+**And the scan overstated its own verdict:** it counts rows, so the same pair on
+two venues counts twice ("6 genuine pairs" is 4), and its headline tests
+alphabetical orientation where the live agent uses the vol-rule (5 rows, 3
+pairs). New row, to fix before the next scan is quoted.
+
+### Unreconciled, and now reconcilable
+
+Cowork computes Phase II's annualised Sharpe at **+0.37 ± 4.17** from our
+daily rows; the leaderboard says **−0.10**; this log's 09-27 close-to-close
+figure was **+0.91** on a shorter window. **One standard error is ~4 at 21 days,
+still ~2.5 at the close** — so part of the gap to third (Sharpe 3.0–4.6) is
+noise in both directions. The hourly `nav` records deployed 09-29 are what will
+let us reproduce the scorer's own number.
+
+### For Sunday
+
+Task 07 settled one lever: **breadth is not available in time.** What remains
+for the top-3 review is loss control — the per-stop costs are prep item (a) —
+and an honest restatement of the odds. Cowork's other suggestion, daily B/C
+scans for persistence, is only meaningful **after** the panel truncation is
+fixed, since until then each scan measures a shortened panel the agent would
+never use.
+
+---
+
+## 2026-09-30 (late) — pairs tested on their own history; the scan made honest
+
+On the operator's go, all three task 07 follow-ups built. **Suite 291 → 301.**
+Disclosed in `LTP_STRATEGY.md` (addendum 2026-09-30). **Not deployed yet** —
+the deploy row names three files and a check that must CALL the config.
+
+- **Each pair aligned on its own legs.** `SelectionConfig.align_pairs`, default
+  off so the backtests and the reference run are byte-identical; the agent
+  turns it on through one `selection_config()` that the scan now shares, so
+  "the scan tests what the agent trades" stops being a promise. A pair with
+  less than 480 bars of overlap is rejected **and still counted** in FDR.
+- **The equivalence is tested, not argued:** on a complete panel the new gate
+  returns exactly the old gate's table, orientation included. On a gappy panel
+  the synthetic pair got **10× the evidence** (p 1.4e-05 vs 1.3e-04) and 81
+  crossings vs 59 — the task 07 signature, reproduced.
+- **Every refit now records `panel`**, including `complete_bars` — what the old
+  join would have kept. The first refit after deploy answers the open question
+  of whether the live 30-symbol panel was ever truncated: if `complete_bars ==
+  bars`, it was not, and nothing about live trading changed.
+- **The scan** counts distinct pairs, labels venues, leads with the live
+  orientation, prints its run time and panel span, and takes its verdict on
+  the family without same-asset tests. The verdict no longer calls an expansion
+  "warranted" on one snapshot. Its `main()` is now run end to end in the tests.
+
+**A trap found while writing the deploy note:** the new agent file imports
+cleanly against the OLD `statarb/selection.py` and then fails every refit with a
+`TypeError`, which the loop catches — the fits would freeze silently at their
+last good values, exactly the failure the end-to-end refit test exists for. So
+the deploy must carry all three files, and the check calls `selection_config()`
+rather than importing the module.
+
+---
+
+## 2026-09-30 19:54 — alignment deployed; the restart made one trading decision
+
+Deployed at 19:54 UTC: the three files together, `selection_config(...)
+.align_pairs` printed **True** before the restart, `self-check PASS`, new
+automation session, no errors. **Refit hour now ~07:00 UTC** (each restart
+moves it one earlier).
+
+**The restart's startup bar exited the open position.** 1000SHIB/DOGE, short
+spread, **exit at 19:54:43, z −0.06, `reverted`**. At 19:00 the hourly bar
+read z +0.13 and held. By 19:53 z was −0.03, just past the 0.0 exit band —
+**but at 19:57 it was back at +0.04**, so whether the 20:00 bar would have
+exited is genuinely unknown; I first wrote "almost certainly" and the next
+reading corrected it. The restart's decision may have differed from the
+schedule's. The cost is small — about +1.0 unrealised closed as a trade; equity 1004.85 →
+1004.21 after fees. **But it is a decision the restart made, not the schedule,
+and it sits in the published reasoning at an off-hour timestamp.** Anyone
+auditing the Reasoning Log should read it as the restart's startup bar.
+
+**The conditions were incomplete, and that was mine.** The 09-29 revision
+guarded against restarting near the **stop** (|z| < 2.5) and said the extra bar
+"can exit or stop at mid-hour prices", but set no condition for the **exit**
+band. Added now: also not within ~0.3 of a held pair's exit band.
+
+A `status.py` run at 19:55:03 still showed the pair SHORT-SPREAD, hold 34, bar
+540, while the venue showed flat. That is the startup bar still closing the
+second leg (operations at 19:54 and 19:55) before `save_state`, not a
+divergence. **Confirmed at 19:57:53: FLAT, hold 0, bar 541, no open
+positions** — the state saved as it should.
 
 ---
 
