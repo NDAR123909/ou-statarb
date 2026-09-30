@@ -23,7 +23,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 QUEUE = os.path.join(ROOT, "deploy", "research_queue")
 README = os.path.join(QUEUE, "README.md")
 
-_TRACK_PATH = re.compile(r"track_record/[\w./-]+\.jsonl")
+_TRACK_PATH = re.compile(r"track_record/[\w./-]+\.(?:jsonl|txt|json|csv)")
 _PULL = re.compile(r"git checkout origin/live/track-record -- (.+)")
 
 
@@ -61,27 +61,41 @@ def test_the_runbook_pulls_the_phase_ii_slice_and_state_history():
 
 def test_every_track_record_file_a_brief_names_reaches_the_research_branch():
     """The invariant itself. Fails if a brief cites a file that is neither
-    committed here nor checked out onto the research branch at dispatch --
-    i.e. data the tool being asked about it cannot see."""
-    pulled = _pulled_by_runbook()
+    committed here, nor checked out onto the research branch by the runbook's
+    step 1, nor by the brief's OWN dispatch note -- i.e. data the tool being
+    asked about it cannot see. Widened 2026-09-29 from `.jsonl` only, when
+    task 07 became the first brief to need a `.txt` input."""
+    readme_pulls = _pulled_by_runbook()
     missing = []
     for brief in _open_briefs():
         with open(brief) as fh:
-            for path in sorted(set(_TRACK_PATH.findall(fh.read()))):
-                if not os.path.exists(os.path.join(ROOT, path)) and path not in pulled:
-                    missing.append(f"{os.path.basename(brief)}: {path}")
+            text = fh.read()
+        own_pulls = {p for m in _PULL.finditer(text) for p in m.group(1).split()}
+        for path in sorted(set(_TRACK_PATH.findall(text))):
+            if (not os.path.exists(os.path.join(ROOT, path))
+                    and path not in readme_pulls and path not in own_pulls):
+                missing.append(f"{os.path.basename(brief)}: {path}")
     assert not missing, (
         "brief(s) cite data the research branch will not carry: "
         + "; ".join(missing)
-        + ". Commit it here, or add it to the step 1 pull in "
-          "deploy/research_queue/README.md.")
+        + ". Commit it here, add it to the step 1 pull in "
+          "deploy/research_queue/README.md, or give the brief a Dispatch note "
+          "that checks it out.")
 
 
 def test_the_check_is_not_vacuous():
-    """If the queue empties or briefs stop naming data, the invariant above
-    passes on nothing. Guard the one case this was written for, while it is
-    open, so the test cannot quietly stop testing."""
-    t05 = os.path.join(QUEUE, "05-sigma-window-and-stops.md")
-    if os.path.exists(t05):                  # moved to done/ once answered
-        with open(t05) as fh:
-            assert "track_record/ltp_ledger_phase2.jsonl" in fh.read()
+    """If briefs stop naming data, the invariant above passes on nothing. Its
+    first guard pointed at task 05 and went silent when 05 moved to done/ --
+    exactly the failure it existed to prevent. Now: every open brief that
+    names a file only its own dispatch note pulls must actually contain that
+    pull, and the check must see at least one data path across the queue."""
+    seen = 0
+    for brief in _open_briefs():
+        with open(brief) as fh:
+            text = fh.read()
+        seen += len(set(_TRACK_PATH.findall(text)))
+        if "universe_scan_task07.txt" in text:
+            assert ("git checkout origin/live/track-record -- "
+                    "track_record/universe_scan_task07.txt") in text
+    if _open_briefs():
+        assert seen > 0, "open briefs name no data at all -- check the regex"
