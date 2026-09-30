@@ -1266,6 +1266,59 @@ by a sample past the stop, `refit()` run end to end, `nav` skipped on a bad
 read, banked MDD not falling). Suite 271 → 291.
 
 
+## Addendum — each pair is tested on its own history (2026-09-30)
+
+**A change to the data the live gate sees.** Not to any threshold, band, size,
+stop or order path, and — on the panel the live agent is believed to use —
+**not to any result**; but it is in the selection path, so it is disclosed.
+
+### What was wrong
+
+`fetch_panel()` in `deploy/ltp_agent.py` ended in `pd.DataFrame(frames).dropna()`
+— an inner join on timestamps across **every** fetched symbol. One young, gappy
+or market-hours symbol therefore shortened the history of **every** pair. Task 07
+(`deploy/research_queue/out/07-breadth-honest-options.md`) caught it: the same
+pair, same orientation, same day read **80 mean crossings, ADF p 7.7e-05** on the
+live 30-symbol panel and **38, p 0.0158** on the universe scan's 112-symbol panel.
+Any widening of `CANDIDATES` would have weakened the evidence for the pair
+already traded, on top of the multiple-testing price, and nothing recorded it.
+
+### The change
+
+- `SelectionConfig.align_pairs` (default **False**) and `min_pair_obs` (default
+  0) in `statarb/selection.py`. With it on, `select_pairs` tests each pair on the
+  rows where **both of its legs** have data, and computes the split-half cut and
+  crossings-per-year on that length. A pair with less than `min_pair_obs` rows
+  of overlap is rejected as `insufficient overlap` at p = 1.0 — **still counted
+  in the FDR family** (invariant 3). Default off, so the backtests and the
+  reference run are unchanged.
+- The agent defines its gate once, in `selection_config()`: the same thresholds
+  as before, plus `align_pairs=True` and `min_pair_obs = lookback_bars // 2`
+  (480, the floor `fetch_panel` already applied to a single symbol).
+- `refit()` fetches with `fetch_panel(..., align="pairwise")` (outer join);
+  orientation (`orient`), fitting, bands, `sigma_fixed` and `mu_entry_beta` all
+  use the pair's own overlap (`pair_frame`). Other callers of `fetch_panel` keep
+  the old `align="all"`.
+- **Every `refit` record now carries `panel`** — bars, first and last
+  timestamp, symbols, exclusions, and **`complete_bars`: what the old join
+  would have kept.** Where `complete_bars == bars` the change altered nothing
+  that day. Each `candidates` entry carries the `bars` that pair was tested on.
+- `deploy/universe_scan.py` uses the agent's own `selection_config` rather than
+  a hand-copy, the live orientation in its headline, distinct-pair counting with
+  venue labels, prints run time and panel span, and takes its verdict on the
+  family **without** same-asset cross-venue tests (untradeable, and near-certain
+  discoveries that loosen the correction for everything else). The verdict
+  wording no longer says an expansion is "warranted" on one snapshot.
+
+**Pinned:** `tests/test_ltp_pair_alignment.py` — on a complete panel the new
+gate returns **exactly** the old gate's table (the equivalence that makes this
+safe to deploy); a gappy third symbol no longer shortens a pair (lower p, more
+crossings); a short overlap is rejected and still counted; the default config is
+unchanged; `refit()` end to end with a 500-bar symbol keeps the pair at 960 bars.
+`tests/test_universe_scan.py` runs the scan's `main()` end to end on a gappy
+panel. Suite 291 → 301.
+
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;

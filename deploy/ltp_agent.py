@@ -226,7 +226,16 @@ def anchor_peak(cfg: "AgentConfig", state: dict) -> float:
 
 # ------------------------------------------------------------------- fitting --
 def fetch_panel(broker: RapidXBroker, symbols: list[str],
-                cfg: AgentConfig) -> pd.DataFrame:
+                cfg: AgentConfig, align: str = "all") -> pd.DataFrame:
+    """Log closes for `symbols`, one column each.
+
+    `align="all"` (the default, and the only behaviour before 2026-09-30) keeps
+    only the rows where EVERY symbol has a bar. That is safe for callers that
+    index the whole panel positionally, and wrong for selection: one young or
+    market-hours symbol shortens every pair. `align="pairwise"` returns the
+    outer join and leaves alignment to the pair -- see `pair_frame` and
+    SelectionConfig.align_pairs.
+    """
     frames = {}
     for s in symbols:
         df = broker.klines(s, cfg.interval, cfg.lookback_bars)
@@ -236,8 +245,56 @@ def fetch_panel(broker: RapidXBroker, symbols: list[str],
             log(f"  data: {s} has {len(df)} bars, excluded this refit")
     if not frames:
         return pd.DataFrame()
-    panel = pd.DataFrame(frames).dropna()
+    panel = pd.DataFrame(frames)
+    if align == "all":
+        panel = panel.dropna()
     return np.log(panel)
+
+
+def pair_frame(logp: pd.DataFrame, a: str, b: str) -> pd.DataFrame:
+    """The rows where both legs of one pair have data -- that pair's history,
+    independent of every other symbol on the panel."""
+    return logp[[a, b]].dropna()
+
+
+def orient(logp: pd.DataFrame, a: str, b: str) -> tuple[str, str]:
+    """The live orientation rule: the MORE volatile leg is the dependent
+    variable. Measured on the pair's own overlap, so the answer cannot depend
+    on which other symbols happened to be fetched."""
+    p = pair_frame(logp, a, b)
+    return ((a, b) if np.std(np.diff(p[a].values)) >= np.std(np.diff(p[b].values))
+            else (b, a))
+
+
+def selection_config(cfg: AgentConfig) -> SelectionConfig:
+    """The gate the agent applies at refit -- defined ONCE, so the universe
+    scan tests exactly what the agent trades on. Pairs are aligned on their
+    own legs, and need at least half the lookback of overlap, the same floor
+    `fetch_panel` applies to a single symbol."""
+    return SelectionConfig(
+        fdr_q=cfg.fdr_q,
+        min_half_life=cfg.min_half_life,
+        max_half_life=cfg.max_half_life,
+        periods_per_year=cfg.bars_per_year,
+        min_crossings_per_year=8.0 * (cfg.bars_per_year / 252),  # same density
+        min_abs_beta=cfg.min_abs_beta,
+        max_abs_beta=cfg.max_abs_beta,
+        align_pairs=True,
+        min_pair_obs=cfg.lookback_bars // 2,
+    )
+
+
+def panel_summary(logp: pd.DataFrame, requested: list[str]) -> dict:
+    """What the refit actually saw. `complete_bars` is what the pre-2026-09-30
+    inner join would have kept; equal to `bars`, pairwise alignment changed
+    nothing that day."""
+    idx = logp.index
+    return {"bars": int(len(logp)),
+            "complete_bars": int(len(logp.dropna())),
+            "first": str(idx[0]) if len(idx) else None,
+            "last": str(idx[-1]) if len(idx) else None,
+            "symbols": int(logp.shape[1]),
+            "excluded": sorted(set(requested) - set(logp.columns))}
 
 
 def _num(x) -> float | None:
@@ -250,7 +307,8 @@ def _num(x) -> float | None:
     return v if np.isfinite(v) else None
 
 
-def candidate_records(table: pd.DataFrame, cfg: AgentConfig) -> list[dict]:
+def candidate_records(table: pd.DataFrame, cfg: AgentConfig,
+                      logp: pd.DataFrame | None = None) -> list[dict]:
     """One compact record per tested candidate, passed or not.
 
     The refit record carried survivors only, and the rejection counts lived in
@@ -276,6 +334,10 @@ def candidate_records(table: pd.DataFrame, cfg: AgentConfig) -> list[dict]:
             "crossings": (None if _num(r.get("crossings")) is None
                           else int(r.get("crossings"))),
             "beta": _num(r.get("beta")),
+            # The rows this pair was actually tested on (its own overlap).
+            "bars": (None if logp is None or r.a not in logp.columns
+                     or r.b not in logp.columns
+                     else int(len(pair_frame(logp, r.a, r.b)))),
         })
     return out
 
@@ -284,10 +346,14 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict,
           analyst=None) -> None:
     """Weekly-refit equivalent: selection + OU fit + cost-aware bands."""
     symbols = sorted({t for p in CANDIDATES for t in p})
-    logp = fetch_panel(broker, symbols, cfg)
+    logp = fetch_panel(broker, symbols, cfg, align="pairwise")
     if logp.empty:
         log("refit: no data panel, keeping previous fits")
         return
+    panel = panel_summary(logp, symbols)
+    if panel["complete_bars"] < panel["bars"]:
+        log(f"refit: panel {panel['bars']} bars, {panel['complete_bars']} "
+            f"complete across all symbols -- pairs aligned on their own legs")
 
     # Canonical orientation. Engle-Granger is not symmetric: regressing A on B
     # is a different test from B on A, so the order a pair happens to be typed
@@ -298,20 +364,10 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict,
     # series is the regressor. That is the standard errors-in-variables
     # mitigation -- noise in a regressor attenuates beta -- and because the
     # rule never inspects a p-value it adds no multiple testing at all.
-    usable = [(a, b) if np.std(np.diff(logp[a].values)) >=
-                        np.std(np.diff(logp[b].values)) else (b, a)
-              for a, b in CANDIDATES
+    # Measured on each pair's own overlap (`orient`), as is everything below.
+    usable = [orient(logp, a, b) for a, b in CANDIDATES
               if a in logp.columns and b in logp.columns]
-    sel_cfg = SelectionConfig(
-        fdr_q=cfg.fdr_q,
-        min_half_life=cfg.min_half_life,
-        max_half_life=cfg.max_half_life,
-        periods_per_year=cfg.bars_per_year,
-        min_crossings_per_year=8.0 * (cfg.bars_per_year / 252),  # same density
-        min_abs_beta=cfg.min_abs_beta,
-        max_abs_beta=cfg.max_abs_beta,
-    )
-    table = select_pairs(logp, candidates=usable, cfg=sel_cfg)
+    table = select_pairs(logp, candidates=usable, cfg=selection_config(cfg))
     passed = table[table.passed]
     reject_counts: dict = {}
     log(f"refit: {len(passed)}/{len(table)} candidates pass the gate")
@@ -325,18 +381,20 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict,
     fits = {}
     for _, row in passed.iterrows():
         a, b = row.a, row.b
-        m = fit_spread_model(logp[a].values, logp[b].values)
+        pf = pair_frame(logp, a, b)
+        la, lb = pf[a].values, pf[b].values
+        m = fit_spread_model(la, lb)
         roundtrip = 2.0 * cfg.taker_fee * (1.0 + abs(m.beta))
         # n_obs is the window the OU was fitted on, so the optimiser refuses
         # entry bands sitting inside the uncertainty of the fitted mean. This
         # binds on slow-reverting pairs (a 267h half-life on 960 bars leaves
         # the mean known only to ~0.9 sigma) and is inert on the fast ones.
-        bands = optimal_bands(m.ou, roundtrip, n_obs=len(logp[a].values),
+        bands = optimal_bands(m.ou, roundtrip, n_obs=len(la),
                               min_entry_se=cfg.min_entry_se)
         if not bands.tradeable:
             log(f"  {a.split('_')[2]}/{b.split('_')[2]}: costs eat the edge, skipped")
             continue
-        spread = logp[a].values - m.beta * logp[b].values
+        spread = la - m.beta * lb
         fits[f"{a}|{b}"] = {
             "a": a, "b": b, "beta": m.beta,
             "half_life": m.ou.half_life,
@@ -381,8 +439,9 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict,
         beta0 = o.get("entry_beta")
         if o.get("side", 0) != 0 and beta0 is not None:
             a, b = fits[k]["a"], fits[k]["b"]
+            pf = pair_frame(logp, a, b)
             state["pairs"][k]["mu_entry_beta"] = window_mean_on_beta(
-                logp[a].values, logp[b].values, beta0, fits[k]["half_life"])
+                pf[a].values, pf[b].values, beta0, fits[k]["half_life"])
             state["pairs"][k]["mu_entry_beta_basis"] = beta0
 
     # anything dropped by the refit gets flattened by the trade step
@@ -404,7 +463,10 @@ def refit(broker: RapidXBroker, cfg: AgentConfig, state: dict,
            # Why the others failed -- previously only in the journal, which
            # rotates -- and, per candidate, which END of each band.
            rejects=reject_counts,
-           candidates=candidate_records(table, cfg))
+           candidates=candidate_records(table, cfg, logp),
+           # What the refit saw: bar count, span, and what the old all-symbol
+           # join would have kept (see `panel_summary`).
+           panel=panel)
 
     # STRATEGY ADAPTATION (Track A reasoning audit): the organizer LLM reads
     # today's selection outcome and records an honest account of how the
