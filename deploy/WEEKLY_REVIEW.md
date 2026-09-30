@@ -6571,9 +6571,11 @@ moves it one earlier).
 
 **The restart's startup bar exited the open position.** 1000SHIB/DOGE, short
 spread, **exit at 19:54:43, z −0.06, `reverted`**. At 19:00 the hourly bar
-read z +0.13 and held. By 19:53 z was −0.03, already past the 0.0 exit band,
-so the 20:00 bar would almost certainly have closed it five minutes later. The
-cost is small — about +1.0 unrealised closed as a trade; equity 1004.85 →
+read z +0.13 and held. By 19:53 z was −0.03, just past the 0.0 exit band —
+**but at 19:57 it was back at +0.04**, so whether the 20:00 bar would have
+exited is genuinely unknown; I first wrote "almost certainly" and the next
+reading corrected it. The restart's decision may have differed from the
+schedule's. The cost is small — about +1.0 unrealised closed as a trade; equity 1004.85 →
 1004.21 after fees. **But it is a decision the restart made, not the schedule,
 and it sits in the published reasoning at an off-hour timestamp.** Anyone
 auditing the Reasoning Log should read it as the restart's startup bar.
@@ -6586,8 +6588,8 @@ band. Added now: also not within ~0.3 of a held pair's exit band.
 A `status.py` run at 19:55:03 still showed the pair SHORT-SPREAD, hold 34, bar
 540, while the venue showed flat. That is the startup bar still closing the
 second leg (operations at 19:54 and 19:55) before `save_state`, not a
-divergence. A re-read was requested to confirm FLAT, hold 0, bar 541, and
-`reconcile_positions` would clear a stale side at the next bar regardless.
+divergence. **Confirmed at 19:57:53: FLAT, hold 0, bar 541, no open
+positions** — the state saved as it should.
 
 ---
 
