@@ -6593,6 +6593,36 @@ positions** — the state saved as it should.
 
 ---
 
+## 2026-10-01 — the live panel was never truncated; 0/15 and flat
+
+The first `refit` record carrying `panel`, 2026-10-01 07:00:58:
+
+```
+bars 960   complete_bars 960   symbols 30   excluded []   2026-08-22 08:00 -> 2026-10-01 07:00
+```
+
+**The live 30-symbol panel was complete — the alignment change altered nothing
+about live trading,** exactly as the equivalence test predicted. Its value is
+entirely prospective: any future `CANDIDATES` change no longer shortens every
+pair's history.
+
+**The refit passed 0/15.** 1000SHIB/DOGE dropped out; the book is flat with an
+empty universe, equity **1004.28**, peak 1013.16, banked MDD (since 09-29) 1.46%.
+Refit hour ~07:00 UTC.
+
+**The 09-30 restart exit, bounded after all.** After 19:54 z stayed inside
+±0.6 (no re-entry) and read **−0.10 at 05:00** — an exit for the short spread —
+and the 07:00 refit would have dropped the pair regardless. So the scheduled path
+closes the same position within ~9 hours; the restart moved the timing and a
+small price difference, not the decision. Corrects the "unknown" written on
+09-30 to "bounded, small".
+
+**For the 10-04 prep:** the per-stop and macro analyses need a fresh Phase II
+export — the published slice ends 09-30 19:10. Ask the operator to run step 0's
+export on Sunday before the review.
+
+---
+
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
 
 > **STATUS 2026-09-08, read this before the list.** The build window closed and
