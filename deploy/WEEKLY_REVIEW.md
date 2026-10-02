@@ -162,6 +162,10 @@ Hard exit: **equity < 800 USDT** → forced liquidation and elimination.
 - Self ranking: `GET {LTP_API_HOST}/api/v1/tracka/ranking/self?phase=PHASE_II`
   (V2 signature: `X-MBX-APIKEY`, `nonce`, `signature`; portfolioId derives from
   the key). Error 30016 = wrong key or T+1 data not ready.
+- **Rate limits, Phase II** (organizer, Technical Support, 2026-10-02): **20 requests/second per portfolio** for placing or
+  querying orders, **same on Binance and OKX**; no batch place/cancel; `DELETE /api/v1/trading/cancelAll` at 5/s. The
+  UAT figures (1 order per 5 s, 3 reads per 10 s) no longer apply. Our load — two legs per decision, ~4 mark reads per
+  5-minute sample — is orders of magnitude below it.
 - AI spend: `GET https://ai.ltp-contest.com/key/info` → `spend` field. The
   budget period rolls at **00:00 GMT+8 = 16:00 UTC** — the competition day, not
   the UTC day. Confirmed by direct observation across the boundary 2026-09-08.

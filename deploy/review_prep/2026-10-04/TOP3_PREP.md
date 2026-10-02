@@ -92,6 +92,9 @@ threshold, only sooner, so it forbids no entries. Its two unknowns:
    inside the hour it may have touched 3.5. A monitor would have cut it at
    roughly −3 to −4.
 
+**Rate limits are not a constraint** (organizer, 10-02: 20 requests/s per portfolio,
+both venues): a firing is two close orders; sampling is ~4 reads per 5 minutes.
+
 **`z_sample` (live since 09-29) measures both, but only while a position is
 held near its stop** — which is rare, so the evidence may not arrive before
 11-04.
