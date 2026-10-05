@@ -1851,7 +1851,7 @@ section existed; that is what it is for.
 | ~~**DECIDE the automation budget (operator).**~~ **DECIDED 2026-10-05: 12000**, on the recommendation. `maxTotalNotional` is cumulative opening flow per 24h session (~3.8 entries a day at 4000), not the concurrent exposure the code comment and the consent text describe. Recommendation 12000 via `LTP_AUTOMATION_MAX_TOTAL`, with the consent text rewritten by the operator — **the agent must never author that text** | 2026-10-05 | closed — the env edit is a step of the deploy row |
 | **REVISIT sizing (decision 4)** — deferred, not closed, at the week 9 review. New argument: the gap to 3rd/4th is return, which sizing scales. Against: t = 0.84 over 28 trips, and the overshoot and half-open hazards both scale with size | 2026-10-05 | **week 10 review, and only once fixes 2 and 3 are live** |
 | ~~**`deploy/README_ltp.md`'s consent-text example is stale**~~ **DONE 2026-10-05** — the sample sentence is replaced by what the text must name. — it says "max 500 USDT per order" (the cap went to 1000 in July) and "4000 USDT total automated exposure", which is not what the venue enforces | 2026-10-05 | closed |
-| **DEPLOY fixes 2 and 3 + the 12000 budget.** Two files, **never one**: `deploy/ltp_agent.py` and `deploy/ltp_broker.py` — the new agent with the old broker runs, then raises `AttributeError: budget_left` at every entry signal, caught as `bar_error`, and never enters again. On the droplet: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py deploy/ltp_broker.py`; the check `.venv/bin/python -c "from deploy.ltp_broker import RapidXBroker; from deploy.ltp_agent import AgentConfig, intrabar_stop; print(RapidXBroker().budget_left(), AgentConfig().intrabar_stop)"` must print **`None True`**; then the operator edits `/root/ltp.env` by hand — `LTP_AUTOMATION_MAX_TOTAL=12000` and `LTP_AUTOMATION_CONSENT_TEXT` rewritten in their own words, **never pasted into chat** — and checks `( set -a; source /root/ltp.env; set +a; .venv/bin/python -c "from deploy.ltp_agent import automation_max_total; print(automation_max_total())" )` prints **12000**; then `systemctl restart ltp-agent`. **Verify** in the journal: `self-check PASS` and `automation session ras_… (opening budget 12000 per session)`. The restart moves the refit hour one earlier (~07:00 → ~06:00 UTC) | 2026-10-05 | **next operator session that meets the restart conditions** — the book is flat, so: between :10 and :50 past the hour, clear of announced maintenance windows |
+| ~~**DEPLOY fixes 2 and 3 + the 12000 budget.**~~ **DONE 2026-10-05 03:19:59 UTC, verified** — check printed `None True`, env printed `12000`, `self-check PASS`, `automation session ras_59c1d803-… (opening budget 12000 per session)`; pid 129816, flat, bar 646. Original: Two files, **never one**: `deploy/ltp_agent.py` and `deploy/ltp_broker.py` — the new agent with the old broker runs, then raises `AttributeError: budget_left` at every entry signal, caught as `bar_error`, and never enters again. On the droplet: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py deploy/ltp_broker.py`; the check `.venv/bin/python -c "from deploy.ltp_broker import RapidXBroker; from deploy.ltp_agent import AgentConfig, intrabar_stop; print(RapidXBroker().budget_left(), AgentConfig().intrabar_stop)"` must print **`None True`**; then the operator edits `/root/ltp.env` by hand — `LTP_AUTOMATION_MAX_TOTAL=12000` and `LTP_AUTOMATION_CONSENT_TEXT` rewritten in their own words, **never pasted into chat** — and checks `( set -a; source /root/ltp.env; set +a; .venv/bin/python -c "from deploy.ltp_agent import automation_max_total; print(automation_max_total())" )` prints **12000**; then `systemctl restart ltp-agent`. **Verify** in the journal: `self-check PASS` and `automation session ras_… (opening budget 12000 per session)`. The restart moves the refit hour one earlier (~07:00 → ~06:00 UTC) | 2026-10-05 | closed — **first intra-bar firing, if any, is audited at the week 10 review** |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
 > *below* the closing horizontal rule since 2026-08-09 — outside the table, where
@@ -6911,6 +6911,38 @@ imports cleanly and runs, then raises `AttributeError: budget_left` at the first
 entry signal — inside `trade_step`, so it is caught as a `bar_error` every bar
 and **no entry is ever taken again, silently.** The deploy therefore carries both
 files and its check CALLS `RapidXBroker().budget_left()`.
+
+---
+
+## 2026-10-05 03:20 UTC — fixes 2 and 3 deployed, budget 12000 live
+
+```
+03:13   status        flat, pid 73940, bar 645 -- restart conditions met (flat, :13, no window)
+        checkout      deploy/ltp_agent.py + deploy/ltp_broker.py from 11e36d4
+        check         None True          (new broker present; intra-bar stop on)
+        env           LTP_AUTOMATION_MAX_TOTAL=12000, consent text rewritten by the operator
+                      -> automation_max_total() printed 12000
+03:19:59 restart
+03:20:06 self-check PASS; news stream live
+03:20:07 automation session ras_59c1d803-... (opening budget 12000 per session)
+03:20:54 status       pid 129816, restarts 0, flat, bar 646, equity 1020.60
+```
+
+**Refit hour now ~06:00 UTC** (the restart moved it one earlier, as every
+restart does). Nothing about the startup bar traded: the book was flat and the
+universe empty.
+
+**The budget inference gained independent evidence.** The pre-restart journal
+shows the session renewing at **10-03 19:00:05** and **10-04 19:00:05** —
+until now the renewal hour was inferred from the 24h-and-at-the-bar rule. So
+10-03's 18:00 entry was refused inside the old session and 19:00's went through
+in a fresh one, exactly as the cumulative-budget reading requires.
+
+**Operator note, recorded so it is not re-derived:** the droplet's login banner
+now offers Ubuntu **26.04** (`do-release-upgrade`). **Do not take it before
+11-04** — a major-release upgrade mid-competition risks the venv and the RapidX
+CLI for no gain. The 15 ordinary updates plus a reboot on a flat book remain
+fine at any time.
 
 ---
 
