@@ -121,7 +121,8 @@ def test_a_sample_logs_z_three_ways_and_changes_nothing(ledger_file):
     assert rec["pair"] == "1000SHIB/DOGE" and rec["side"] == -1
     assert rec["stop_z"] == 3.5
     # Past the stop, and it did NOTHING: no order (the broker would have
-    # raised), no state change -- the stop fires only on the hourly bar.
+    # raised), no state change. Acting on a sample is `intrabar_stop`'s job
+    # (2026-10-05, tests/test_ltp_intrabar_stop.py), never the sampler's.
     assert state == before
     assert _records(ledger_file, "stop") == []
 

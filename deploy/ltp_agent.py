@@ -140,13 +140,22 @@ class AgentConfig:
     initial_equity: float = 1000.0
     # Minutes before an announced venue maintenance window to go flat.
     maintenance_lead_minutes: int = 30
-    # READ-ONLY INSTRUMENTATION (2026-09-27, week 8). Neither field changes a
-    # trading decision; both change only what is logged.
+    # READ-ONLY INSTRUMENTATION (2026-09-27, week 8). As built, neither field
+    # changed a trading decision. Since 2026-10-05 the sampling cadence is
+    # also the intra-bar stop's cadence (below), so z_sample_minutes now does.
     # Minutes between `z_sample` records on OPEN positions, between hourly
-    # bars. The stop still fires only on the hourly bar -- the samples record
-    # WHEN a spread crossed, which four overshooting stops (3.76, 4.13, 5.38
-    # among them) could not tell us. 0 disables.
+    # bars. The samples record WHEN a spread crossed, which four overshooting
+    # stops (3.76, 4.13, 5.38 among them) could not tell us. 0 disables -- and
+    # with it the intra-bar stop below, which acts on the same readings.
     z_sample_minutes: int = 5
+    # THE INTRA-BAR STOP (2026-10-05, week 9). The hourly stop's own rule --
+    # held, and z past `stop_z` on the held side -- checked on every sample
+    # instead of only at the bar. Six Phase II stops overshot 3.5 by ~8.5
+    # USDT in all, waiting for the top of the hour (09-26: 2.90 -> 5.38 inside
+    # one bar). Same threshold, so it forbids no entries; it fires sooner.
+    # Reverses the 2026-09-13 decision to drop the monitor. See
+    # LTP_STRATEGY.md, addendum 2026-10-05.
+    intrabar_stop: bool = True
     # Bars in the counterfactual sigma logged beside the live one, whose window
     # is int(max(3*half_life, 24)) and so moves with the fitted half-life.
     # Task 05 found window and half-life collinear (r = +0.9996), so only a
@@ -157,6 +166,30 @@ class AgentConfig:
 def log(msg: str) -> None:
     print(f"{datetime.now(timezone.utc).isoformat(timespec='seconds')} {msg}",
           flush=True)
+
+
+# The automation session's budget of OPENING notional, per 24h session. Not a
+# cap on exposure: the venue counts each opening order's `maxNotional` ceiling
+# cumulatively, and closes do not count (`RapidXBroker.budget_left`). At 4000
+# it held ~3.8 entries a session, refused a hedge leg on 2026-10-03 and left a
+# naked 1000SHIB short for an hour. It lives in the environment beside
+# LTP_AUTOMATION_CONSENT_TEXT, which names it, so the number and the human's
+# consent cannot drift apart. Unset keeps the original 4000.
+DEFAULT_AUTOMATION_MAX_TOTAL = "4000"
+
+
+def automation_max_total(env: dict | None = None) -> str:
+    """LTP_AUTOMATION_MAX_TOTAL, validated. Raises ValueError on anything that
+    is not a positive number, so a typo stops the agent at startup -- loudly,
+    once -- instead of failing every session start."""
+    env = os.environ if env is None else env
+    raw = str(env.get("LTP_AUTOMATION_MAX_TOTAL", "") or "").strip()
+    if not raw:
+        return DEFAULT_AUTOMATION_MAX_TOTAL
+    value = float(raw)                    # ValueError on garbage, by design
+    if not np.isfinite(value) or value <= 0:
+        raise ValueError(f"LTP_AUTOMATION_MAX_TOTAL must be positive: {raw!r}")
+    return str(int(value)) if value == int(value) else str(value)
 
 
 _LEDGER_PATH = "deploy/ltp_ledger.jsonl"
@@ -500,6 +533,133 @@ def leg_close(broker: RapidXBroker, pair: dict, nav: float,
     pair["side"], pair["hold"] = 0, 0
 
 
+def stop_crossed(side: int, z: float, stop_z: float) -> bool:
+    """THE stop rule, in one place: a held side whose spread has moved past
+    `stop_z` against it. The hourly bar and the intra-bar check both call
+    this, so 'the same rule, sooner' is true by construction, not by two
+    copies agreeing."""
+    return (side > 0 and z < -stop_z) or (side < 0 and z > stop_z)
+
+
+def stop_position(broker: RapidXBroker, cfg: AgentConfig, pair: dict,
+                  short_name: str, z: float, spread: float, frame: dict,
+                  price_a: float, price_b: float, nav: float, dry: bool,
+                  trigger: str) -> None:
+    """Record, close and block: what a stop does, from either trigger.
+
+    `trigger` is "bar" for the hourly check and "intrabar" for a five-minute
+    sample. Everything else is identical on purpose -- the same record, the
+    same close path, the same one-sided block (invariant 4) -- so an intra-bar
+    stop differs from an hourly one only in WHEN it happened."""
+    side = pair["side"]
+    when = ("" if trigger == "bar" else
+            "Between hourly bars, a five-minute reading put the spread past "
+            "the stop, so it is acted on at the reading rather than at the top "
+            "of the hour, where the loss would be wherever the spread had "
+            "travelled by then. ")
+    log(f"  {short_name}: Z-STOP ({trigger}) z={z:+.2f}, closing + blocking side")
+    ledger("stop", pair=short_name, side=side, z=z, trigger=trigger,
+           z_fixed=fixed_window_z(pair, spread),
+           hold_bars=pair.get("hold", 0), price_a=price_a,
+           price_b=price_b, nav=nav, dry=dry, **frame,
+           reasoning=(f"{when}Spread blew past the structural-break stop "
+                      f"(z={z:+.2f} vs stop {cfg.stop_z}). The working "
+                      f"hypothesis flips from 'temporarily stretched' "
+                      f"to 'relationship broke'; position cut and this "
+                      f"side blocked until z heals inside the entry "
+                      f"band — never average into a broken spring."))
+    leg_close(broker, pair, nav, dry, decision="stop")
+    pair["blocked"] = +1 if side > 0 else -1
+
+
+def unwind_legs(broker: RapidXBroker, legs: list[tuple[str, str]],
+                nav: float) -> dict[str, str]:
+    """Close whatever of a failed entry is live, leg by leg, and say what
+    happened to each. `close_position` asks the venue first and returns None
+    on a flat symbol, so unwinding a leg that never filled costs one read and
+    no order. Never raises: a leg it cannot close is reported, and the next
+    bar's `reconcile_positions` -- which caught 2026-10-03's naked leg an hour
+    late -- remains the backstop."""
+    out: dict[str, str] = {}
+    for sym, pos_side in legs:
+        try:
+            done = broker.close_position(sym, pos_side, max_notional=2 * nav)
+            out[sym] = "was_flat" if done is None else "closed"
+        except Exception as exc:          # noqa: BLE001 -- report, don't raise
+            out[sym] = f"FAILED: {type(exc).__name__}: {exc}"[:300]
+    return out
+
+
+def place_entry(broker: RapidXBroker, pair: dict, want: int, qa: float,
+                qb: float, g: float, ts: int, short_name: str,
+                nav: float) -> bool:
+    """Open both legs of a pair, or end the bar holding neither.
+
+    Before 2026-10-05 the two orders were placed back to back with nothing
+    between them. On 2026-10-03 15:00 leg a (a ~509 USDT 1000SHIB short)
+    filled, leg b was refused -- `RCLI26005 automation maxTotalNotional
+    exceeded` -- and the exception unwound the whole bar before the state
+    recorded anything. The agent believed it was flat; the venue held a naked
+    memecoin short until the next bar's reconcile closed it. It cost nothing
+    that hour. A 5% move would have cost more than any stop of the phase.
+
+    Now: a leg-a failure closes anything leg a may have opened (a timeout can
+    hide a fill) and records `entry_failed`; a leg-b failure closes leg a --
+    and leg b, in case it filled before failing -- and records
+    `entry_unwound`. Either way the pair stays flat and unblocked: nothing
+    about the spread failed, the plumbing did. Failures are contained to this
+    pair, so one pair's refused order no longer skips every later pair's stop
+    and exit checks for the bar. Returns True only when both legs were placed.
+    """
+    a, b = pair["a"], pair["b"]
+    side_a = "LONG" if want > 0 else "SHORT"
+    side_b = "SHORT" if want > 0 else "LONG"
+    broker.op_context = {"decision": "enter", "pair": short_name}
+    try:
+        try:
+            broker.place_market(a, "BUY" if want > 0 else "SELL", side_a,
+                                qa, max_notional=1.1 * g,
+                                client_order_id=f"ou-{ts}-a")
+        except Exception as exc:          # noqa: BLE001 -- contained per pair
+            log(f"  {short_name}: entry leg a failed ({exc}); unwinding")
+            broker.op_context = {"decision": "entry_failed", "pair": short_name}
+            legs = unwind_legs(broker, [(a, side_a)], nav)
+            ledger("entry_failed", pair=short_name, side=want, failed_leg="a",
+                   symbol=a, error=f"{type(exc).__name__}: {exc}"[:500],
+                   unwind=legs, nav=nav,
+                   reasoning=(f"The entry decided above could not be opened: "
+                              f"the first leg ({base_asset(a)}) was refused "
+                              f"({exc}). No position is held -- the unwind "
+                              f"checked the venue and closes anything the "
+                              f"failed order may still have opened. The "
+                              f"signal is unchanged; the pair stays eligible "
+                              f"at the next bar."))
+            return False
+        try:
+            broker.place_market(b, "SELL" if want > 0 else "BUY", side_b,
+                                qb, max_notional=1.1 * abs(pair["beta"]) * g,
+                                client_order_id=f"ou-{ts}-b")
+        except Exception as exc:          # noqa: BLE001 -- contained per pair
+            log(f"  {short_name}: entry leg b failed ({exc}); closing leg a "
+                f"now rather than at the next bar's reconcile")
+            broker.op_context = {"decision": "entry_unwound", "pair": short_name}
+            legs = unwind_legs(broker, [(a, side_a), (b, side_b)], nav)
+            ledger("entry_unwound", pair=short_name, side=want, failed_leg="b",
+                   symbol=b, error=f"{type(exc).__name__}: {exc}"[:500],
+                   unwind=legs, nav=nav,
+                   reasoning=(f"The first leg ({base_asset(a)}) filled but "
+                              f"the hedge leg ({base_asset(b)}) was refused "
+                              f"({exc}). One leg of a pair is a naked "
+                              f"directional position in a book whose premise "
+                              f"is being hedged, so it is closed in the same "
+                              f"bar instead of waiting an hour for the "
+                              f"reconcile. The pair stays flat and eligible."))
+            return False
+        return True
+    finally:
+        broker.op_context = {}
+
+
 def entry_frame(pair: dict, spread: float,
                 log_a: float | None = None,
                 log_b: float | None = None) -> dict:
@@ -654,7 +814,7 @@ def next_wake(now: float, deadline: float, sample_s: float) -> tuple[float, bool
 
 
 def sample_open_positions(broker: RapidXBroker, cfg: AgentConfig,
-                          state: dict) -> int:
+                          state: dict, readings: dict | None = None) -> int:
     """Log z for every OPEN position between hourly bars. Read-only.
 
     Four stops have now overshot the 3.5 band between hourly readings -- 3.76,
@@ -666,7 +826,11 @@ def sample_open_positions(broker: RapidXBroker, cfg: AgentConfig,
 
     **It never acts.** A sample at z = 5 logs z = 5 and nothing else: no
     order, no stop, no change to `side`, `hold`, `blocked` or any other state.
-    The stop still fires only on the hourly bar. Each record carries z three
+    Acting on a sample is `intrabar_stop`'s job (2026-10-05), a separate
+    function the loop calls afterwards, so this one's contract -- and its test
+    -- stay exactly as they were. When given a `readings` dict it fills it
+    with what it measured, so the stop acts on the very reading that was
+    logged rather than on a second price read. Each record carries z three
     ways -- the live frame the stop uses, the frame the position was opened
     in, and the fixed-window counterfactual -- plus the two prices, so any of
     them can be rebuilt later. Any failure costs one sample, never the loop.
@@ -684,17 +848,81 @@ def sample_open_positions(broker: RapidXBroker, cfg: AgentConfig,
                 continue
             spread = la - pair["beta"] * lb
             frame = entry_frame(pair, spread, la, lb)
+            z = float((spread - pair["mu"]) / pair["sigma"])
             ledger("z_sample", pair=f"{a.split('_')[2]}/{b.split('_')[2]}",
-                   side=pair["side"],
-                   z=float((spread - pair["mu"]) / pair["sigma"]),
+                   side=pair["side"], z=z,
                    z_entry=frame.get("z_in_entry_coords"),
                    z_fixed=fixed_window_z(pair, spread),
                    price_a=pa, price_b=pb, hold_bars=pair.get("hold", 0),
                    stop_z=cfg.stop_z)
             n += 1
+            if readings is not None:
+                readings[key] = {"z": z, "spread": spread, "frame": frame,
+                                 "price_a": pa, "price_b": pb,
+                                 "side": pair["side"]}
         except Exception as exc:          # noqa: BLE001 -- a sample is optional
             log(f"  z_sample {key}: skipped ({type(exc).__name__}: {exc})")
     return n
+
+
+def intrabar_stop(broker: RapidXBroker, cfg: AgentConfig, state: dict,
+                  readings: dict, dry: bool) -> int:
+    """Act on a five-minute reading that has crossed the stop. Returns the
+    number of stops fired.
+
+    THE ONE NEW TRADING PATH OF 2026-10-05, and deliberately narrow. It fires
+    only on `stop_crossed` -- the hourly stop's own rule -- on the live-frame z
+    the sampler just logged, and only for a pair still held on the side that
+    was sampled. It then does exactly what the hourly stop does
+    (`stop_position`: record, close both legs, block the side). It never
+    enters, never exits on reversion, never touches the hold clock, and does
+    nothing while halted (the halted branch owns flattening).
+
+    Why act on one reading, as the bar does: a second-reading confirmation
+    adds five minutes on exactly the gap moves that cost most. Why it is safe
+    to be wrong: a false firing is one early exit at ~3.5, the price the
+    hourly stop would have charged had the bar landed there; the side then
+    heals as usual. Every firing is audited against the next bar's z.
+
+    A close that fails part-way leaves `side` set (leg_close clears it only
+    once both legs are done), so the next bar re-checks the stop on its own,
+    a close on an already-flat leg returns `no_position`, and reconcile
+    backstops. Failures are contained per pair -- one pair's failed close must
+    not stop another pair's stop -- and the bar is never delayed.
+    """
+    if not cfg.intrabar_stop or state.get("halted"):
+        return 0
+    fired = 0
+    nav = None
+    for key, r in readings.items():
+        pair = state.get("pairs", {}).get(key)
+        if pair is None or pair.get("side", 0) == 0:
+            continue
+        if pair["side"] != r["side"] or not stop_crossed(pair["side"], r["z"],
+                                                         cfg.stop_z):
+            continue
+        if nav is None:
+            # max_notional for the closes, and the record. A bad read (the
+            # same test the bar applies) falls back to the peak: the close
+            # ceiling only needs to be generous, never exact.
+            try:
+                nav = broker.equity_usdt()
+            except Exception:             # noqa: BLE001
+                nav = 0.0
+            peak = state.get("peak_equity", 0.0)
+            if nav <= 0 or (peak > 0 and nav < 0.5 * peak):
+                nav = peak
+        a, b = pair["a"], pair["b"]
+        try:
+            stop_position(broker, cfg, pair,
+                          f"{base_asset(a)}/{base_asset(b)}", r["z"],
+                          r["spread"], r["frame"], r["price_a"], r["price_b"],
+                          nav, dry, trigger="intrabar")
+            fired += 1
+        except Exception as exc:          # noqa: BLE001 -- the bar re-checks
+            log(f"  {key}: intra-bar stop close failed ({type(exc).__name__}: "
+                f"{exc}); the next bar re-checks the stop")
+    return fired
 
 
 def flatten_everything(broker: RapidXBroker, state: dict, nav: float,
@@ -1257,6 +1485,29 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                                       f"historical relationship holds; a structural "
                                       f"event invalidates that premise, so no entry."))
                     continue
+            # The automation session's opening budget (`budget_left`): an
+            # entry the session can hold only one leg of must not start, or it
+            # ends as 2026-10-03's naked leg. Checked against both ceilings
+            # exactly as `place_entry` will pass them, before any record of an
+            # entry exists -- so the ledger says "skipped, budget", not
+            # "entered" followed by a refusal.
+            left = None if dry else broker.budget_left()
+            need = round(1.1 * g, 2) + round(1.1 * abs(pair["beta"]) * g, 2)
+            if left is not None and need > left:
+                log(f"  {short_name}: entry skipped, automation budget "
+                    f"({need:.0f} needed, {left:.0f} left this session)")
+                ledger("skip", pair=short_name, reason="automation_budget",
+                       z=z, need=need, left=left, nav=nav,
+                       **screening_provenance(sentinel, assessment, a, b),
+                       reasoning=(
+                           f"Entry signal live (z={z:+.2f} beyond band "
+                           f"{pair['entry_z']:.2f}), but the venue's "
+                           f"automation session has {left:.0f} USDT of "
+                           f"opening budget left against {need:.0f} for both "
+                           f"legs. Opening one leg without its hedge would be "
+                           f"a naked directional bet, so neither is opened; "
+                           f"the budget renews with the daily session."))
+                continue
             ts = int(time.time())
             log(f"  {short_name}: ENTER {'long' if want > 0 else 'short'} spread "
                 f"z={z:+.2f} g={g:.1f} USDT")
@@ -1282,17 +1533,9 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                                  f"{assessment.get('regime')} — "
                                  f"{assessment.get('rationale', '')}"
                                  if assessment else "")))
-            if not dry:
-                broker.op_context = {"decision": "enter", "pair": short_name}
-                broker.place_market(a, "BUY" if want > 0 else "SELL",
-                                    "LONG" if want > 0 else "SHORT",
-                                    qa, max_notional=1.1 * g,
-                                    client_order_id=f"ou-{ts}-a")
-                broker.place_market(b, "SELL" if want > 0 else "BUY",
-                                    "SHORT" if want > 0 else "LONG",
-                                    qb, max_notional=1.1 * abs(pair["beta"]) * g,
-                                    client_order_id=f"ou-{ts}-b")
-                broker.op_context = {}
+            if not dry and not place_entry(broker, pair, want, qa, qb, g, ts,
+                                           short_name, nav):
+                continue                  # flat, recorded, next pair
             pair["side"], pair["hold"] = want, 0
             pair["notional"] = g
             # Snapshot the equilibrium this position was opened against. `mu`
@@ -1311,8 +1554,7 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
             gross += add
         else:
             pair["hold"] = pair.get("hold", 0) + 1
-            stopped = (side > 0 and z < -cfg.stop_z) or \
-                      (side < 0 and z > cfg.stop_z)
+            stopped = stop_crossed(side, z, cfg.stop_z)
             stale = pair["hold"] >= cfg.max_hold_mult * pair["half_life"]
             # Directional, not symmetric. A long spread was entered below the
             # mean and profits as z RISES, so it exits once z climbs back to
@@ -1327,19 +1569,8 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
             frame = entry_frame(pair, spread,
                                 np.log(prices[a]), np.log(prices[b]))
             if stopped:
-                log(f"  {short_name}: Z-STOP z={z:+.2f}, closing + blocking side")
-                ledger("stop", pair=short_name, side=side, z=z,
-                       z_fixed=fixed_window_z(pair, spread),
-                       hold_bars=pair["hold"], price_a=prices[a],
-                       price_b=prices[b], nav=nav, dry=dry, **frame,
-                       reasoning=(f"Spread blew past the structural-break stop "
-                                  f"(z={z:+.2f} vs stop {cfg.stop_z}). The working "
-                                  f"hypothesis flips from 'temporarily stretched' "
-                                  f"to 'relationship broke'; position cut and this "
-                                  f"side blocked until z heals inside the entry "
-                                  f"band — never average into a broken spring."))
-                leg_close(broker, pair, nav, dry, decision="stop")
-                pair["blocked"] = +1 if side > 0 else -1
+                stop_position(broker, cfg, pair, short_name, z, spread, frame,
+                              prices[a], prices[b], nav, dry, trigger="bar")
             elif reverted or stale:
                 why = "reverted" if reverted else "max_hold"
                 log(f"  {short_name}: EXIT z={z:+.2f} ({why})")
@@ -1382,6 +1613,11 @@ def main() -> None:
     log("self-check PASS")
 
     consent = os.environ.get("LTP_AUTOMATION_CONSENT_TEXT", "").strip()
+    try:
+        max_total = automation_max_total()
+    except ValueError as exc:
+        log(f"LTP_AUTOMATION_MAX_TOTAL is invalid ({exc}); refusing to start")
+        sys.exit(1)
     session_started = 0.0
 
     def ensure_session() -> None:
@@ -1395,13 +1631,16 @@ def main() -> None:
         # the hedge leg of a higher-beta pair scales with beta — so 500 was
         # below the ceiling and blocked legitimate orders (RCLI26005). 1000
         # clears both legs of the selected pairs and still sits under the 2x
-        # leverage limit. Total stays 4000 as a coarse net; the strategy's own
-        # gross cap (max_gross_mult=2x) is the real total-exposure limiter.
+        # leverage limit. The TOTAL is not what this comment used to say -- "a
+        # coarse net" on exposure. The venue counts it as cumulative OPENING
+        # notional per session (see DEFAULT_AUTOMATION_MAX_TOTAL), so it caps
+        # entries per day, not exposure. Exposure is capped by the strategy's
+        # gross limit (max_gross_mult=2x) and the symbols' 2x leverage.
         sid = broker.start_automation(
-            symbols, max_per_order="1000", max_total="4000",
+            symbols, max_per_order="1000", max_total=max_total,
             expires_s=24 * 3600, consent_text=consent)
         session_started = time.time()
-        log(f"automation session {sid}")
+        log(f"automation session {sid} (opening budget {max_total} per session)")
 
     if not args.dry_run and not consent:
         log("LTP_AUTOMATION_CONSENT_TEXT is not set. Automation consent "
@@ -1484,6 +1723,10 @@ def main() -> None:
                        analyst)
         except RapidXError as exc:
             log(f"bar error (will retry next bar): {exc}")
+            # Journal-only until 2026-10-05, so the published record showed
+            # two `enter` decisions on 10-03 with no orders and no reason --
+            # the cause (RCLI26005) existed only in a log that rotates.
+            ledger("bar_error", error_type="RapidXError", error=str(exc)[:500])
         except Exception as exc:
             # An always-on agent must not die on a data or model problem: a
             # single bad symbol (constant series, NaN, a numerical edge case
@@ -1525,10 +1768,19 @@ def main() -> None:
                 time.sleep(timeout)
             if is_sample and maintenance_state(
                     datetime.now(timezone.utc), windows, 0) != "active":
+                readings: dict = {}
                 try:
-                    sample_open_positions(broker, cfg, state)
+                    sample_open_positions(broker, cfg, state, readings)
                 except Exception as exc:      # noqa: BLE001 -- never the loop
                     log(f"z sampling error (ignored): {exc}")
+                # The intra-bar stop acts on what was just logged, and only
+                # writes state when it fired.
+                try:
+                    if intrabar_stop(broker, cfg, state, readings,
+                                     args.dry_run):
+                        save_state(cfg.state_path, state)
+                except Exception as exc:      # noqa: BLE001 -- the bar re-checks
+                    log(f"intra-bar stop error (the bar re-checks): {exc}")
 
 
 if __name__ == "__main__":

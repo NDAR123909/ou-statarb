@@ -1801,8 +1801,8 @@ section existed; that is what it is for.
 | **`ltp_stream.py:31` hardcodes `wss://feeds.ltp-contest.com`** — the contest domain, which the cutover moved *away* from everywhere else. No env change reaches it; if that domain is retired now production is live, `NewsStream` goes silent and only a code edit fixes it. Proposed change: an env lookup mirroring `ltp_news.py:50` | 2026-09-08 | needs the operator's go. Wait for one live news-gate reading first — if the gate is healthy, this is precautionary rather than urgent |
 | ~~**Verify `ltp_news.py`'s `FEEDS_BASE` against the production host** — it follows `LTP_API_HOST` so it moved with the cutover, but nothing has confirmed `api.liquiditytech.com` serves the feeds path at all~~ **CLOSED 2026-09-13 — this row was stale**, found on the 2026-09-23 cold start. Answered by the "Probe the news/feeds path" row below: the first Phase II entry passed through the production feeds path with `news_status: ok` | 2026-09-08 | closed |
 | ~~**`deploy/README_ltp.md:20` still documents the sandbox host**~~ **ALREADY FIXED — this row was stale.** Found 2026-09-16 while preparing the rotation: the setup block has carried `https://api.liquiditytech.com` with an explicit warning that the AI gateway did **not** move with it and the two domains must not be tidied to match. A *different* trap was live in that block, though — `rapidx self-check --read-only`, a flag CLI 1.0.45 removed — and that is now fixed too | 2026-09-08 | closed |
-| **Re-run `universe_scan.py`** now that ETH/BTC is actually fetched. The 2026-09-09 run's CURRENT line (`0/14`) excluded the pair carrying the book and cannot be quoted until this is done | 2026-09-09 | next droplet session, avoiding ~15:38 UTC (refit) |
-| **Rule out a data cause for the 0/54**, before "regime" is written down as fact. ETH\|BTC passed 09-07, then 0/15 and 0/54 within 36h — coinciding exactly with the host change. Compare klines from `api.liquiditytech.com` against a known 09-07 fit | 2026-09-09 | before any decision rests on the regime verdict |
+| ~~**Re-run `universe_scan.py`** now that ETH/BTC is actually fetched~~ **SUPERSEDED — stale row, closed at the week 9 review (2026-10-05).** Task 07's dispatch re-ran the scan on 2026-09-30 with 112/112 symbols fetched, and the scan itself was rebuilt the same day to test what the agent trades. Original: The 2026-09-09 run's CURRENT line (`0/14`) excluded the pair carrying the book and cannot be quoted until this is done | 2026-09-09 | closed |
+| ~~**Rule out a data cause for the 0/54**~~ **SUPERSEDED — stale row, closed at the week 9 review (2026-10-05).** The production host's data has since produced passes on both pairs (ETH/BTC 09-26 → 09-29, 1000SHIB/DOGE most days), and every refit since 10-01 records a complete 960/960 panel. Original: before "regime" is written down as fact. ETH\|BTC passed 09-07, then 0/15 and 0/54 within 36h — coinciding exactly with the host change | 2026-09-09 | closed |
 | ~~**Enumerate the orderable instrument set**~~ **PROBED 2026-09-10.** No listing action exists in any of the 53 capabilities — enumeration is a name-by-name probing exercise with `get-symbol-info` as the oracle. `OKX_PERP_CL_USDT` (WTI crude) is **live and reachable** | 2026-09-10 | closed as a question; the blocker below replaces it |
 | ~~**Chase `market.klines` for the OKX adapter**~~ **RESOLVED 2026-09-10** — we were on CLI **1.0.41**, three versions stale. `npm install -g @liquiditytech/rapidx-cli@latest` → 1.0.44, OKX klines return data. Binance path verified unchanged before restart | 2026-09-10 | closed |
 | ~~**DECIDE: stratified FDR**~~ **REJECTED 2026-09-12** on the evidence its own pre-committed test produced: `energy@BINANCE` is a stratum of ONE, where BH reduces to `p <= q` and applies no correction at all, while `memes` gets a genuine 6x. Stratifying by these groups chooses how much scrutiny each hypothesis faces. Invariant 3 stands | 2026-09-11 | closed. Re-opening needs an argument that survives the stratum-of-one objection |
@@ -1846,6 +1846,12 @@ section existed; that is what it is for.
 | ~~**DEPLOY the 2026-09-30 alignment change**~~ **DONE 2026-09-30 19:54 UTC** — check printed `True`, self-check PASS. **The startup bar exited the open position mid-hour** (see the 09-30 deploy entry). Refit hour now ~07:00 UTC; the `panel` check is due after the 10-01 refit. Original: — **three files together**: `statarb/selection.py`, `deploy/ltp_agent.py`, `deploy/universe_scan.py`. **Never the agent without `statarb/selection.py`:** the agent passes `align_pairs=` to `SelectionConfig`, so a half-deploy imports cleanly and then raises a `TypeError` at every refit — caught by the loop, so every fit silently freezes. The post-checkout check therefore CALLS the config, not just imports it: `.venv/bin/python -c "from deploy.ltp_agent import AgentConfig, selection_config; print(selection_config(AgentConfig()).align_pairs)"` must print `True`. Then `systemctl restart ltp-agent` under the 09-29 conditions (|z| < 2.5, :10–:50, clear of windows). **Verify at the next ~08:00 refit:** its record carries `panel`; if `complete_bars == bars` the change altered nothing that day, as expected for the 30-symbol panel | 2026-09-30 | next operator session that meets the conditions; before the 10-01 ~08:00 refit is ideal but not required |
 | ~~**The runbook and the export tool tell the operator to run `status.py` without loading the env.**~~ **DONE 2026-09-23**, same evening, on the operator's go — and it was **five** places, not two: the **daily glance in the standing context** (the worst, since `equity UNAVAILABLE` is on its escalate-immediately list), `CLAUDE.md` step 6, runbook step 0, the export's NOTE, and `status.py`'s docstring. All now give `( set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py )`. Pinned by `test_every_instruction_to_run_status_py_loads_the_env_first` and `test_the_staleness_note_gives_a_command_that_works`. Original row: On 2026-09-23 step 0's age warning fired as designed, the operator ran `.venv/bin/python deploy/status.py` in a fresh SSH shell, and equity, positions and AI spend all came back `UNAVAILABLE — RCLI01003 LTP_API_HOST is required`. The agent was fine; the shell had no `/root/ltp.env`. Both places — README step 0 and `export_phase_ledger.py`'s NOTE — should give `set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py`. (`status.py`'s own docstring says plain `source`, which does not export a shell-format file to a child process either) | 2026-09-23 | needs the operator's go; two strings and a docstring |
 | ~~**`CLAUDE.md` points a cold reader at the wrong places.** Its cold-start step 4 reads `track_record/ltp_state_history.jsonl`, which is **not on the working branch** — it lives on `live/track-record`. Also stale: the header's "Phase I runs to 2026-08-21" framing and "27 tests"~~ **DONE 2026-09-23**, same session, on the operator's go. Step 4 now gives the `git show origin/live/track-record:…` command and says `--show` works only on the droplet; header states Phase II; the test count is **dropped rather than updated**, since a copied count is a remembered number. Pinned by `test_every_track_record_file_claude_md_names_is_reachable_from_here` | 2026-09-23 | closed |
+| ~~**BUILD fix 3 — an entry is two legs or none.**~~ **BUILT 2026-10-05 as designed; NOT YET DEPLOYED — see the deploy row.** On 10-03 a leg b refused with `RCLI26005 automation maxTotalNotional exceeded` left a ~509 USDT naked 1000SHIB short for an hour, until the next bar's reconcile closed it. Design in the week 9 entry: (a) `bar_error` for `RapidXError`; (b) unwind leg a in the same bar if leg b fails, and contain entry failures per pair; (c) skip an entry the session budget cannot hold both legs of; (d) cap to the env | 2026-10-05 | built; the deploy row below carries it |
+| ~~**BUILD fix 2 — the intra-bar stop at 3.5**~~ **BUILT 2026-10-05 as designed; NOT YET DEPLOYED.** Acting on the 5-minute samples with the hourly stop's own predicate and blocking. Reverses the 2026-09-13 drop | 2026-10-05 | built; **audit every firing at the next review** against the following bar's z |
+| ~~**DECIDE the automation budget (operator).**~~ **DECIDED 2026-10-05: 12000**, on the recommendation. `maxTotalNotional` is cumulative opening flow per 24h session (~3.8 entries a day at 4000), not the concurrent exposure the code comment and the consent text describe. Recommendation 12000 via `LTP_AUTOMATION_MAX_TOTAL`, with the consent text rewritten by the operator — **the agent must never author that text** | 2026-10-05 | closed — the env edit is a step of the deploy row |
+| **REVISIT sizing (decision 4)** — deferred, not closed, at the week 9 review. New argument: the gap to 3rd/4th is return, which sizing scales. Against: t = 0.84 over 28 trips, and the overshoot and half-open hazards both scale with size | 2026-10-05 | **week 10 review, and only once fixes 2 and 3 are live** |
+| ~~**`deploy/README_ltp.md`'s consent-text example is stale**~~ **DONE 2026-10-05** — the sample sentence is replaced by what the text must name. — it says "max 500 USDT per order" (the cap went to 1000 in July) and "4000 USDT total automated exposure", which is not what the venue enforces | 2026-10-05 | closed |
+| ~~**DEPLOY fixes 2 and 3 + the 12000 budget.**~~ **DONE 2026-10-05 03:19:59 UTC, verified** — check printed `None True`, env printed `12000`, `self-check PASS`, `automation session ras_59c1d803-… (opening budget 12000 per session)`; pid 129816, flat, bar 646. Original: Two files, **never one**: `deploy/ltp_agent.py` and `deploy/ltp_broker.py` — the new agent with the old broker runs, then raises `AttributeError: budget_left` at every entry signal, caught as `bar_error`, and never enters again. On the droplet: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py deploy/ltp_broker.py`; the check `.venv/bin/python -c "from deploy.ltp_broker import RapidXBroker; from deploy.ltp_agent import AgentConfig, intrabar_stop; print(RapidXBroker().budget_left(), AgentConfig().intrabar_stop)"` must print **`None True`**; then the operator edits `/root/ltp.env` by hand — `LTP_AUTOMATION_MAX_TOTAL=12000` and `LTP_AUTOMATION_CONSENT_TEXT` rewritten in their own words, **never pasted into chat** — and checks `( set -a; source /root/ltp.env; set +a; .venv/bin/python -c "from deploy.ltp_agent import automation_max_total; print(automation_max_total())" )` prints **12000**; then `systemctl restart ltp-agent`. **Verify** in the journal: `self-check PASS` and `automation session ras_… (opening budget 12000 per session)`. The restart moves the refit hour one earlier (~07:00 → ~06:00 UTC) | 2026-10-05 | closed — **first intra-bar firing, if any, is audited at the week 10 review** |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
 > *below* the closing horizontal rule since 2026-08-09 — outside the table, where
@@ -6182,7 +6188,7 @@ and only the last was true.** The same field had already produced a headline
 
 ---
 
-## Week 9 agenda — review due Sun 2026-10-04
+## Week 9 agenda — review due Sun 2026-10-04 (COMPLETED — see the week 9 entry; items 1–3 were overtaken during the week)
 
 1. **The logging pass, if the go comes.** Five read-only changes, one deploy,
    **on a flat book**, with tests and an `LTP_STRATEGY.md` addendum for the
@@ -6656,6 +6662,287 @@ stop test forgot that a tighter stop blocks entries beyond it (overstated 2.5
 by the phase's best winner, +7.71); and the out-of-sample test scaled P&L across
 a refit-in-hold trip, turning the 08-05 −4.12 into a phantom +13.23 — the
 frame-drift sign flip, reproduced by accident.
+
+---
+
+## Week 9 — Phase II days 20-26 (reviewed Sun 2026-10-04 evening MDT = 2026-10-05 02:20 UTC)
+
+The first top-3 strategy review. Started from a cold start (the session had just
+been compacted), which surfaced the two discrepancies this entry resolves.
+
+### Position at review
+
+```
+equity      1020.60   peak 1020.95 (NEW, set 10-04)   current dd 0.03%
+kill        898.43 (re-anchored up with the peak)     headroom 122.16, to floor 220.60
+banked MDD  1.46% since 09-29 21:15 (ours)  |  SCORED MDD 3.1% (leaderboard, unchanged since 09-17)
+rank        5th, score 83.1   (9th / 61.3 on 09-29; 10th on 09-27)
+ai spend    $1.1506 -- inside both ends of the band
+halted      no    pid 73940 since the 09-30 19:54 deploy, restarts 0
+book        FLAT, universe empty (10-04 07:00 refit 0/15); refit hour ~07:00 UTC
+```
+
+`news gate STALE 19.3h` in `status.py` is the empty universe, as the line itself
+says (nothing to screen), not a fault. 15 apt updates pending; a flat book is the
+reboot window, not urgent.
+
+### The week, 09-27 23:35 → 10-04 23:50
+
+```
+equity      1006.01 -> 1020.60  (+14.59)     Phase II to date +2.06%
+daily (23:50): 1004.79 . 1001.93 . 1004.28 . 1004.28 . 1013.79 . 1016.90 . 1020.60
+entries +10 (8 filled, 2 failed -- see below)   reverted exits +7   stops +2 (09-28, 09-29)
+refit_drop +1   reconcile +1   side_blocked skips 8   size_reduced 1
+refits 1,1,1,0,1,1,0 of 15 passed (09-28 -> 10-04)
+```
+
+Accounting: 2 open at start + 8 filled entries − 10 closes = 0, flat as shown.
+**10-02 → 10-04: five round trips on 1000SHIB/DOGE, all winners, +16.08 net**
+(+5.64, +3.86, +2.34, +1.60, +2.64 — the last a `refit_drop` close). No stop
+since 09-29. 10-01 was a zero-return day (flat, 0/15).
+
+### The leaderboard — the field moved, and so did we
+
+| # | team | score | Sharpe | return | MDD |
+|---|---|---|---|---|---|
+| 1 | Imnzzz | 95.0 | 4.19 | +5.7% | 3.8% |
+| 2 | Gamma Reasoning | 87.6 | 3.43 | +2.2% | 2.9% |
+| 3 | Quantech | 86.4 | 1.72 | +7.1% | 9.8% |
+| 4 | Stream4AI | 85.5 | 1.45 | +4.6% | 5.0% |
+| **5** | **NDAR** | **83.1** | **2.45** | **+2.1%** | **3.1%** |
+| 6 | Little J | 78.2 | 4.08 | +0.1% | 0.0% |
+
+- **3.3 points behind 3rd.** Our Sharpe went −0.10 → 2.45. Quantech's fell 3.23 →
+  1.72 and Stream4AI's 3.00 → 1.45 — the prep's "or the field stumbles" clause,
+  happening. Per the standing rule, a scoring fact, not evidence about the
+  strategy.
+- **The gaps above us are of two different kinds.** Gamma leads us on Sharpe at
+  the same return; Quantech and Stream4AI lead on return at worse Sharpe and
+  worse MDD. So both the 40% term and the 45% PnL+ROI terms now matter for rank.
+- "400 Total Trades" against 30 Phase II `enter` records — still unreconciled;
+  do not quote.
+
+### The prep, re-run on the fresh export (`d0bf076`, 28 trips)
+
+The 10-01 `TOP3_PREP.md` is **superseded on its odds**, not its levers:
+
+- **Per-trip edge: mean +0.77, sd 4.84, t = +0.84 over 28 trips** (was +0.46 over
+  22). Still not distinguishable from zero.
+- **Sharpe 3 now needs ~+0.85 USDT/day for the last 31 days; Phase II has made
+  ~+0.80/day** (was +1.23 needed against +0.21). Proxy Sharpe (23:50 rows)
+  +2.90 against the scorer's 2.45. **"Top 3 unlikely" is withdrawn: top 3 is now
+  realistic** — and three days moved us four places, so one 09-17-sized stop day
+  can move us back.
+- **Levers unchanged:** none of the five new trips came within 2.5 of the stop
+  (worst adverse +2.09), so the `stop_z` 3.0/2.5 results and the intra-bar upper
+  bound (+8.51) are as they were. Upper-bound proxy Sharpe +2.90 → +4.58.
+- **`z_sample` since 09-29: 689 samples, 62.6 hours held, worst adverse z 2.72.**
+  Nothing touched 3.5, so the false-positive rate of an intra-bar stop is still
+  **unmeasured** — no evidence either way.
+- `levers.py` still prints its labels from the 23-trip version ("23 trips", "17
+  non-stop"); the numbers are computed on all 28. Cosmetic, analysis code only.
+
+### Finding: a naked leg for an hour on 10-03 — the automation budget, not a glitch
+
+The cold start found `enter` +7 against +5 closes. The ledger and journal:
+
+```
+15:00:20  enter SHORT 1000SHIB/DOGE z +0.62
+15:00:30  leg a SELL 1000SHIB 88728 FILLED (~509 USDT)
+15:00:33  leg b: "order place-preview: BLOCKED RCLI26005 automation maxTotalNotional exceeded."
+          -> RapidXError -> "bar error (will retry next bar)" -- JOURNAL ONLY; state still flat
+16:00:06  reconcile unknown_position -> closes the naked 1000SHIB short (NAV +0.18 over the hour)
+18:00:23  enter again -> leg a BLOCKED, same error, no order, no exposure
+19:00:34  enter again -> both legs FILLED; the 10-04 07:01 refit_drop closed it +2.64
+```
+
+**Root cause: `maxTotalNotional` is a cumulative budget of OPENING notional per
+24-hour automation session, counted at each order's `maxNotional` ceiling, and
+closes do not count.** Inferred, and it fits every one of the 22 orders since
+10-01 19:00: from the session renewal at ~10-02 19:00, the opens at 20:00, 00:00
+and 08:00 sum to **3,121.97** of ceilings; the 15:00 leg a brings it to
+**3,681.72**; leg b (~490) would cross **4,000** — blocked. At 18:00 leg a alone
+would make **4,241.60** — blocked. 19:00 is the next renewal (`ensure_session`,
+every ≥23h, at the bar) — filled. Executed notional (~3,790 by 15:00) would NOT
+have crossed 4,000, so the venue counts ceilings; and the 16:00 reconcile close
+went through with the session over budget, so closes are exempt.
+
+**What it exposes:**
+
+1. **A naked ~509 USDT memecoin short for an hour.** It cost nothing; a 5% hourly
+   move would have cost ~25, more than any Phase II stop. `reconcile_positions`
+   did exactly what it was built for — an hour late, because it runs only at the
+   bar.
+2. **The cap was never the control anyone designed.** `ltp_agent.py`'s comment at
+   `ensure_session` calls 4000 "a coarse net" with the gross cap as "the real
+   total-exposure limiter" — a concurrent-exposure reading. The venue enforces
+   cumulative flow: **~3.8 entries per 24h session**. It first bound on 10-03
+   because the pair began cycling ~4 times a day. The operator's consent text
+   names "4000 USDT total automated exposure", in the same concurrent sense.
+3. **The published record cannot explain it.** Two `enter` decisions carry no
+   orders and no stated reason: `RapidXError` bar errors go to the journal only
+   (`main()`), unlike other exceptions, which write `bar_error`. The organizer
+   audits by correlating AI decisions with executed orders.
+4. **Latent, multi-pair:** an exception in an entry aborts the whole
+   `trade_step`, so with two pairs held, one pair's failed entry would skip the
+   other pairs' stop and exit checks for that bar.
+
+### Decisions
+
+| # | decision | outcome |
+|---|---|---|
+| 1 | change `stop_z` | **No.** Unchanged evidence; fails out of sample, forbids deep entries |
+| 2 | intra-bar stop at 3.5 | **YES — operator's go 2026-10-05; built as designed the same night** (see the entry after the week 10 agenda) |
+| 3 | entry atomicity + the budget (new) | **YES — operator's go 2026-10-05; built as designed; budget 12000 (operator)** |
+| 4 | sizing | **Deferred to week 10, not closed.** Our gap to 3rd/4th is return, which sizing scales — a new argument the August decision asked for. But both hazards above scale with size, and t = 0.84. Revisit only after 2 and 3 are live |
+| 5 | breadth | **No** (task 07) |
+| 6 | macro gating | **Left open** — unmeasured; the largest overshoot was on a Saturday |
+| 7 | frozen-frame stop | **No change**; task 06 (Wed 10-07) informs |
+
+Decisions 4–7 were recommendations the operator did not contest.
+
+### Design — fix 3: an entry is two legs or none (BUILT 2026-10-05)
+
+- **3a. `bar_error` for `RapidXError` too.** `main()`'s `except RapidXError`
+  writes `ledger("bar_error", error_type="RapidXError", error=…)` beside the
+  journal line, so the published record says why an entry has no orders.
+- **3b. Contained entry in `trade_step`.** The two `place_market` calls are
+  wrapped. Leg a raises → `entry_failed` record (no position opened), move on to
+  the next pair; the bar is no longer aborted. Leg b raises after leg a filled →
+  **close leg a at once** (`close_position`, decision `entry_unwound`), with an
+  `entry_unwound` record carrying the error and reasoning; the pair stays flat and
+  unblocked. If the unwind itself fails it is logged, and next bar's reconcile is
+  still the backstop.
+- **3c. Budget check before the first leg.** The broker keeps
+  `session_open_notional` — the sum of `max_notional` over opening orders accepted
+  since `start_automation` (reset there). An entry whose two ceilings would carry
+  it past `max_total` is a `skip reason=automation_budget` with reasoning, no
+  orders. The counting rule is an inference from one episode, so this is the
+  first line and 3b the backstop if the inference is wrong.
+- **3d. The cap moves to the env:** `LTP_AUTOMATION_MAX_TOTAL`, default 4000 so
+  nothing changes if unset, in `/root/ltp.env` beside the consent text that names
+  it — so the number and the consent cannot drift apart. **Recommendation: 12000,
+  with the consent text rewritten by the operator in their own words.** The
+  per-order cap (1000) and the gross cap (2× NAV) are untouched; 12000 still
+  stops a runaway every-bar loop within half a day. Raising it permits more
+  entries on fast-cycling days — a behavioural change, disclosed. Measured cost of
+  4000 so far: two blocked entries on one day, one replaced an hour later.
+
+### Design — fix 2: the intra-bar stop at 3.5 (BUILT 2026-10-05)
+
+- `AgentConfig.intrabar_stop = True`. A new `intrabar_stop()` runs in the sleep
+  loop straight after `sample_open_positions`, on **the same reading** — the
+  sampler fills an optional `readings` dict, so there is no second price read.
+  **The sampler itself stays read-only**; its 09-27 contract and test are
+  unchanged.
+- **Fires only on the hourly stop's own predicate**: held, and z past `stop_z` on
+  the held side, in the live frame, from mark prices — exactly what the bar
+  checks, five minutes at a time. Not when halted; not inside an active
+  maintenance window (sampling already skips those).
+- **Acts exactly as the hourly stop does**: `stop` record (with `trigger:
+  "intrabar"` and the sample's z / z_entry / z_fixed; hourly stops gain `trigger:
+  "bar"`), `leg_close(decision="stop")`, `blocked = side`, `save_state` at once.
+  Never enters, never exits on reversion, never touches the hold clock.
+- A close that fails part-way is logged; the next bar re-evaluates (a close on an
+  already-flat leg returns `no_position`) and reconcile backstops.
+- **Every firing is audited** against the next bar's z and the later path:
+  whether the hourly stop would have fired too, and at what cost.
+- Tests: fires only past `stop_z` and only on the held side (a long at z +4 does
+  not fire); not when flat or halted; sets the block; record carries the
+  trigger; the sampler still makes no write call; a failing close does not
+  break the loop.
+- Disclosure: reverses the 2026-09-13 decision to drop the monitor, on the two
+  changed facts in `TOP3_PREP.md` decision 2.
+
+**Deploy (both fixes, one restart):** `deploy/ltp_agent.py` **and**
+`deploy/ltp_broker.py` together, with a post-checkout check that CALLS the new
+broker attribute — the 09-30 half-deploy lesson. The book is flat, so the restart
+conditions are met trivially outside :50–:10 and maintenance windows. If the cap
+changes, the operator edits `/root/ltp.env` (number and consent text) before the
+restart.
+
+---
+
+## Week 10 agenda — review due Sun 2026-10-11
+
+1. **Deploy and verify fixes 3 and 2** if built — then every intra-bar firing is
+   audited against what the hourly bar would have done.
+2. **Wed 10-07: task 06** (frame drift on one beta), as queued.
+3. **Decision 4, sizing** — only once 2 and 3 are live. Bring the per-trip t, the
+   scenario table, and the leaderboard gaps by term.
+4. **Standing:** 950 trigger · AI spend both ends · leaderboard · the reboot on a
+   flat book (15 updates).
+
+---
+
+## 2026-10-05 — fixes 2 and 3 built as designed; budget 12000; not yet deployed
+
+The operator agreed the recommendations — **"build as designed, 12,000"** — and
+both were built to the designs in the week 9 entry. **Suite 301 → 352.**
+Disclosed in `LTP_STRATEGY.md` (addendum 2026-10-05). **Nothing is live until
+the deploy row in Open commitments is done.**
+
+**What the build added beyond the design, each for a reason found while
+building:**
+
+- **One shared `stop_crossed()` and `stop_position()`**, which the hourly bar
+  now calls as well. "Same rule, sooner" is then true by construction rather than
+  by two copies agreeing; a test checks the function against the old inline
+  expression at every boundary.
+- **The leg-a failure path also unwinds.** A timed-out first leg may have filled
+  without the agent knowing, so it asks the venue and closes anything live
+  (`close_position` returns None on a flat symbol, so a clean refusal costs one
+  read and no order).
+- **The leg-b failure path closes leg b too**, for the same reason.
+- **The budget is counted at the accepted preview, not the submit.** The venue
+  refuses there; whether it debits there is undocumented, so this errs toward
+  skipping early rather than half-placing.
+- **A bad `LTP_AUTOMATION_MAX_TOTAL` stops the agent at startup**, once and
+  loudly, instead of failing every session start.
+- **`README_ltp.md`'s sample consent sentence is gone**, replaced by what the
+  text must name: a sample is a text someone else wrote, and it was wrong twice
+  (500 per order; "exposure").
+- **`test_skip_reasons_stay_a_closed_vocabulary`** — an old contract — gains
+  `automation_budget`. That is its intended use: the vocabulary changes only by
+  someone editing the test.
+
+**A trap for the deploy, the 09-30 kind:** the new agent with the OLD broker
+imports cleanly and runs, then raises `AttributeError: budget_left` at the first
+entry signal — inside `trade_step`, so it is caught as a `bar_error` every bar
+and **no entry is ever taken again, silently.** The deploy therefore carries both
+files and its check CALLS `RapidXBroker().budget_left()`.
+
+---
+
+## 2026-10-05 03:20 UTC — fixes 2 and 3 deployed, budget 12000 live
+
+```
+03:13   status        flat, pid 73940, bar 645 -- restart conditions met (flat, :13, no window)
+        checkout      deploy/ltp_agent.py + deploy/ltp_broker.py from 11e36d4
+        check         None True          (new broker present; intra-bar stop on)
+        env           LTP_AUTOMATION_MAX_TOTAL=12000, consent text rewritten by the operator
+                      -> automation_max_total() printed 12000
+03:19:59 restart
+03:20:06 self-check PASS; news stream live
+03:20:07 automation session ras_59c1d803-... (opening budget 12000 per session)
+03:20:54 status       pid 129816, restarts 0, flat, bar 646, equity 1020.60
+```
+
+**Refit hour now ~06:00 UTC** (the restart moved it one earlier, as every
+restart does). Nothing about the startup bar traded: the book was flat and the
+universe empty.
+
+**The budget inference gained independent evidence.** The pre-restart journal
+shows the session renewing at **10-03 19:00:05** and **10-04 19:00:05** —
+until now the renewal hour was inferred from the 24h-and-at-the-bar rule. So
+10-03's 18:00 entry was refused inside the old session and 19:00's went through
+in a fresh one, exactly as the cumulative-budget reading requires.
+
+**Operator note, recorded so it is not re-derived:** the droplet's login banner
+now offers Ubuntu **26.04** (`do-release-upgrade`). **Do not take it before
+11-04** — a major-release upgrade mid-competition risks the venv and the RapidX
+CLI for no gain. The 15 ordinary updates plus a reboot on a flat book remain
+fine at any time.
 
 ---
 
