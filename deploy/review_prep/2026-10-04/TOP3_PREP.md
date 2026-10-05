@@ -1,5 +1,12 @@
 # Top-3 strategy review — prep for Sun 2026-10-04
 
+> **Superseded on its odds, 2026-10-05 — read the week 9 entry in
+> `deploy/WEEKLY_REVIEW.md` first.** Re-run on the fresh export (`d0bf076`,
+> 28 trips): we are **5th, 3.3 points behind 3rd**; Sharpe 3 needs ~+0.85/day
+> against ~+0.80/day made, so **"top 3 unlikely" below is withdrawn**. The lever
+> results (sections a–b) are unchanged — no new trip came within 2.5 of the stop.
+> The review took decisions 2 and a new decision 3 (entry atomicity); see there.
+
 Prepared 2026-10-01 from `live/track-record` at `68ad618` (ledger export to
 2026-10-01 14:00). Every figure below is produced by the scripts in this
 directory — see `README.md` to reproduce. Estimates are labelled as estimates.
