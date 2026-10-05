@@ -1846,11 +1846,12 @@ section existed; that is what it is for.
 | ~~**DEPLOY the 2026-09-30 alignment change**~~ **DONE 2026-09-30 19:54 UTC** — check printed `True`, self-check PASS. **The startup bar exited the open position mid-hour** (see the 09-30 deploy entry). Refit hour now ~07:00 UTC; the `panel` check is due after the 10-01 refit. Original: — **three files together**: `statarb/selection.py`, `deploy/ltp_agent.py`, `deploy/universe_scan.py`. **Never the agent without `statarb/selection.py`:** the agent passes `align_pairs=` to `SelectionConfig`, so a half-deploy imports cleanly and then raises a `TypeError` at every refit — caught by the loop, so every fit silently freezes. The post-checkout check therefore CALLS the config, not just imports it: `.venv/bin/python -c "from deploy.ltp_agent import AgentConfig, selection_config; print(selection_config(AgentConfig()).align_pairs)"` must print `True`. Then `systemctl restart ltp-agent` under the 09-29 conditions (|z| < 2.5, :10–:50, clear of windows). **Verify at the next ~08:00 refit:** its record carries `panel`; if `complete_bars == bars` the change altered nothing that day, as expected for the 30-symbol panel | 2026-09-30 | next operator session that meets the conditions; before the 10-01 ~08:00 refit is ideal but not required |
 | ~~**The runbook and the export tool tell the operator to run `status.py` without loading the env.**~~ **DONE 2026-09-23**, same evening, on the operator's go — and it was **five** places, not two: the **daily glance in the standing context** (the worst, since `equity UNAVAILABLE` is on its escalate-immediately list), `CLAUDE.md` step 6, runbook step 0, the export's NOTE, and `status.py`'s docstring. All now give `( set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py )`. Pinned by `test_every_instruction_to_run_status_py_loads_the_env_first` and `test_the_staleness_note_gives_a_command_that_works`. Original row: On 2026-09-23 step 0's age warning fired as designed, the operator ran `.venv/bin/python deploy/status.py` in a fresh SSH shell, and equity, positions and AI spend all came back `UNAVAILABLE — RCLI01003 LTP_API_HOST is required`. The agent was fine; the shell had no `/root/ltp.env`. Both places — README step 0 and `export_phase_ledger.py`'s NOTE — should give `set -a; source /root/ltp.env; set +a; .venv/bin/python deploy/status.py`. (`status.py`'s own docstring says plain `source`, which does not export a shell-format file to a child process either) | 2026-09-23 | needs the operator's go; two strings and a docstring |
 | ~~**`CLAUDE.md` points a cold reader at the wrong places.** Its cold-start step 4 reads `track_record/ltp_state_history.jsonl`, which is **not on the working branch** — it lives on `live/track-record`. Also stale: the header's "Phase I runs to 2026-08-21" framing and "27 tests"~~ **DONE 2026-09-23**, same session, on the operator's go. Step 4 now gives the `git show origin/live/track-record:…` command and says `--show` works only on the droplet; header states Phase II; the test count is **dropped rather than updated**, since a copied count is a remembered number. Pinned by `test_every_track_record_file_claude_md_names_is_reachable_from_here` | 2026-09-23 | closed |
-| **BUILD fix 3 — an entry is two legs or none.** On 10-03 a leg b refused with `RCLI26005 automation maxTotalNotional exceeded` left a ~509 USDT naked 1000SHIB short for an hour, until the next bar's reconcile closed it. Design in the week 9 entry: (a) `bar_error` for `RapidXError`; (b) unwind leg a in the same bar if leg b fails, and contain entry failures per pair; (c) skip an entry the session budget cannot hold both legs of; (d) cap to the env | 2026-10-05 | **operator's go on the decision given 2026-10-05; awaiting "build as designed".** Then deploy with fix 2, `ltp_agent.py` **and** `ltp_broker.py` together |
-| **BUILD fix 2 — the intra-bar stop at 3.5**, acting on the 5-minute samples with the hourly stop's own predicate and blocking. Reverses the 2026-09-13 drop | 2026-10-05 | **operator's go on the decision given 2026-10-05; awaiting "build as designed".** Same deploy as fix 3. Audit every firing at the next review |
-| **DECIDE the automation budget (operator).** `maxTotalNotional` is cumulative opening flow per 24h session (~3.8 entries a day at 4000), not the concurrent exposure the code comment and the consent text describe. Recommendation 12000 via `LTP_AUTOMATION_MAX_TOTAL`, with the consent text rewritten by the operator — **the agent must never author that text** | 2026-10-05 | before the fix 2/3 deploy restart; leaving it unset keeps 4000, with fix 3c turning a refusal into a clean skip |
+| ~~**BUILD fix 3 — an entry is two legs or none.**~~ **BUILT 2026-10-05 as designed; NOT YET DEPLOYED — see the deploy row.** On 10-03 a leg b refused with `RCLI26005 automation maxTotalNotional exceeded` left a ~509 USDT naked 1000SHIB short for an hour, until the next bar's reconcile closed it. Design in the week 9 entry: (a) `bar_error` for `RapidXError`; (b) unwind leg a in the same bar if leg b fails, and contain entry failures per pair; (c) skip an entry the session budget cannot hold both legs of; (d) cap to the env | 2026-10-05 | built; the deploy row below carries it |
+| ~~**BUILD fix 2 — the intra-bar stop at 3.5**~~ **BUILT 2026-10-05 as designed; NOT YET DEPLOYED.** Acting on the 5-minute samples with the hourly stop's own predicate and blocking. Reverses the 2026-09-13 drop | 2026-10-05 | built; **audit every firing at the next review** against the following bar's z |
+| ~~**DECIDE the automation budget (operator).**~~ **DECIDED 2026-10-05: 12000**, on the recommendation. `maxTotalNotional` is cumulative opening flow per 24h session (~3.8 entries a day at 4000), not the concurrent exposure the code comment and the consent text describe. Recommendation 12000 via `LTP_AUTOMATION_MAX_TOTAL`, with the consent text rewritten by the operator — **the agent must never author that text** | 2026-10-05 | closed — the env edit is a step of the deploy row |
 | **REVISIT sizing (decision 4)** — deferred, not closed, at the week 9 review. New argument: the gap to 3rd/4th is return, which sizing scales. Against: t = 0.84 over 28 trips, and the overshoot and half-open hazards both scale with size | 2026-10-05 | **week 10 review, and only once fixes 2 and 3 are live** |
-| **`deploy/README_ltp.md`'s consent-text example is stale** — it says "max 500 USDT per order" (the cap went to 1000 in July) and "4000 USDT total automated exposure", which is not what the venue enforces | 2026-10-05 | with the fix 2/3 build (doc only) |
+| ~~**`deploy/README_ltp.md`'s consent-text example is stale**~~ **DONE 2026-10-05** — the sample sentence is replaced by what the text must name. — it says "max 500 USDT per order" (the cap went to 1000 in July) and "4000 USDT total automated exposure", which is not what the venue enforces | 2026-10-05 | closed |
+| **DEPLOY fixes 2 and 3 + the 12000 budget.** Two files, **never one**: `deploy/ltp_agent.py` and `deploy/ltp_broker.py` — the new agent with the old broker runs, then raises `AttributeError: budget_left` at every entry signal, caught as `bar_error`, and never enters again. On the droplet: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py deploy/ltp_broker.py`; the check `.venv/bin/python -c "from deploy.ltp_broker import RapidXBroker; from deploy.ltp_agent import AgentConfig, intrabar_stop; print(RapidXBroker().budget_left(), AgentConfig().intrabar_stop)"` must print **`None True`**; then the operator edits `/root/ltp.env` by hand — `LTP_AUTOMATION_MAX_TOTAL=12000` and `LTP_AUTOMATION_CONSENT_TEXT` rewritten in their own words, **never pasted into chat** — and checks `( set -a; source /root/ltp.env; set +a; .venv/bin/python -c "from deploy.ltp_agent import automation_max_total; print(automation_max_total())" )` prints **12000**; then `systemctl restart ltp-agent`. **Verify** in the journal: `self-check PASS` and `automation session ras_… (opening budget 12000 per session)`. The restart moves the refit hour one earlier (~07:00 → ~06:00 UTC) | 2026-10-05 | **next operator session that meets the restart conditions** — the book is flat, so: between :10 and :50 past the hour, clear of announced maintenance windows |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
 > *below* the closing horizontal rule since 2026-08-09 — outside the table, where
@@ -6791,8 +6792,8 @@ went through with the session over budget, so closes are exempt.
 | # | decision | outcome |
 |---|---|---|
 | 1 | change `stop_z` | **No.** Unchanged evidence; fails out of sample, forbids deep entries |
-| 2 | intra-bar stop at 3.5 | **YES — operator's go 2026-10-05.** Design below, awaiting "build as designed" |
-| 3 | entry atomicity + the budget (new) | **YES — operator's go 2026-10-05.** Design below; the cap level is the operator's call |
+| 2 | intra-bar stop at 3.5 | **YES — operator's go 2026-10-05; built as designed the same night** (see the entry after the week 10 agenda) |
+| 3 | entry atomicity + the budget (new) | **YES — operator's go 2026-10-05; built as designed; budget 12000 (operator)** |
 | 4 | sizing | **Deferred to week 10, not closed.** Our gap to 3rd/4th is return, which sizing scales — a new argument the August decision asked for. But both hazards above scale with size, and t = 0.84. Revisit only after 2 and 3 are live |
 | 5 | breadth | **No** (task 07) |
 | 6 | macro gating | **Left open** — unmeasured; the largest overshoot was on a Saturday |
@@ -6800,7 +6801,7 @@ went through with the session over budget, so closes are exempt.
 
 Decisions 4–7 were recommendations the operator did not contest.
 
-### Design — fix 3: an entry is two legs or none (AWAITING "build as designed")
+### Design — fix 3: an entry is two legs or none (BUILT 2026-10-05)
 
 - **3a. `bar_error` for `RapidXError` too.** `main()`'s `except RapidXError`
   writes `ledger("bar_error", error_type="RapidXError", error=…)` beside the
@@ -6827,7 +6828,7 @@ Decisions 4–7 were recommendations the operator did not contest.
   entries on fast-cycling days — a behavioural change, disclosed. Measured cost of
   4000 so far: two blocked entries on one day, one replaced an hour later.
 
-### Design — fix 2: the intra-bar stop at 3.5 (AWAITING "build as designed")
+### Design — fix 2: the intra-bar stop at 3.5 (BUILT 2026-10-05)
 
 - `AgentConfig.intrabar_stop = True`. A new `intrabar_stop()` runs in the sleep
   loop straight after `sample_open_positions`, on **the same reading** — the
@@ -6871,6 +6872,45 @@ restart.
    scenario table, and the leaderboard gaps by term.
 4. **Standing:** 950 trigger · AI spend both ends · leaderboard · the reboot on a
    flat book (15 updates).
+
+---
+
+## 2026-10-05 — fixes 2 and 3 built as designed; budget 12000; not yet deployed
+
+The operator agreed the recommendations — **"build as designed, 12,000"** — and
+both were built to the designs in the week 9 entry. **Suite 301 → 352.**
+Disclosed in `LTP_STRATEGY.md` (addendum 2026-10-05). **Nothing is live until
+the deploy row in Open commitments is done.**
+
+**What the build added beyond the design, each for a reason found while
+building:**
+
+- **One shared `stop_crossed()` and `stop_position()`**, which the hourly bar
+  now calls as well. "Same rule, sooner" is then true by construction rather than
+  by two copies agreeing; a test checks the function against the old inline
+  expression at every boundary.
+- **The leg-a failure path also unwinds.** A timed-out first leg may have filled
+  without the agent knowing, so it asks the venue and closes anything live
+  (`close_position` returns None on a flat symbol, so a clean refusal costs one
+  read and no order).
+- **The leg-b failure path closes leg b too**, for the same reason.
+- **The budget is counted at the accepted preview, not the submit.** The venue
+  refuses there; whether it debits there is undocumented, so this errs toward
+  skipping early rather than half-placing.
+- **A bad `LTP_AUTOMATION_MAX_TOTAL` stops the agent at startup**, once and
+  loudly, instead of failing every session start.
+- **`README_ltp.md`'s sample consent sentence is gone**, replaced by what the
+  text must name: a sample is a text someone else wrote, and it was wrong twice
+  (500 per order; "exposure").
+- **`test_skip_reasons_stay_a_closed_vocabulary`** — an old contract — gains
+  `automation_budget`. That is its intended use: the vocabulary changes only by
+  someone editing the test.
+
+**A trap for the deploy, the 09-30 kind:** the new agent with the OLD broker
+imports cleanly and runs, then raises `AttributeError: budget_left` at the first
+entry signal — inside `trade_step`, so it is caught as a `bar_error` every bar
+and **no entry is ever taken again, silently.** The deploy therefore carries both
+files and its check CALLS `RapidXBroker().budget_left()`.
 
 ---
 

@@ -87,8 +87,10 @@ def test_skip_reasons_stay_a_closed_vocabulary():
         src = fh.read()
     reasons = set(re.findall(r'ledger\("skip", pair=short_name,\s*reason="(\w+)"',
                              src))
+    # automation_budget added 2026-10-05: the venue's per-session opening
+    # budget, checked before an entry so it cannot end half-placed.
     assert reasons == {"gross_cap", "min_notional", "anomaly_veto",
-                       "news_veto", "side_blocked"}, reasons
+                       "news_veto", "side_blocked", "automation_budget"}, reasons
 
 
 def test_the_block_does_not_survive_pair_eviction():

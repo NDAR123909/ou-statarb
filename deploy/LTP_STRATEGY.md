@@ -1319,6 +1319,106 @@ unchanged; `refit()` end to end with a 500-bar symbol keeps the pair at 960 bars
 panel. Suite 291 → 301.
 
 
+## Addendum — the intra-bar stop, and an entry that is two legs or none (2026-10-05)
+
+**Two changes to what the agent trades**, both decided at the week 9 review on
+the operator's go, both risk-reducing in intent. The first reverses a recorded
+decision; the second fixes a defect that left a naked position open for an hour.
+No threshold, band, size, gate or selection rule changes.
+
+### 1. The intra-bar stop (`intrabar_stop`, `AgentConfig.intrabar_stop = True`)
+
+**The rule is unchanged; the clock is not.** The z-stop at `stop_z = 3.5` used
+to be checked only at the hourly bar. It is now also checked on every
+five-minute `z_sample` reading of an open position (the sampler deployed
+2026-09-29), with **the same function** — `stop_crossed(side, z, stop_z)`, which
+the hourly bar now calls too — on the same live-frame z from the same mark
+prices. When it fires it does exactly what the hourly stop does, through one
+shared `stop_position()`: the `stop` record, both legs closed, the side blocked
+until z heals (invariant 4). Stop records now carry `trigger: "bar"` or
+`"intrabar"`.
+
+It never enters, never takes profit, never touches the hold clock, does nothing
+while halted or inside an active maintenance window, and is disabled with the
+sampler (`z_sample_minutes = 0`) or by `intrabar_stop = False`.
+`sample_open_positions` itself still never acts.
+
+**Why, and what it reverses.** On 2026-09-13 the intra-bar monitor was dropped
+(week 6, decision 2): the recoverable overshoot was unmeasurable from hourly
+data, and a new code path closing live positions had an unmeasured
+false-positive cost. Two facts changed. The operator set a top-3 finish as the
+goal (2026-09-29), which makes the Sharpe term — where loss days dominate — the
+binding one. And the `z_sample` records make every firing auditable afterwards.
+Phase II's six stops overshot 3.5 by **≈ 8.5 USDT** in all, waiting for the bar
+(09-26: z 2.90 → 5.38 inside one hour); `deploy/review_prep/2026-10-04/` holds
+the reproducible estimate. That figure is an **upper bound**: it assumes z passed
+continuously through 3.5, and a gap straight through it saves less.
+
+**The cost, stated plainly.** A false firing — z touching 3.5 inside the hour
+and reverting before the bar — closes a position the hourly stop would have
+kept. The 09-14 trade read 3.23 at a bar and closed +0.97; inside the hour it may
+have touched 3.5, and this rule would have cut it for roughly −3 to −4. **The
+false-positive rate is unmeasured**: in 62.6 hours of samples since 09-29 the
+worst adverse reading was 2.72. Each firing is to be audited at the next review
+against the following bar's z.
+
+**What it does not change:** the threshold, and therefore which entries are
+allowed. A tighter `stop_z` was tested and rejected at the same review (it
+fails out of sample and forbids deep entries); this fires at the same 3.5.
+
+### 2. An entry is two legs or none (`place_entry`, `unwind_legs`, `budget_left`)
+
+**The defect.** On 2026-10-03 15:00 an entry's first leg (a ~509 USDT 1000SHIB
+short) filled and the hedge leg was refused at preview — `RCLI26005 automation
+maxTotalNotional exceeded`. The two orders were placed back to back with nothing
+between them, so the exception unwound the bar before state recorded the leg.
+The agent believed it was flat; `reconcile_positions` closed the naked leg at
+the next bar, an hour later. It happened to cost nothing.
+
+**The cause.** The automation session's `maxTotalNotional` (4000) is a
+**cumulative budget of opening notional per 24-hour session**, counted at each
+order's `maxNotional` ceiling, with closes exempt — not the cap on concurrent
+exposure the code comment and the operator's consent text described. At ~1,050
+of ceilings per entry it held ~3.8 entries a session, and bound for the first
+time when the pair began cycling four times a day. **Inferred** from that day's
+22 orders, all of which fit: executed notional would not have crossed 4000, the
+ceilings did, and a reduce-only close went through with the session over budget.
+
+**The change.**
+- `place_entry()`: if the first leg fails, anything it may have opened is closed
+  and an `entry_failed` record written; if the hedge leg fails, the first leg —
+  and the second, in case it filled before failing — is closed **in the same
+  bar** and an `entry_unwound` record written, with the venue's error. The pair
+  stays flat and unblocked. Failures are contained to the pair, so one pair's
+  refused order no longer skips every later pair's stop and exit checks for that
+  bar (latent with one pair; real with two).
+- `RapidXBroker.budget_left()` tracks the session's opening ceilings (reset at
+  `start_automation`); an entry the budget cannot hold **both** legs of is a
+  `skip` with `reason="automation_budget"`, and no order is placed. This is the
+  first line; the unwind is the backstop if the inferred rule is wrong.
+- `RapidXError` bar errors are written to the ledger as `bar_error`, not only to
+  the journal.
+- **The budget moves to the environment**: `LTP_AUTOMATION_MAX_TOTAL` (default
+  4000, unchanged if unset), beside `LTP_AUTOMATION_CONSENT_TEXT`, which names
+  it. **The operator chose 12000** (~11 entries a session). That is a
+  behavioural change: on fast-cycling days the strategy may now take entries the
+  old budget refused. Exposure limits are untouched — the 1000 per-order cap,
+  the 2× NAV gross cap, the symbols' 2× leverage and the kill switch. The consent
+  text is the operator's own words; the agent does not write it.
+
+**Pinned:** `tests/test_ltp_intrabar_stop.py` (the rule agrees with the old
+expression everywhere, boundaries included; fires only past 3.5 on the held side,
+never on a favourable move, never flat, halted or switched off; acts on the
+logged reading with no second read; records, closes and blocks exactly as the
+hourly stop; a failed close is contained and left for the bar; the hourly stop
+still fires and is tagged) and `tests/test_ltp_entry_atomicity.py` (the 10-03
+sequence replayed against a venue enforcing the inferred rule; a refused hedge
+leg is unwound in the same bar; a refused first leg opens nothing; an entry the
+budget cannot hold is skipped before any order; one pair's failure no longer
+skips another pair's stop; a failed unwind is reported, not raised; a bad
+`LTP_AUTOMATION_MAX_TOTAL` stops the agent at startup). Suite 301 → 352.
+
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;

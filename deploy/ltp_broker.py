@@ -80,6 +80,10 @@ class RapidXBroker:
         default_factory=lambda: os.environ.get("LTP_PORTFOLIO_ID", ""))
     on_operation: object = field(default=None, repr=False)   # callable(dict)
     op_context: dict = field(default_factory=dict, repr=False)
+    # The automation session's opening budget, as the venue enforces it --
+    # see `budget_left`. None until a session is started (and in dry runs).
+    automation_max_total: float | None = None
+    session_open_notional: float = 0.0
     _last_write: float = field(default=0.0, repr=False)
     _last_read: float = field(default=0.0, repr=False)
     _symbol_info: dict = field(default_factory=dict, repr=False)
@@ -343,7 +347,25 @@ class RapidXBroker:
             "acceptedRiskText": consent_text,
         }, write=True)
         self.automation_session_id = data["automationSessionId"]
+        self.automation_max_total = float(max_total)
+        self.session_open_notional = 0.0
         return self.automation_session_id
+
+    def budget_left(self) -> float | None:
+        """Opening notional the current automation session will still accept,
+        or None when no session is running (dry run, or before the first).
+
+        `maxTotalNotional` is NOT a cap on open exposure. It is a cumulative
+        budget of OPENING orders per session, counted at each order's
+        `maxNotional` ceiling; closes do not count. Inferred 2026-10-05 from
+        the 10-03 refusals (RCLI26005), and it fits all 22 orders that day:
+        executed notional would not have crossed 4000, the ceilings did, and a
+        reduce-only close went through with the session already over budget.
+        It is an inference, so the agent treats this as a first line only --
+        an entry that fails part-way is unwound regardless."""
+        if self.automation_max_total is None:
+            return None
+        return self.automation_max_total - self.session_open_notional
 
     # ---------------------------------------------------------------- sizing --
     def round_qty(self, symbol: str, qty: float) -> float:
@@ -386,6 +408,11 @@ class RapidXBroker:
             preview_params["automationSessionId"] = self.automation_session_id
         preview = self._must(["order", "place-preview"], preview_params,
                              write=True)
+        # Counted once the session has accepted the preview -- that is where
+        # the venue refuses an order over budget. Whether it debits there or
+        # at the submit is not documented, so counting here errs toward
+        # skipping an entry early rather than half-placing one.
+        self.session_open_notional += round(max_notional, 2)
 
         submit = dict(params)              # no automationSessionId on submit
         submit["previewId"] = preview["previewId"]

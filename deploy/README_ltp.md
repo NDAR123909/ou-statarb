@@ -94,13 +94,23 @@ python deploy/ltp_agent.py                    # live (needs consent, below)
 
 Live trading requires an automation session, and RapidX requires the consent
 text to be authored by the human operator — the agent refuses to write it for
-you. Set it yourself, in your own words, naming the scope you actually accept:
+you. Set it yourself, in your own words, naming the scope you actually accept.
+It goes in `/root/ltp.env` as `LTP_AUTOMATION_CONSENT_TEXT`, and it should name:
 
-```bash
-export LTP_AUTOMATION_CONSENT_TEXT="I authorize RapidX automation for the \
-agent's whitelisted contest symbols with max 500 USDT per order and 4000 \
-USDT total automated exposure, renewed daily while my agent runs."
-```
+- the symbols: the agent's `CANDIDATES` legs;
+- the per-order cap: **1000 USDT** (`max_per_order` in `ensure_session`);
+- the session budget: `LTP_AUTOMATION_MAX_TOTAL` (default 4000; **12000 from
+  2026-10-05**, the operator's decision at the week 9 review). **This is total
+  OPENING notional per 24-hour session, counted at each order's ceiling — not a
+  cap on exposure.** Closes do not count against it. Exposure is capped
+  separately: the 2× NAV gross limit and the symbols' 2× leverage;
+- that the session renews daily while the agent runs.
+
+Change the number and the text together, in the same edit — they describe the
+same limit. (This section used to carry a sample sentence; it said "max 500
+USDT per order", which went to 1000 in July, and "4000 USDT total automated
+exposure", which is not what the venue enforces. A sample is a text someone
+else wrote, so there is none here.)
 
 ## Competition rules the agent enforces on itself
 
