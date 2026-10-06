@@ -6946,6 +6946,28 @@ fine at any time.
 
 ---
 
+## 2026-10-05 — Quant Tip "your signal has to beat your execution cost", checked
+
+Organizer, Technical Support, 10-05 21:33 local: before increasing turnover,
+make sure the edge covers the full round-trip cost (fee, spread, impact, delay,
+missed fills). Checked against Phase II's 28 round trips (export `d0bf076`),
+because the 12000 budget decided the night before lets the strategy take more
+entries:
+
+```
+gross +27.40   fees -5.83 (21% of gross, ~0.21/trip)   net of fees +21.57
+slippage 0.51 bps per leg, mean of 112      equity +20.60 (gap ~1: funding, unmodelled)
+```
+
+**Costs take about a fifth of gross, and every entry already clears a band
+computed net of fees** (`taker_fee` 2 bps against ~1.6 measured). The budget
+change alters no rule: it stops the venue refusing entries the cost-aware
+band already admitted. **But the edge is +0.77/trip at t = 0.84** — so the tip's
+question is the right one for **decision 4 (sizing) at the week 10 review**, as
+an argument for caution there. No action.
+
+---
+
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
 
 > **STATUS 2026-09-08, read this before the list.** The build window closed and
