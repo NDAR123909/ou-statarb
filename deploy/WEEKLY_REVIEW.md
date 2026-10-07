@@ -6968,6 +6968,20 @@ an argument for caution there. No action.
 
 ---
 
+## 2026-10-07 — task 06 brief amended before dispatch
+
+Written 09-27, the brief still called the `mu_shift` fix "proposed" and said
+refit records never carry the live beta. Both stopped being true at the 09-29
+deploy: two closes already carry **same-beta** shifts computed by the live code
+(1000SHIB/DOGE **0.527** on 09-30 19:54, **0.418** on 10-03 07:01 — both over
+the 0.10 flag, as the build warned ordinary refit noise would be), and refit
+records from 09-30 08:01 carry exact `beta`/`mu`/`sigma`. Unamended, Cowork
+could have "decomposed" post-fix values a second time. The PROMPT block now says
+so, and turns the two post-fix closes into **a measured error for its own
+reconstruction method** — the first ground truth this question has had.
+
+---
+
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
 
 > **STATUS 2026-09-08, read this before the list.** The build window closed and

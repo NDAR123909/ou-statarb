@@ -66,6 +66,27 @@ This task is the independent check, and the extension to everything.
 > - `deploy/research_queue/out/03-frame-drift-cost.md` — task 03's answer,
 >   which reconstructed the KAS/ETC entry frame from in-epoch price prints.
 >
+> **Changed since this brief was written (amended 2026-10-07, before
+> dispatch) — read before question 1.**
+>
+> - **The logging fix shipped** (deployed 2026-09-29 21:15 UTC). A close
+>   record carrying **`mu_shift_basis: "entry_beta"`** computed
+>   `mu_shift_sigma` with `live_mu` already re-expressed on the entry beta. It
+>   is a **same-beta measurement, not a claim to decompose.** Two such closes
+>   have a nonzero shift: 1000SHIB/DOGE **2026-09-30 19:54** and **2026-10-03
+>   07:01** — verify both from the records. **Use them as the check on your
+>   reconstruction method:** apply your question 1/3 procedure to those two
+>   closes as if the field were absent, and report how close it gets to the
+>   logged value. That error is your method's measured error, not an assumed
+>   one. Closes with no `mu_shift_basis` field are pre-fix and are the ones
+>   under test.
+> - **`refit` records from 2026-09-30 08:01 on carry the exact live `beta`,
+>   `mu` and `sigma` per active pair** in `bands`. Question 2's "the in-hold
+>   refit's beta is not in the `refit` record" holds only before that.
+> - `stop` records from 2026-10-05 carry `trigger` (`"bar"` or `"intrabar"`;
+>   an intra-bar stop is logged between hourly bars). Not material to this
+>   question; noted so a between-bar timestamp is not read as an anomaly.
+>
 > **If `track_record/ltp_ledger_phase2.jsonl` is not in your folder, stop and
 > say so** — do not proceed on Phase I alone. Its absence means a dispatch step
 > was skipped, which the operator can fix in a minute.
