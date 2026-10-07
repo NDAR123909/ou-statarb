@@ -7104,6 +7104,34 @@ code that produced the field — and each time an independent session did it.
 
 ---
 
+## 2026-10-07 (evening) — leaderboard: still 5th, and the board prices return
+
+| # | team | score | Sharpe | return | MDD |
+|---|---|---|---|---|---|
+| 1 | Imnzzz | 95.7 | 4.23 | +6.5% | 3.8% |
+| 2 | Quantech | 86.2 | 1.54 | +6.7% | 11.0% |
+| 3 | Stream4AI | 85.7 | 1.40 | +4.6% | 5.0% |
+| 4 | Gamma Reasoning | 83.6 | 3.30 | +1.2% | 2.9% |
+| **5** | **NDAR** | **81.7** | **2.36** | **+1.6%** | **3.1%** |
+| 6 | Little J | 79.1 | 3.87 | +0.1% | 0.0% |
+
+**5th, 81.7 (83.1 on 10-05), 4.0 behind 3rd, 1.9 behind 4th, 2.6 ahead of 6th.**
+After two zero-return days and the 10-07 stop. Gamma fell 2nd → 4th (return
+2.2% → 1.2%).
+
+**An observation for decision 4 (sizing), not a model.** Stream4AI is 3rd at
+**Sharpe 1.40** with +4.6% return; Gamma is 4th at **Sharpe 3.30** with +1.2%.
+On this board **return separates 3rd from 5th more than Sharpe does.** Two-team
+differencing puts the exchange rate very roughly at ~2 points per 1% of return
+and ~2–2.5 per 1.0 of Sharpe — **fragile**: two comparisons, an unknown pool,
+and Z-scores that move as other teams move. It is the argument *for* sizing that
+the week 9 deferral named. The arguments against stand unchanged: t = 0.84, and
+doubled size doubles future drawdowns against a banked 3.1% scored MDD.
+Stream4AI and Little J show `0 | 0 | 0` AI engagement — per the standing rule,
+not something to read.
+
+---
+
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
 
 > **STATUS 2026-09-08, read this before the list.** The build window closed and
