@@ -1035,6 +1035,17 @@ mu moved away and tripled the raw deviation; sigma doubling damped it back.
 Fields being mutually consistent is not evidence they are right when they share
 an upstream error.
 
+> **⚠ CORRECTED 2026-10-07 (research task 06, verified on landing).** The
+> paragraph above is wrong about σ, and wrong for the very reason this addendum
+> discloses: the 2.047 paired the entry-beta spread with the live-beta mean.
+> Before 2026-09-09 both the logged `z_in_entry_coords` and the live z were on
+> the live beta, so `sigma_live/sigma0 = (3.5970 − 6.4428)/(−4.7518) =`
+> **0.599** exactly — **sigma shrank to 0.60×**, which is what the retracted
+> paragraph had said. On one beta the mean moved **−0.14σ₀, toward** the long
+> position; the +6.44 is ~102% beta artefact. The stop fired in the live frame
+> because the ruler shrank, not because the mean moved. The withdrawal of the
+> logged +3.597 and the true entry-frame z of −3.283 both stand.
+
 ### What ships
 
 Additive instrumentation, no change to entry, exit, sizing or stop logic:
@@ -1056,6 +1067,11 @@ Additive instrumentation, no change to entry, exit, sizing or stop logic:
   `exit_z = 0` — so it never actually checked its own claim. **A second
   retraction follows from that:** the record's single confession of frame drift,
   on FIL/AR, was a false alarm attached to a **+6.03 winner**.
+  **⚠ Withdrawn 2026-10-07 (task 06):** that retraction rested on an entry-frame
+  z of −0.665, itself the pre-09-09 hybrid coordinate. On the entry beta it is
+  **+0.133**: the short spread had not reverted in its own frame, and the live
+  exit fired because the same-beta mean rose **+0.20σ₀ toward** it. The note's
+  claim was right; its number was not.
 
 Pinned by `tests/test_ltp_entry_frame.py` —
 `test_the_frame_is_rebuilt_on_the_entry_beta_not_the_live_one`,
@@ -1196,6 +1212,18 @@ stop from the ledger's own prints. **Every nonzero Phase II `mu_shift_sigma` is
 
 (Live betas from 3-dp state rows; research task 06 re-derives these
 independently.)
+
+> **⚠ CORRECTED 2026-10-07 (task 06).** The artefact column reproduces. The
+> same-beta column does not, as written: **ETH/BTC is +0.16** (−0.28…+0.60), not
+> ~+0.7 — the exact live beta, 1.1587286683, was on the 09-27 15:00 `enter`
+> and the 3-dp one moved the result 0.6σ₀; **09-21 is ≈0**; **09-15 and 09-26
+> cannot be signed** (3-dp betas only; ±0.3σ₀ from rounding alone); 09-14 holds
+> at +1.49. A **sixth** pre-fix close postdates the table — the 09-28 stop, 64%
+> artefact, same-beta +0.47 — so "≥90%" fails for 09-14 (88%) and 09-28.
+> **And none of these same-beta shifts clears the noise band implied by the
+> agent's own half-lives**: on spreads this autocorrelated, two window means a
+> refit apart differ by 0.4–0.9σ₀ with no drift at all, so the `0.10` flag
+> (`MU_SHIFT_MATERIAL`) fires on ~90% of driftless refits.
 
 **What it put into the published record.** `equilibrium_reestimated` keys on
 this field, and `reversion_note()` keys on that, so **two exit reasonings in the
