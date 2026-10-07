@@ -6982,6 +6982,38 @@ reconstruction method** — the first ground truth this question has had.
 
 ---
 
+## 2026-10-07 — the first intra-bar stop: a gap, caught at the same price the bar would have charged
+
+Found at step 0 of the task 06 dispatch (`stop` 14 → 15, long side blocked).
+Export `e7dff87`, last record 19:00:22.
+
+```
+06:01  refit 1/15 (first pass since 10-03); ENTER LONG 1000SHIB/DOGE at z -1.83 (beta 0.893)
+08:35  sample -3.38   (closest approach before; no firing -- 0.12 inside the stop)
+13:35  -3.10   13:40  -3.02   13:45  -3.80 -> STOP (trigger "intrabar"), both legs closed 13:45:18/32
+14:00  bar z -3.77 ("broken")   15:00 -3.66   16:00 -4.00   17:00 -4.12   18:00 -4.23   19:00 -3.51
+equity 1020.60 -> 1016.00 (~ -4.6, incl. fees)   long side blocked until z > -0.60
+```
+
+**Audit, as the week 10 agenda requires:**
+
+- **Not a false positive.** z never came back: the hourly bar read −3.77 at 14:00
+  and the spread went on to −4.23. The hourly stop would have fired at 14:00.
+- **It saved essentially nothing — this time.** It fired at −3.80; the bar would
+  have fired at −3.77, the same price within noise. The crossing was a **gap**:
+  −3.02 to −3.80 between two five-minute readings, straight through 3.5. That is
+  caveat 1 of the build (gaps), observed on the first firing. The ≈ 8.5 USDT
+  upper bound assumed continuous paths; this one was not.
+- **Stable frame:** no refit inside the hold, `z == z_entry`, `mu_shift_sigma`
+  0.0 on the entry beta. `z_fixed` was **−2.70** — under task 05's fixed-window
+  sigma it would not have stopped at all (the same direction as every earlier
+  `z_fixed` reading: the live window's sigma is the smaller one).
+- **The 5-minute samples show what an hourly record never could:** the 08:35
+  approach to −3.38 and a recovery to −1.67 by 10:10 before the second leg down.
+  One firing is one observation; nothing here argues for or against the rule.
+
+---
+
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
 
 > **STATUS 2026-09-08, read this before the list.** The build window closed and
