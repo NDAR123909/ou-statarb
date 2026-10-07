@@ -1,5 +1,14 @@
 # 03 — What has frame drift actually cost?
 
+> **CORRECTED BY TASK 06 (2026-10-07) — read `out/06-frame-drift-single-beta.md`
+> §4 before any figure below.** This answer paired an entry-beta spread with a
+> live-beta mean — the defect it was auditing. **KAS/ETC σ₁/σ₀ is 0.599, not
+> 2.047** (exact from the logged fields: (3.5970 − 6.4428)/−4.7518; verified on
+> landing); its same-beta mean moved −0.14σ₀ *toward* the position, not +6.44
+> away. **FIL/AR's true entry-frame z at the exit is +0.133, not −0.665**, so one
+> exit changes label, not zero. The §2a toward/away labels were assigned to
+> cross-beta values and are void. Left as written below; not back-edited.
+
 **Answer in one line: on the instrumented record, mislabelling cost nothing and
 frame drift cost one stop. The sample is nine closes and two drift events, which
 is not enough to act on — and the anchor case this task was handed does not

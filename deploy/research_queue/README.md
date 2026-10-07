@@ -103,7 +103,16 @@ git pull
 git checkout -b research/$T
 git fetch origin live/track-record
 git checkout origin/live/track-record -- track_record/ltp_ledger_phase2.jsonl track_record/ltp_state_history.jsonl
+git branch --show-current              # MUST print research/<your $T>
 ```
+
+**Check that last line's output before dispatching.** On 2026-10-07 the
+checkout line ran cut short — `git checkout origin/live/track-record --`, its
+paths lost in a paste — which moves the WHOLE folder onto the droplet's branch
+("HEAD detached") instead of copying two files from it. Cowork then worked in a
+weeks-old tree. It noticed and wrote only its own file, but the next tool might
+not. If it prints anything but `research/$T`: `git checkout research/$T`, then
+re-run the two-file checkout.
 
 **The last two lines are not optional.** The published Phase II data lives on
 `live/track-record`, the droplet's branch — **not on this one.** Without them
@@ -258,7 +267,7 @@ travelling inside each PROMPT block is what did that, so keep copying them.
 
 | # | task | status |
 |---|---|---|
-| 06 | `06-frame-drift-single-beta.md` — how much frame drift is there, measured on one beta? | **open · run next** (Wed 2026-10-07) |
+| — | *(empty — the queue refills at a review)* | — |
 
 The queue emptied on 2026-09-16, refilled at the 09-20 review, emptied again on
 09-23, and refilled at the week 8 review on 09-27. **07 was written on 09-29 and
@@ -278,6 +287,7 @@ here, not on the research branches.
 | 04 | `done/04-entry-depth-vs-stops.md` | `out/04-entry-depth-vs-stops.md` | **2026-09-13.** Depth does not predict stop-outs (Fisher p=1.00); damage is in the middle bucket. **DO NOTHING** |
 | 02 | `done/02-side-blocked-earned-its-keep.md` | `out/02-side-blocked-earned-its-keep.md` | **2026-09-16. The block EARNS ITS KEEP on drawdown.** The "ten refusals" are **two episodes** (entry fires only when `side == 0`). Net −3.5 (~0.34% NAV), but MDD **2.273% → 1.779%** — a 28% relative cut in permanent drawdown. Also found: `blocked` does **not** survive pair eviction (`ltp_agent.py:302–306`), an undocumented third exit from the block |
 | 05 | `done/05-sigma-window-and-stops.md` | `out/05-sigma-window-and-stops.md` | **2026-09-23. COINCIDENCE.** Stop rate 25% vs 25% (Fisher p = 1.00); stops come on raw moves 2.19× **larger**; sigma **grew** as the window shrank. Window = `int(3 × half_life)` everywhere observed (r = +0.9996), so it is **unidentifiable** without a counterfactual fixed-window sigma. **Falsified its own brief's key figure** (NEAR/ICP 5.43%, not 1.4%). Declined 4b: rejected half-lives are not logged. First dispatch with the Phase II inputs pulled onto the research branch |
+| 06 | `done/06-frame-drift-single-beta.md` | `out/06-frame-drift-single-beta.md` | **2026-10-07. `mu_shift_sigma` pre-fix is ~all artefact; after the fix it measures mostly noise.** None of 10 refit-spanning same-beta shifts (both phases) clears the noise band from the agent's own half-lives; the 0.10 flag fires on ~90% of driftless refits; the 5:1 "toward" lean is selection on closed positions. **What changes outcomes is σ**: in 8 of 10 refit-spanning holds the entry frame closes at a different bar, and both stops it would not have taken (09-28, KAS/ETC) were σ shrinking. **Falsified the 09-09 Phase I correction** (KAS/ETC σ shrank to 0.599×, not "doubled 2.047"; FIL/AR's drift note was right) **and its own brief** (all 27 Phase I closes carry leg prices). Week 8 table: ETH/BTC +0.16 not +0.7 (rounded beta used where the exact one existed); 09-28 missing. Dispatched from a wrong checkout (a step-1 line ran without its paths); Cowork caught it and wrote only its file |
 | 07 | `done/07-breadth-honest-options.md` | `out/07-breadth-honest-options.md` | **2026-09-30. NO honest breadth in time to matter.** B (+22 non-crypto pairs) adds **0** — all fail a non-FDR gate, p 0.27–0.77, BZ/CL on split-half. C (166 tests) adds 2 crypto pairs in the live orientation, WIF/DOGE (shares DOGE with the traded pair) and AAVE/COMP — **at most one independent**. Phase II edge t = +0.46 over 22 trips; ~411 trades to distinguish it; C yields ~32–69 by 11-04. **Found: `fetch_panel`'s inner join halves the panel when the symbol list widens** (live refit 80 crossings / p 7.7e-05 vs scan 38 / 0.0158 on the same pair), and the scan's VERDICT double-counts venues and tests the wrong orientation |
 
 Run order was **01 → 04 → 03 → 02 → 05 → 07**, not numeric. 04 jumped to the front on

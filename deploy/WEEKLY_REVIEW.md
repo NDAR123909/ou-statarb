@@ -1836,7 +1836,7 @@ section existed; that is what it is for.
 | ~~**Land the three research outputs on the working branch**~~ **DONE 2026-09-14.** All three `out/` files (1,322 lines) taken file-by-file off their research branches; `done/` created and tasks 01, 03, 04 moved into it, leaving 02 alone in the queue. Scope audit while the branches were in hand: one new file each, nothing else. README step 4 rewritten so "pushed the branch" is no longer mistaken for finished | 2026-09-14 | closed |
 | **Disclose the `entry_beta` fix in `LTP_STRATEGY.md`** — ~~missing since 2026-09-09~~ **DONE 2026-09-14**, addendum written naming `entry_frame` and `entry_beta` | 2026-09-14 | closed |
 | **Ask the organizers whether the Binance-vs-OKX venue choice is still open** now that Phase II has started, and whether the primary account is provisioned as a **Sub Portfolio** (if so the key can read but not trade it — `Edit API` fixes it in one click), and whether their side needs an IP whitelisted. The last two were asked of @LTP_Tracey on 2026-09-07 and **never answered** | 2026-09-07 / 2026-09-08 | next organizer contact — bundle with the CSV-export and AI-floor questions already owed |
-| ~~**FIX `mu_shift_sigma`**~~ **BUILT 2026-09-27, DEPLOYED 2026-09-29 21:15 UTC, verified live.** Re-expressed on the entry beta; `mu_shift_basis` marks post-fix records; disclosed in `LTP_STRATEGY.md`. Original: **FIX `mu_shift_sigma`: it compares means fitted on two different betas.** `entry_frame()` (`ltp_agent.py:393-412`) rebuilds the spread on `entry_beta` for `z_in_entry_coords` — the 2026-09-09 fix — but computes `mu_shift = (live_mu − entry_mu) / entry_sigma` where `live_mu` is fitted on the **live** beta's spread. Any refit that moves beta during a hold adds Δβ·ln(price_b)/σ₀ — **~91σ on the 09-27 ETH/BTC exit** (ln BTC ≈ 11.35), ~13.5σ on the 09-15 stop. **Every nonzero Phase II shift is ≥90% this artefact.** It drives `equilibrium_reestimated` and therefore `reversion_note()`, which has written **false magnitudes into the published reasoning** of two exits ("re-estimated by +91.96 sigma", "+12.55 sigma"). **Trading is unaffected**: `reverted`/`stopped` are computed separately. Fix: re-express `live_mu` on the entry beta (store the refit window's mean of `log_b` for held pairs), plus a test with a beta change and a stationary spread. **Do not back-fill the ledger**; disclose in `LTP_STRATEGY.md` when shipped | 2026-09-27 | **needs the operator's go**; belongs in the logging pass. Found at the week 8 review |
+| ~~**FIX `mu_shift_sigma`**~~ **BUILT 2026-09-27, DEPLOYED 2026-09-29 21:15 UTC, verified live.** Re-expressed on the entry beta; `mu_shift_basis` marks post-fix records; disclosed in `LTP_STRATEGY.md`. Original: **FIX `mu_shift_sigma`: it compares means fitted on two different betas.** `entry_frame()` (`ltp_agent.py:393-412`) rebuilds the spread on `entry_beta` for `z_in_entry_coords` — the 2026-09-09 fix — but computes `mu_shift = (live_mu − entry_mu) / entry_sigma` where `live_mu` is fitted on the **live** beta's spread. Any refit that moves beta during a hold adds Δβ·ln(price_b)/σ₀ — **~91σ on the 09-27 ETH/BTC exit** (ln BTC ≈ 11.35), ~13.5σ on the 09-15 stop. **Every nonzero Phase II shift is ≥90% this artefact** *(corrected 2026-10-07, task 06: 88% for 09-14, 64% for the 09-28 stop; six pre-fix closes, not five)*. It drives `equilibrium_reestimated` and therefore `reversion_note()`, which has written **false magnitudes into the published reasoning** of two exits ("re-estimated by +91.96 sigma", "+12.55 sigma"). **Trading is unaffected**: `reverted`/`stopped` are computed separately. Fix: re-express `live_mu` on the entry beta (store the refit window's mean of `log_b` for held pairs), plus a test with a beta change and a stationary spread. **Do not back-fill the ledger**; disclose in `LTP_STRATEGY.md` when shipped | 2026-09-27 | **needs the operator's go**; belongs in the logging pass. Found at the week 8 review |
 | ~~**Log hourly NAV**~~ **BUILT 2026-09-27, DEPLOYED 2026-09-29 21:15 UTC, verified live.** Original: **PROPOSED: log hourly NAV.** The scored MDD is **3.1%** while our daily series says 2.88%, and the scored Sharpe is **−0.06** while our close-to-close series gives **+0.91** — and we can reproduce **neither**, because nothing records NAV at the scorer's instants (hourly for MDD; 00:00 and 23:00 UTC for the daily return). One ledger line per tick with `nav` would let `status.py` show the banked MDD exactly (the open banked-MDD row) and reproduce the 40%-weight Sharpe term. Read-only | 2026-09-27 | **needs the operator's go**; same pass |
 | ~~**DEPLOY the 2026-09-27 logging pass**~~ **DONE 2026-09-29 21:15 UTC, mid-position under the revised conditions** (|z| 1.52, 21:13, no window near) — see the 09-29 entry. Original:  — `deploy/ltp_agent.py` and `deploy/status.py` together. On the droplet: `git fetch origin claude/offline-competition-deploy-nuk5tz`, `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py deploy/status.py`, `systemctl restart ltp-agent`. **Verify:** journal shows `self-check PASS`; after the next bar `status.py` prints a `banked MDD` value; after the next refit its record carries `candidates`; `z_sample` records appear only while holding. The restart moves the refit hour one earlier. The checkout stages both files on `live/track-record`, so the 23:58 commit records the deployed version — intended. **REVISED 2026-09-29: deploy mid-position is now acceptable, on conditions.** The flat-book rule was set on 09-27; on 09-29 the operator stated top 3 is the goal with ~36 days left, which makes every stop taken WITHOUT sub-hourly data unrecoverable evidence. The restart's cost is one extra off-schedule bar — the same logic as any hourly bar — and `reconcile_positions` leaves a pair alone when state says open and both legs are live, so held positions survive the restart. **Conditions:** every held pair |z| < 2.5 in `status.py` (not within ~1σ of the stop) **AND not within ~0.3 of its exit band — added 2026-09-30, after a restart at z −0.03 exited a short spread mid-hour**; restart between :10 and :50 past the hour; not within 30 min of an announced maintenance window. Positions opened before the deploy log `mu_shift_basis: unavailable` until they close (no tagged `mu_entry_beta`) and `z_fixed: null` until the next refit — expected, not a fault | 2026-09-27, revised 2026-09-29 | **next operator session that meets the conditions** |
 | ~~**DECIDE the two remaining top-3 actions**~~ **DECIDED 2026-09-29: YES to both.** Task 07 (breadth) written as a GATE for Wed 09-30, ahead of task 06 (now Wed 10-07); Sun 10-04 is the top-3 strategy review — prep in the row below. Original:  proposed 2026-09-29 after the operator set **top 3 as a must** (9th, score 61.3 vs 3rd at 90.0, ~36 days left): **(2)** make Sun 10-04 a top-3 strategy review with prepared evidence — per-stop overshoot cost, breadth options and their FDR cost, score scenarios per lever; **(3)** swap Wednesday's task 06 (measurement honesty) for a breadth task (which additional pairs could honestly pass the gate). The operator chose to deploy the logging pass first and then judge whether (2) and (3) are rational | 2026-09-29 | **(3) before the Wed 2026-09-30 dispatch** — otherwise task 06 runs as queued; **(2) before Sun 10-04** |
@@ -1851,6 +1851,8 @@ section existed; that is what it is for.
 | ~~**DECIDE the automation budget (operator).**~~ **DECIDED 2026-10-05: 12000**, on the recommendation. `maxTotalNotional` is cumulative opening flow per 24h session (~3.8 entries a day at 4000), not the concurrent exposure the code comment and the consent text describe. Recommendation 12000 via `LTP_AUTOMATION_MAX_TOTAL`, with the consent text rewritten by the operator — **the agent must never author that text** | 2026-10-05 | closed — the env edit is a step of the deploy row |
 | **REVISIT sizing (decision 4)** — deferred, not closed, at the week 9 review. New argument: the gap to 3rd/4th is return, which sizing scales. Against: t = 0.84 over 28 trips, and the overshoot and half-open hazards both scale with size | 2026-10-05 | **week 10 review, and only once fixes 2 and 3 are live** |
 | ~~**`deploy/README_ltp.md`'s consent-text example is stale**~~ **DONE 2026-10-05** — the sample sentence is replaced by what the text must name. — it says "max 500 USDT per order" (the cap went to 1000 in July) and "4000 USDT total automated exposure", which is not what the venue enforces | 2026-10-05 | closed |
+| **DECIDE `MU_SHIFT_MATERIAL` (0.10).** Task 06: same-beta shifts between two refits are noise of 0.4–0.9σ₀ on these spreads, so the flag fires on ~90% of driftless refits — and `equilibrium_reestimated` drives `reversion_note()`, which writes "the target moved" into **published reasoning**. Both post-fix values (0.527, 0.418) are within the band. Options: derive the threshold from the noise band (~0.85–2.65σ₀), or drop the note. A published-reasoning change, so disclosed | 2026-10-07 | **week 10 review; needs the operator's go** |
+| **Correct the KAS/ETC fixture** — `tests/test_ltp_entry_frame.py::_kas_pair` builds `sigma: KAS_SIG0 * 2.047`; the true ratio is 0.599. Not asserted, so nothing fails — which is why it would survive unnoticed | 2026-10-07 | with the next test pass; needs the operator's go |
 | ~~**DEPLOY fixes 2 and 3 + the 12000 budget.**~~ **DONE 2026-10-05 03:19:59 UTC, verified** — check printed `None True`, env printed `12000`, `self-check PASS`, `automation session ras_59c1d803-… (opening budget 12000 per session)`; pid 129816, flat, bar 646. Original: Two files, **never one**: `deploy/ltp_agent.py` and `deploy/ltp_broker.py` — the new agent with the old broker runs, then raises `AttributeError: budget_left` at every entry signal, caught as `bar_error`, and never enters again. On the droplet: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py deploy/ltp_broker.py`; the check `.venv/bin/python -c "from deploy.ltp_broker import RapidXBroker; from deploy.ltp_agent import AgentConfig, intrabar_stop; print(RapidXBroker().budget_left(), AgentConfig().intrabar_stop)"` must print **`None True`**; then the operator edits `/root/ltp.env` by hand — `LTP_AUTOMATION_MAX_TOTAL=12000` and `LTP_AUTOMATION_CONSENT_TEXT` rewritten in their own words, **never pasted into chat** — and checks `( set -a; source /root/ltp.env; set +a; .venv/bin/python -c "from deploy.ltp_agent import automation_max_total; print(automation_max_total())" )` prints **12000**; then `systemctl restart ltp-agent`. **Verify** in the journal: `self-check PASS` and `automation session ras_… (opening budget 12000 per session)`. The restart moves the refit hour one earlier (~07:00 → ~06:00 UTC) | 2026-10-05 | closed — **first intra-bar firing, if any, is audited at the week 10 review** |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
@@ -2914,6 +2916,16 @@ logged                  = +3.5970      ← wrong in sign AND magnitude
 So the mechanism runs the **opposite** way to what I published: μ moved *away*,
 tripling the raw deviation, and σ doubling damped it back — net ~1.45×
 inflation, not a 40% collapse.
+
+> **⚠ THIS CORRECTION WAS ITSELF WRONG. Corrected 2026-10-07 (task 06, verified
+> on landing).** The 2.047 paired the entry-beta spread with the live-beta mean —
+> the root cause named in the very next section. Both logged z values were on
+> the live beta, so σ_live/σ₀ = (3.5970 − 6.4428)/(−4.7518) = **0.599 exactly:
+> σ shrank**, as the paragraph retracted above had said. On one beta μ moved
+> **−0.14σ₀ toward** the position, not away. The method lesson recorded above
+> (self-consistent fields can share an upstream error) was right; the
+> replacement number fell into exactly that trap. The operational conclusion —
+> −3.28 in the entry frame, no stop there — stands.
 
 **The operational conclusion is unchanged.** −3.28 is inside ±3.5, so the stop
 does not fire in the entry frame either way, the entry-frame overshoot is 0.097σ
@@ -6127,6 +6139,12 @@ close              dbeta     reported   beta-level artefact   same-beta shift
 09-27 exit ETH/BTC -0.042     91.96        ~91.29               ~+0.7
 ```
 
+> **⚠ Corrected 2026-10-07 (task 06):** ETH/BTC same-beta is **+0.16**, not
+> ~+0.7 — I used the 3-dp beta when the exact one (1.1587286683) was on the
+> 09-27 15:00 `enter`. 09-21 is ≈0; 09-15 and 09-26 cannot be signed on 3-dp
+> betas; 09-14 holds (+1.49). The 09-28 stop, a sixth case, came after this
+> table. See the 2026-10-07 task 06 entry.
+
 (Live beta from the 3-dp state rows; ±0.0005 moves each artefact by ≤0.3σ, or
 ~1.1σ for ETH/BTC where ln BTC ≈ 11.35.)
 
@@ -6222,7 +6240,7 @@ pass to be **described before any code is written**:
   Wed 2026-09-30. It tests the week 8 decomposition independently and restates
   task 03's sample on one beta. Scoped to Phase II's full-price records, with
   Phase I's two events through task 03's reconstructions, because Phase I close
-  records carry no leg prices. Its first instruction is to say so if the week 8
+  records carry no leg prices *(wrong — all 27 do; found by task 06, 2026-10-07)*. Its first instruction is to say so if the week 8
   table is wrong, since three corrections rest on it.
 - **(a) The logging pass — design below, AWAITING THE GO ON THE DESIGN.**
 
@@ -6867,7 +6885,13 @@ restart.
 
 1. **Deploy and verify fixes 3 and 2** if built — then every intra-bar firing is
    audited against what the hourly bar would have done.
-2. **Wed 10-07: task 06** (frame drift on one beta), as queued.
+2. ~~**Wed 10-07: task 06**~~ **DONE 10-07** — see that entry. **Two
+   follow-ups for the review:** (a) `MU_SHIFT_MATERIAL = 0.10` fires on ~90% of
+   driftless refits, and `reversion_note()` writes its sentence into published
+   reasoning on that flag — decide whether the threshold should come from the
+   noise band or the note should go; (b) the fixture `KAS_SIG0 * 2.047` in
+   `tests/test_ltp_entry_frame.py` (not asserted) — correct it to 0.599. Both
+   need the operator's go.
 3. **Decision 4, sizing** — only once 2 and 3 are live. Bring the per-trip t, the
    scenario table, and the leaderboard gaps by term.
 4. **Standing:** 950 trigger · AI spend both ends · leaderboard · the reboot on a
@@ -7011,6 +7035,72 @@ equity 1020.60 -> 1016.00 (~ -4.6, incl. fees)   long side blocked until z > -0.
 - **The 5-minute samples show what an hourly record never could:** the 08:35
   approach to −3.38 and a recovery to −1.67 by 10:10 before the second leg down.
   One firing is one observation; nothing here argues for or against the rule.
+
+---
+
+## 2026-10-07 — task 06: no evidence of equilibrium drift; the ruler is what moves outcomes
+
+Answer: `out/06-frame-drift-single-beta.md` (research branch `a37bab1`, landed).
+Computed on export `e7dff87`.
+
+**The dispatch went wrong and was caught.** A step-1 line ran as
+`git checkout origin/live/track-record --` with its paths lost in a paste, which
+put the whole folder on the droplet's branch. Cowork noticed the detached HEAD,
+read the brief and code from the research branch with `git show`, wrote only its
+own file, and said so first. The operator stopped at step 3 and asked. Fixed by
+checking out the research branch (the untracked answer carried over) and
+re-running the two-file checkout; step 3 then showed exactly the three expected
+lines. **The runbook now ends step 1 with `git branch --show-current`.**
+
+**Verified on landing, from logged fields alone:**
+
+```
+KAS/ETC  sigma1/sigma0 = (z_entry_logged - shift)/z_live = (3.5970 - 6.4428)/(-4.7518) = 0.5989
+FIL/AR   sigma1/sigma0 = (-0.6654 + 0.6106)/(-0.0579)                                   = 0.9469
+         (exact: before 09-09 both z values were on the live beta -- confirmed in entry_frame at da7aadb^)
+Phase I  exit/stop records with price_a and price_b: 27 of 27
+betas    FIL/AR 0.7768718801 -> 0.7966167339, KAS/ETC 0.9721173236 -> 0.9326583952,
+         ETH/BTC live 1.1587286683 -- all as the answer states
+```
+
+**What it found:**
+
+1. **Pre-fix `mu_shift_sigma` is ~all artefact** — 64–132% of each logged value
+   is Δβ·m_b/σ₀; reproduced exactly where β is exact (12.5476, 5.9244, 91.9634).
+2. **The week 8 table was half right.** Artefact column: yes. Same-beta column:
+   **ETH/BTC +0.16, not ~+0.7 — I used a 3-dp beta when the exact one was in the
+   ledger**; 09-21 ≈0; 09-15 and 09-26 unsignable; 09-14 +1.49 holds. A sixth
+   pre-fix close, the 09-28 stop (+0.47, 64% artefact), was missing.
+3. **The 09-09 Phase I correction was wrong, by the defect it was correcting.**
+   KAS/ETC's σ **shrank** to 0.599× (not "doubled, 2.047"); its mean moved
+   −0.14σ₀ toward the position. FIL/AR's drift note, retracted as "a false
+   alarm", was right: entry-frame z +0.133, mean +0.20σ₀ toward. Task 03 and my
+   correction both mixed the betas; **the paragraph retracted on 09-09 was right
+   about σ.**
+4. **No same-beta shift in either phase (10 refit-spanning closes) clears the
+   noise band from the agent's own half-lives.** Window means a refit apart
+   differ by 0.4–0.9σ₀ with no drift; `0.10` fires on ~90% of driftless refits;
+   the 5:1 "toward" lean is selection on closed positions. **Against task 03's
+   bar — double-digit events with consistent direction — the count is zero.**
+5. **What changes outcomes is σ.** In 8 of 10 refit-spanning holds the entry
+   frame would have closed at a different bar (7 later, 1 earlier). Both stops
+   the entry frame would not have taken — **09-28 and KAS/ETC** — were σ
+   shrinking at the refit (0.61–0.70×, 0.60×). 09-26 is the reverse: σ widened
+   and the live stop came later. Its counterfactual USDT column is explicitly not
+   summable, and no recommendation is made on frozen vs trailing.
+6. **Its brief was wrong** (mine): Phase I closes do carry prices.
+
+**Corrected in place, originals left visible:** `WEEKLY_REVIEW.md` 09-09 KAS/ETC
+section, the week 8 table, the `mu_shift` commitments row, the 09-27 task 06
+line; `LTP_STRATEGY.md` 09-09 addendum (the σ paragraph, and the FIL/AR "second
+retraction" withdrawn) and the 09-27 addendum table; `out/03-frame-drift-cost.md`
+header. **Not yet:** the test fixture and `MU_SHIFT_MATERIAL` — both code, both
+in Open commitments for the week 10 review.
+
+**The pattern, for the third time on this one question:** a correction made from
+logged fields inherited the error it was correcting (09-09's "2.047", week 8's
+3-dp betas). Each time the fix was to go back to the primary prices and to the
+code that produced the field — and each time an independent session did it.
 
 ---
 
