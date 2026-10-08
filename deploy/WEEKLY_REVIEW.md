@@ -6892,8 +6892,11 @@ restart.
    noise band or the note should go; (b) the fixture `KAS_SIG0 * 2.047` in
    `tests/test_ltp_entry_frame.py` (not asserted) — correct it to 0.599. Both
    need the operator's go.
-3. **Decision 4, sizing** — only once 2 and 3 are live. Bring the per-trip t, the
-   scenario table, and the leaderboard gaps by term.
+3. **Decision 4, sizing** — 2 and 3 are live (10-05). Bring the per-trip t, the
+   scenario table, the leaderboard gaps by term — **and the 10-08 finding: the
+   per-leg cap (0.5 × NAV) binds every entry, so sizing is four coupled limits;
+   ×1.5 fits them, ×2 does not without the per-order cap, consent text and
+   symbol leverage.**
 4. **Standing:** 950 trigger · AI spend both ends · leaderboard · the reboot on a
    flat book (15 updates).
 
@@ -7101,6 +7104,73 @@ in Open commitments for the week 10 review.
 logged fields inherited the error it was correcting (09-09's "2.047", week 8's
 3-dp betas). Each time the fix was to go back to the primary prices and to the
 code that produced the field — and each time an independent session did it.
+
+---
+
+## 2026-10-07 (evening) — leaderboard: still 5th, and the board prices return
+
+| # | team | score | Sharpe | return | MDD |
+|---|---|---|---|---|---|
+| 1 | Imnzzz | 95.7 | 4.23 | +6.5% | 3.8% |
+| 2 | Quantech | 86.2 | 1.54 | +6.7% | 11.0% |
+| 3 | Stream4AI | 85.7 | 1.40 | +4.6% | 5.0% |
+| 4 | Gamma Reasoning | 83.6 | 3.30 | +1.2% | 2.9% |
+| **5** | **NDAR** | **81.7** | **2.36** | **+1.6%** | **3.1%** |
+| 6 | Little J | 79.1 | 3.87 | +0.1% | 0.0% |
+
+**5th, 81.7 (83.1 on 10-05), 4.0 behind 3rd, 1.9 behind 4th, 2.6 ahead of 6th.**
+After two zero-return days and the 10-07 stop. Gamma fell 2nd → 4th (return
+2.2% → 1.2%).
+
+**An observation for decision 4 (sizing), not a model.** Stream4AI is 3rd at
+**Sharpe 1.40** with +4.6% return; Gamma is 4th at **Sharpe 3.30** with +1.2%.
+On this board **return separates 3rd from 5th more than Sharpe does.** Two-team
+differencing puts the exchange rate very roughly at ~2 points per 1% of return
+and ~2–2.5 per 1.0 of Sharpe — **fragile**: two comparisons, an unknown pool,
+and Z-scores that move as other teams move. It is the argument *for* sizing that
+the week 9 deferral named. The arguments against stand unchanged: t = 0.84, and
+doubled size doubles future drawdowns against a banked 3.1% scored MDD.
+Stream4AI and Little J show `0 | 0 | 0` AI engagement — per the standing rule,
+not something to read.
+
+---
+
+## 2026-10-08 — sizing is not one dial: the per-leg cap has bound every entry since 10-02
+
+Found while answering the operator's worry about the return gap to the top 3.
+**`risk_per_pair = 0.002` is not what sizes our trades now.** `trade_step`
+computes `g = risk_per_pair·nav/dvol`, then `g = min(g, per_leg_cap_mult·nav)`
+with `per_leg_cap_mult = 0.5`. **All 8 entries from 10-02 on sit exactly at
+0.5 × NAV** (e.g. 10-07: g 510.30, NAV 1020.60) — the vol target wanted more and
+the cap cut it. 11 of 31 Phase II entries are capped; the earlier uncapped ones
+(09-28/29) came in at g ≈ 394–400. Nowhere in this log or `LTP_STRATEGY.md` is
+`per_leg_cap_mult` mentioned, though every sizing discussion since August turned
+on `risk_per_pair`.
+
+**So "sizing ×2" (decision 4) is four coupled changes, not one:**
+
+| limit | today | at ×1.5 (g ≈ 765) | at ×2 (g ≈ 1020) |
+|---|---|---|---|
+| `per_leg_cap_mult` | 0.5 — **binding** | must → 0.75 | must → 1.0 |
+| `risk_per_pair` | 0.002 | → 0.003 so the vol target allows it | → 0.004 |
+| automation `max_per_order` 1000 (consent text) vs leg ceiling 1.1·g | 561 | 842 — fits | **1122 — refused (RCLI26005)** |
+| gross (1+β)·g vs `max_gross_mult` 2× NAV | ~0.94× | ~1.42× — fits one pair | ~1.89× — one pair only; a second is refused |
+| margin at 2× symbol leverage | ~470 of 1016 | ~720 — fits | ~965 of 1016 — near the limit |
+
+(β ≈ 0.89 for 1000SHIB/DOGE.) **×1.5 fits every existing limit once the two
+config values move; ×2 also needs the per-order cap, the consent text and the
+symbol leverage changed** — the last back toward the 5× line the standing
+decision keeps us far from.
+
+**Where the return gap comes from, for the review.** Return per unit of MDD on
+the 10-07 board: Imnzzz 1.71, Stream4AI 0.92, Quantech 0.61, **NDAR 0.52**, Gamma
+0.41. Only the leader is in a different class; Quantech's +6.7% came with 11.0%
+MDD and 1,688 trades. Much of the "wall" is risk taken, plus our flat days. At
+the Phase II pace (+16.0 over 29 days ≈ +0.55/day, stops included), 27 days left
+gives roughly **+3.1% at today's size, ~+3.9% at ×1.5, ~+4.6% at ×2** — **if the
+pace holds, which t = 0.84 does not promise**, and with drawdowns scaled by the
+same factor against a banked 3.1% scored MDD. Inputs for decision 4, not a
+recommendation.
 
 ---
 
