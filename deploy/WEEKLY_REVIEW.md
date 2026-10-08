@@ -6897,6 +6897,8 @@ restart.
    per-leg cap (0.5 × NAV) binds every entry, so sizing is four coupled limits;
    ×1.5 fits them, ×2 does not without the per-order cap, consent text and
    symbol leverage.**
+   **Also the 10-08 Phase I board analysis: bring the FULL Phase II board (all
+   pages) so the score model can be re-fitted on Phase II's own pool.**
 4. **Standing:** 950 trigger · AI spend both ends · leaderboard · the reboot on a
    flat book (15 updates).
 
@@ -7171,6 +7173,79 @@ gives roughly **+3.1% at today's size, ~+3.9% at ×1.5, ~+4.6% at ×2** — **if
 pace holds, which t = 0.84 does not promise**, and with drawdowns scaled by the
 same factor against a banked 3.1% scored MDD. Inputs for decision 4, not a
 recommendation.
+
+---
+
+## 2026-10-08 — the Phase I board, all 30 teams: what high MDD at the top does and does not mean
+
+The operator brought the full Phase I final board (screenshots, 30 rows) as an
+input for decision 4, with two cautions of their own: **four weeks is a small
+sample, and there may be survivor bias** — teams with nearly the same MDD sat far
+outside the top 10. Recorded now so the review uses it. Data, transcribed:
+
+```
+#  team         score  ret%   Sharpe  MDD%  |  #  team         score  ret%  Sharpe  MDD%
+1  Little J     90.2   22.9   3.28    7.2   | 16  FenTian      65.2   1.0   1.67   1.5
+2  X-Explore    89.4   18.0   3.20    7.5   | 17  Gamma        63.9   0.9   1.38   2.1
+3  Quantech     84.0   31.5   3.76   15.5   | 18  tosprk       61.4   1.2   0.88   3.2
+4  ohmyyimboy   80.1    5.2   3.48    1.3   | 19  PSJeevaa     59.7  -0.4   1.02   1.1
+5  T.Anh        80.1    5.9   3.55    3.8   | 20  Pair Trade   59.6   0.1   0.72   1.9
+6  NDAR         78.4    3.8   4.86    3.7   | 21  Stream4AI    59.4   1.8   0.45   6.4
+7  btcol        78.4    3.1   4.84    1.3   | 22  NeuPortal    54.9   0.8  -0.87   1.2
+8  Imnzzz       76.8    4.3   2.93    1.6   | 23  MurAlpha     52.4  -0.3  -0.86   1.5
+9  Krosus       74.6    1.7   4.52    2.2   | 24  TDB          49.3  -1.2  -0.36   7.2
+10 Poetikrule   71.4    1.6   3.18    2.0   | 25  Iwance       49.1  -0.0  -1.81   0.8
+11 Kinance      70.8    2.2   2.50    1.4   | 26  NorthStar    49.0  -0.6  -0.77   5.0
+12 Supes (K)    70.4    2.5   2.17    2.6   | 27  ROKA Gen.    48.4  -1.5  -0.77   4.2
+13 RR25         66.2    2.8   1.18    5.0   | 28  ZZKK         46.4  -0.1  -2.51   1.0
+14 Quant nunu   65.7    0.8   1.92    0.9   | 29  EQV UK       46.0  -1.3  -1.87   2.7
+15 TSIEN        65.6    1.1   1.66    1.4   | 30  MAX          44.9  -0.0  -2.95   0.0
+(PnL = return x 10 on 1,000 USDT throughout)
+```
+
+**The operator's two cautions both hold, and the data shows the second directly.**
+Seven teams finished with MDD ≥ 5%: **1st, 2nd, 3rd — and 13th, 21st, 24th,
+26th.** Large drawdown was not a path to the top; it was a **bimodal bet**, and
+what separated the two groups was return (+18 to +31% against −1.2 to +2.8%) and
+Sharpe. MDD tracks return (r = +0.78), so high MDD at the top is mostly a
+by-product of big returns, not a cause of rank. Rank against MDD alone is weak
+(Spearman −0.30).
+
+**A third point: the published formula reproduces the board — if z-scores are
+damped.** Score ≈ a + b·(0.40 z_Sharpe + 0.25 z_PnL + 0.20 z_ROI − 0.15 z_MDD) over
+the 30 teams fits with R² 0.944, but misses Quantech by 12 points. **Clipping each
+z at ±2 fits R² 0.980, max residual 4.6**; ±1.5, ±2.5, ±3, percentile ranks and
+min-max all fit worse. Best of seven variants on 30 points — **suggestive, not
+established.** If the scorer winsorizes, an extreme return earns far less than a
+straight z would pay, which is exactly what limits a variance play.
+
+**Our Phase I record replayed at larger size in that pool** (others held fixed;
+Sharpe unchanged by scaling; MDD scaled with return — all assumptions):
+
+| | return | MDD | score (plain z) | score (z clipped ±2) | rank |
+|---|---|---|---|---|---|
+| actual | 3.8% | 3.7% | 77.6 | 79.6 | 5 (actual: 6) |
+| ×1.5 | 5.7% | 5.5% | 78.1 | 80.2 | 5 |
+| ×2 | 7.6% | 7.4% | 78.7 | 80.9 | 5 |
+| ×3 | 11.4% | 11.1% | 80.2 | 83.3 | 4 |
+| ×2 and Sharpe −1.0 | 7.6% | 7.4% | 75.4 | 77.2 | **8** |
+
+**In Phase I, doubling would have bought ~1 point and no rank;** the top three's
+returns were too far out. And **a 1.0 loss of Sharpe costs ~3.6 points** against
+~1.2 per 1% of return and ~1.0 per 1pp of MDD (plain-z marginals) — a sizing
+change that also degrades Sharpe is a net loss.
+
+**What does not transfer, stated before it is used.** Phase II's pool is less
+extreme: on 10-07 the top returns were 4.6–6.7%, not 18–31%, so each 1% of return
+is likely worth more in Phase II than these Phase I marginals say. **The way to
+settle it is to fit the same model to the full Phase II board.** Many Phase I top
+curves (Little J, X-Explore, Quantech, ohmyyimboy, Imnzzz) also show their gains
+arriving in the final days — read from the sparklines only; we made ours in the
+last 48 hours too.
+
+**For Sunday:** the operator brings **the full Phase II board, all three pages**;
+the model is re-fitted on it and our ×1.5 and ×2 scenarios are scored on Phase
+II's own pool, together with the 10-08 per-leg-cap table.
 
 ---
 
