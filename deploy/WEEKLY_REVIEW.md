@@ -7249,6 +7249,122 @@ II's own pool, together with the 10-08 per-leg-cap table.
 
 ---
 
+## Week 10 — Phase II days 27-33 (reviewed Sun 2026-10-11 evening MST = 2026-10-12 00:00 UTC)
+
+### Position at review
+
+```
+equity      1005.15   peak 1020.95 (10-04)   current dd 1.55%     Phase II +0.5%
+kill        898.43    headroom 106.72        banked MDD 2.36% (ours, since 09-29) | SCORED 3.1%
+rank        9th of 25, score 68.8   (5th / 81.7 on 10-07)      Sharpe 0.26 (2.36 on 10-07)
+book        FLAT, universe empty at glance; pid 129816, restarts 0 all week; ai spend ~$1.15
+```
+
+Source for the intra-week numbers: the operator's seven daily glances, summarised
+in a file they brought to the review (assessed below).
+
+### The week: three trades, two stops, no reversion exit
+
+| pair | entry | close | z in → out | net |
+|---|---|---|---|---|
+| 1000SHIB/DOGE long | 10-07 06:01 | **intra-bar stop** 10-07 13:45 | −1.83 → −3.80 | −4.71 |
+| **ALGO/HBAR** short | 10-08 06:02 | **intra-bar stop** 10-08 07:20 | +0.74 → +3.60 | −9.32 |
+| 1000SHIB/DOGE short | 10-09 06:01 | refit_drop 10-11 06:01 | +1.58 → +0.36 (live frame) | ≈ −1.5 (fills for 10-11 not yet published) |
+
+**−15.45 on the week.** ALGO/HBAR is the first HBAR/ALGO trade of Phase II — the
+pair passed the 10-08 06:01 refit, entered a minute later, and was stopped 78
+minutes after entry. Both stops were the intra-bar stop, both within 0.3σ of 3.5
+(the first a gap through it). **The ALGO/HBAR firing is not yet audited**: the
+published ledger slice ends 10-07 19:00, so the 08:00 bar's z — the test of
+whether the hourly stop would also have fired — needs a fresh export. The
+1000SHIB/DOGE hold closed slightly negative although live z came back toward 0:
+P&L runs on the entry beta (0.877) while z was read on the refitted one (0.861) —
+task 06's frame disagreement, observed live.
+
+**Per-trip edge, all 31 Phase II round trips: mean +0.19, sd 5.03, t = 0.22**
+(was +0.77, t = 0.84, on 28). 22 wins, 9 losses, net ≈ +6.0. Indistinguishable
+from zero.
+
+### The Phase II board, and the scorer reproduced
+
+```
+#  team        score  ret%  PnL     Sharpe  MDD%  |  #  team        score  ret%   PnL      Sharpe  MDD%
+1  Imnzzz      95.6   7.3   73.19   4.53   3.8   | 14 T.Anh       58.8  -0.2    -2.14   -1.45   0.5
+2  Stream4AI   83.6   4.6   45.73   1.31   5.0   | 15 ZZKK        50.4  -1.1   -11.43   -2.40   2.5
+3  Quantech    83.5   5.7   57.40   1.36  11.0   | 16 ohmyyimboy  48.8  -0.2    -1.59   -3.62   0.2
+4  Little J    78.6   0.1    0.53   3.45   0.0   | 17 MurAlpha    48.0  -0.9    -9.31   -3.08   1.6
+5  NorthStar   77.5   1.9   18.86   1.58   6.8   | 18 NeuPortal   42.9  -1.4   -14.05   -3.91   1.6
+6  Gamma       77.0   1.3   13.35   1.54   4.3   | 19 Kinance     40.1  -4.0   -39.60   -1.41  10.1
+7  EQV UK      72.6   0.6    6.26   0.67   1.7   | 20 tosprk      39.3  -1.9   -19.33   -4.40   2.5
+8  X-Explore   69.6   4.5   44.56   0.86  24.5   | 21 RR25        36.2  -1.6   -15.88   -6.60   1.9
+9  NDAR        68.8   0.5    5.15   0.26   3.1   | 22 btcol       23.0  -5.6   -56.13   -4.24   8.2
+10 PSJeevaa    68.1  -0.7   -7.36   0.83   2.8   | 23 TDB         21.7  -6.0   -59.59   -4.42   8.1
+11 Quant nunu  60.8  -0.7   -6.60  -0.75   1.6   | 24 FenTian     19.4  -5.7   -57.27   -7.42   6.1
+12 Krosus      60.5  -0.7   -6.60  -0.22   6.5   | 25 Poetikrule  15.3 -16.5  -165.15   -3.09  18.4
+13 Supes (K)   60.1  -0.9   -8.83  -0.13   7.2   |
+```
+
+**25 teams in the Phase II pool.** The published formula with each z clipped at
+**±1.5** reproduces the board at **R² 0.994, max residual 3.9** (plain z: 0.946,
+max 16.3; ±2: 0.982). With the Phase I fit (±2 best there, 0.980) that is two
+pools, two good fits: **the scorer is a z-composite with damped extremes**, very
+likely. At our position (others held fixed):
+
+```
++1.0 Sharpe   ~ +3.4 to +3.7 points       +1% return ~ +2.5 to +2.8      +1pp MDD ~ -0.7 to -0.8
+3rd place (83.5) needs ~ +14.7: e.g. return +3.5% AND Sharpe ~2.0 by 11-04
+a bad finish (return -1%, Sharpe -0.5, MDD 4%) ~ 59-60, rank 13; (-3%, -1.5, 6%) ~ 48-50, rank 17
+```
+
+From +0.5% and Sharpe 0.26 with ~24 days left, +3.5% is **+30 USDT, ~1.25/day,
+against +0.16/day realised over Phase II.** Return and Sharpe would both have to
+come from an unbroken good run.
+
+### Decision 4, sizing — framed for the operator, decision pending
+
+**With t = 0.22, sizing is not a bet on the edge; it is a choice of variance.**
+Sizing scales return and drawdown and leaves Sharpe where luck puts it, so a
+larger size widens the spread of finishing positions in both directions: the
+good tail above (rank ~2 in the model) gets reachable on a run like 10-02→04,
+and the bad tail (rank 13–17) gets reachable on a week like this one. **Whether
+that is rational depends only on what 4th–25th are worth against 1st–3rd** — if
+only the top 3 counts, more variance raises the chance of it; if a 9th is worth
+more than a 17th, it costs. That is the operator's value, not a statistical
+finding, and this log says so rather than dressing it as one.
+
+Mechanics (10-08 table): **×1.5** = `risk_per_pair` 0.003 and `per_leg_cap_mult`
+0.75, inside every other limit, but the gross cap then holds **one pair at a
+time** (a second entry is a logged `gross_cap` skip). **×2** additionally needs
+the per-order cap above 1000, the consent text, and symbol leverage above 2×.
+
+### The operator's weekly summary — assessed
+
+Useful, and accurate on the numbers checked: the glance-by-glance NAV catches
+intra-day lows the 23:50 rows miss (the Saturday ratchet to 2.36%), and **the
+989.3 line is right** (1020.95 × (1 − 0.031)). Four corrections:
+
+1. **"Both spreads overshot ±3.5 rather than reverting at it"** reads the
+   1000SHIB/DOGE z path −4.00 → −4.23 as overshoot; those readings came **after**
+   the 13:45 stop, with the book flat. The spread kept breaking, which is the stop
+   working.
+2. **"Entry ceiling ~3.0 is still the standing structural suggestion"** — it
+   is not in this record. Task 04 (09-13) measured depth against stops and decided
+   **do nothing**; the top-3 prep found a tighter stop fails out of sample. **This
+   week's three entries were at −1.83, +0.74 and +1.58** — a 3.0 ceiling would have
+   blocked none of them.
+3. **`z_sample` freezing while flat is by design**: it samples open positions
+   only (`sample_open_positions`). Its tail statistics are conditional on holding,
+   which is the right population for a stop question.
+4. The suggested exit band ~0.15 and "hedge re-sync" are new proposals with no
+   evidence behind them yet; the second is task 06's frame question.
+
+**Not adopted as a weekly artifact.** It duplicates what the ledger export
+already carries, and its interpretive half contradicted two recorded decisions
+without citing them. What *is* worth carrying to Sunday: any glance that met an
+escalation row, and intra-day NAV lows.
+
+---
+
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
 
 > **STATUS 2026-09-08, read this before the list.** The build window closed and
