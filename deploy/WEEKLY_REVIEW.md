@@ -7365,6 +7365,58 @@ escalation row, and intra-day NAV lows.
 
 ---
 
+### (same night) Sizing, simulated — and my recommendation revised
+
+The operator asked whether ×1.5 is worth a ~4% MDD, and what the top three do
+that we do not. Both answered from data rather than argued.
+
+**What the top three share is return, not risk control:** Imnzzz (Sharpe 4.53,
++7.3%, MDD 3.8%, 225 trades) is genuinely ahead on every term; **Stream4AI**
+(Sharpe 1.31, +4.6%, MDD 5.0%) made its return early and has been flat for weeks;
+**Quantech** (1.36, +5.7%, MDD 11.0%, 1,860 trades) runs high risk, as in Phase I.
+Two of three have Sharpe far below ours on 10-07. Under the clipped-z scorer, a
+return 4–7% above a field where most teams are negative maxes out the return
+terms and **stays maxed while the team sits still** — which is why the top three
+have been stable. What they trade cannot be seen; directional exposure in a
+falling market is one possibility a market-neutral book excludes by design.
+Speculation, labelled.
+
+**Simulation.** Our 33 Phase II daily returns (23:50 rows + the operator's 10-11
+glance), bootstrapped over the 24 days left, 20,000 paths; Sharpe from the same
+series with the current scorer-vs-proxy offset (−0.35); MDD on the daily path
+floored at the banked 3.1%; each final state scored by the ±1.5-clip model against
+the 10-11 board **held fixed**.
+
+| | P(top 3) | P(top 5) | P(12th or worse) | median rank |
+|---|---|---|---|---|
+| ×1 | 19.7% | 35.7% | 29.2% | 9 |
+| ×1.5, revert to ×1 below 980 | 26.6% | 37.8% | 37.8% | 9 |
+| ×1.5, no revert | 27.5% | 39.8% | 34.8% | 9 |
+| ×2 (needs limits changed) | 31.5% | 41.9% | 37.0% | 9 |
+| ×1, **daily mean set to 0** | 13.1% | 26.5% | 38.3% | 10 |
+| ×1.5 revert<980, **mean 0** | 20.0% | 30.2% | 46.0% | 10 |
+
+**Read:** ×1.5 adds ~7 points of top-3 probability and ~6–9 points of finishing
+12th or worse; the median does not move. **The 980 revert rule does not help** —
+it trims the equity tail slightly and *raises* the bad-rank tail (it cuts size
+exactly when recovery needs it); proposed earlier tonight, withdrawn on this
+evidence. **MDD itself is the cheapest term to spend:** 3.1% → 4% costs ~0.7
+points. **Caveats:** the other 24 teams are frozen (the largest error — they
+move); 33 days with a few large ones carry the tails; the Sharpe offset is held
+constant; daily-path MDD understates hourly.
+
+**Revised recommendation, stated as a revision:** earlier tonight I recommended
+×1 partly because "size does not move Sharpe, so ×1.5 adds only 2–3 points in
+the good world". The simulation says the trade is closer than that: a ~35%
+relative increase in the chance of the outcome the operator says matters most,
+paid for with a comparable increase in the chance of a poor finish. **That is a
+legitimate judgement either way. If the top 3 is the priority, ×1.5 is
+defensible on these numbers — framed honestly as a variance choice on an edge
+measured at t = 0.22, not as confidence in the strategy.** ×2 stays excluded for
+the reasons in the 10-08 table. Decision pending.
+
+---
+
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
 
 > **STATUS 2026-09-08, read this before the list.** The build window closed and
