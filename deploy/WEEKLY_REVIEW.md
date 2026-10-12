@@ -1853,7 +1853,7 @@ section existed; that is what it is for.
 | ~~**`deploy/README_ltp.md`'s consent-text example is stale**~~ **DONE 2026-10-05** — the sample sentence is replaced by what the text must name. — it says "max 500 USDT per order" (the cap went to 1000 in July) and "4000 USDT total automated exposure", which is not what the venue enforces | 2026-10-05 | closed |
 | ~~**DECIDE `MU_SHIFT_MATERIAL` (0.10).**~~ **DECIDED 2026-10-12: NO CHANGE** — the go was given on my recommendation to raise it to 2.0, and I withdrew the recommendation before building: `reversion_note()` writes only when the entry frame would *not* have exited, a true statement whatever the cause, so raising the gate would suppress accurate published reasoning (e.g. 10-03 07:01). The noisy thing is the `equilibrium_reestimated` field read on its own — read it with `z_in_entry_coords` and the directional test. Original: Task 06: same-beta shifts between two refits are noise of 0.4–0.9σ₀ on these spreads, so the flag fires on ~90% of driftless refits — and `equilibrium_reestimated` drives `reversion_note()`, which writes "the target moved" into **published reasoning**. Both post-fix values (0.527, 0.418) are within the band. Options: derive the threshold from the noise band (~0.85–2.65σ₀), or drop the note. A published-reasoning change, so disclosed | 2026-10-07 | **week 10 review; needs the operator's go** |
 | ~~**Correct the KAS/ETC fixture**~~ **DONE 2026-10-12** (0.599×, with the derivation in a comment). Original: `tests/test_ltp_entry_frame.py::_kas_pair` builds `sigma: KAS_SIG0 * 2.047`; the true ratio is 0.599. Not asserted, so nothing fails — which is why it would survive unnoticed | 2026-10-07 | with the next test pass; needs the operator's go |
-| **DEPLOY ×1.5 (+ fixture) with the OS-update reboot.** One file: `deploy/ltp_agent.py` (`ltp_broker.py` unchanged). On the droplet, flat, between :10 and :50, clear of the refit hour (~06:00 UTC) and any window: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py`; the check `.venv/bin/python -c "from deploy.ltp_agent import AgentConfig, AUTOMATION_MAX_PER_ORDER; c=AgentConfig(); print(c.risk_per_pair, c.per_leg_cap_mult, AUTOMATION_MAX_PER_ORDER)"` must print **`0.003 0.75 1000.0`**; then `apt update && apt upgrade -y` and `reboot` (the unit starts on boot — verified on every earlier reboot). **Verify after boot:** `journalctl -u ltp-agent -b` shows `self-check PASS` and `automation session … (opening budget 12000 per session)`; `status.py` flat, peak 1020.95, restarts 0. The boot's startup bar moves the refit hour one earlier (~05:00 UTC) | 2026-10-12 | **next operator session that meets the conditions — tonight** |
+| ~~**DEPLOY ×1.5 (+ fixture) with the OS-update reboot.**~~ **DONE 2026-10-12 01:13 UTC, verified** — check printed `0.003 0.75 1000.0`; 5 packages upgraded; kernel 6.8.0-142 → **146**; `self-check PASS`, session `ras_0a1d9505-…` (opening budget 12000); pid 752, restarts 0, flat, bar 813, peak 1020.95 anchored. Original: One file: `deploy/ltp_agent.py` (`ltp_broker.py` unchanged). On the droplet, flat, between :10 and :50, clear of the refit hour (~06:00 UTC) and any window: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py`; the check `.venv/bin/python -c "from deploy.ltp_agent import AgentConfig, AUTOMATION_MAX_PER_ORDER; c=AgentConfig(); print(c.risk_per_pair, c.per_leg_cap_mult, AUTOMATION_MAX_PER_ORDER)"` must print **`0.003 0.75 1000.0`**; then `apt update && apt upgrade -y` and `reboot` (the unit starts on boot — verified on every earlier reboot). **Verify after boot:** `journalctl -u ltp-agent -b` shows `self-check PASS` and `automation session … (opening budget 12000 per session)`; `status.py` flat, peak 1020.95, restarts 0. The boot's startup bar moves the refit hour one earlier (~05:00 UTC) | 2026-10-12 | closed — **first ×1.5 entry is verified at the week 11 review** |
 | ~~**DEPLOY fixes 2 and 3 + the 12000 budget.**~~ **DONE 2026-10-05 03:19:59 UTC, verified** — check printed `None True`, env printed `12000`, `self-check PASS`, `automation session ras_59c1d803-… (opening budget 12000 per session)`; pid 129816, flat, bar 646. Original: Two files, **never one**: `deploy/ltp_agent.py` and `deploy/ltp_broker.py` — the new agent with the old broker runs, then raises `AttributeError: budget_left` at every entry signal, caught as `bar_error`, and never enters again. On the droplet: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py deploy/ltp_broker.py`; the check `.venv/bin/python -c "from deploy.ltp_broker import RapidXBroker; from deploy.ltp_agent import AgentConfig, intrabar_stop; print(RapidXBroker().budget_left(), AgentConfig().intrabar_stop)"` must print **`None True`**; then the operator edits `/root/ltp.env` by hand — `LTP_AUTOMATION_MAX_TOTAL=12000` and `LTP_AUTOMATION_CONSENT_TEXT` rewritten in their own words, **never pasted into chat** — and checks `( set -a; source /root/ltp.env; set +a; .venv/bin/python -c "from deploy.ltp_agent import automation_max_total; print(automation_max_total())" )` prints **12000**; then `systemctl restart ltp-agent`. **Verify** in the journal: `self-check PASS` and `automation session ras_… (opening budget 12000 per session)`. The restart moves the refit hour one earlier (~07:00 → ~06:00 UTC) | 2026-10-05 | closed — **first intra-bar firing, if any, is audited at the week 10 review** |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
@@ -7476,6 +7476,26 @@ with `z_sample` coverage since 09-29, 3 touched an adverse 3.0; 2 went on to 3.5
    simulation re-run on the new pool; this is how ×1.5 is judged, not by one week.
 4. **Standing:** 950 review trigger · scored-MDD line ~989.3 · AI spend both
    ends · no `do-release-upgrade`.
+
+---
+
+## 2026-10-12 01:14 UTC — ×1.5 live; reboot onto kernel 146
+
+```
+01:11  status        flat, pid 129816, bar 812 -- conditions met (flat, :11, refit ~06:00, no window)
+       checkout      deploy/ltp_agent.py from d3bfc96;  check -> 0.003 0.75 1000.0
+       apt upgrade   5 packages (libaudit, open-iscsi, sosreport); initramfs for 6.8.0-146
+       reboot        needrestart had deferred ltp-agent's restart -- the reboot did it
+01:13:59 ltp-agent started on boot;  01:14:12 self-check PASS, news stream live,
+         automation session ras_0a1d9505-... (opening budget 12000 per session)
+01:16  status        pid 752, restarts 0, flat, equity 1005.15, peak 1020.95, bar 813
+```
+
+**Position size ×1.5 is in force from 01:14 UTC 2026-10-12.** The refit hour
+moved one earlier to **~05:00 UTC** (next in 3 bars at 01:16). The first entry
+will be the first observation of the new size; nothing logs size at startup.
+Fourth clean reboot of the competition; `do-release-upgrade` (26.04) declined
+again.
 
 ---
 
