@@ -122,12 +122,24 @@ class AgentConfig:
     # before Phase II, where ranking and the prize actually exist. Scaling
     # size scales return and drawdown together without changing Sharpe, so
     # halving it costs nothing in evidence while bounding the downside.
-    risk_per_pair: float = 0.002
+    # PHASE II, FROM 2026-10-12: x1.5, fixed through 11-04 -- the operator's
+    # decision at the week 10 review, with this one and `per_leg_cap_mult`
+    # below (0.5 -> 0.75), which had bound every entry since 10-02, so raising
+    # this alone would have changed nothing. A VARIANCE CHOICE, NOT A CLAIM OF
+    # EDGE: the per-trip edge measured t = 0.22 over 31 trips. Under the
+    # reproduced scorer, x1.5 moved the simulated chance of a top-3 finish
+    # ~20% -> ~27% and of 12th-or-worse ~29% -> ~35%. Sharpe is unchanged by
+    # size; return and drawdown scale. Kill switch, gross cap and symbol
+    # leverage are untouched. See LTP_STRATEGY.md, addendum 2026-10-12.
+    risk_per_pair: float = 0.003
     # Entry bands must clear this many standard errors of the FITTED mean.
     min_entry_se: float = 1.0
     max_pairs: int = 4
     max_gross_mult: float = 2.0       # gross notional cap, x NAV
-    per_leg_cap_mult: float = 0.5     # single leg cap, x NAV
+    # Single leg cap, x NAV. 0.5 until 2026-10-12. At 0.75 a pair's gross is
+    # ~1.4-1.5x NAV, so the 2x gross cap now holds ONE pair at a time -- a
+    # second entry is a logged `gross_cap` skip. Part of the x1.5 decision.
+    per_leg_cap_mult: float = 0.75
     dd_halt: float = 0.12             # flatten + halt at 12% off peak; the
                                       # contest eliminates at equity < 800U,
                                       # so this always fires first (>= 880)
@@ -176,6 +188,14 @@ def log(msg: str) -> None:
 # LTP_AUTOMATION_CONSENT_TEXT, which names it, so the number and the human's
 # consent cannot drift apart. Unset keeps the original 4000.
 DEFAULT_AUTOMATION_MAX_TOTAL = "4000"
+
+# The automation session's per-ORDER ceiling (`maxNotionalPerOrder`), named in
+# the operator's consent text. Each leg is placed with `maxNotional` = 1.1 x its
+# notional, and the hedge leg's notional is |beta| x the first leg's -- so at
+# the x1.5 size (0.75 x NAV per leg) a pair with |beta| above ~1.2 would ask the
+# venue for more than this on its hedge leg and be refused, every time.
+# `trade_step` clamps the leg size so both ceilings fit under it.
+AUTOMATION_MAX_PER_ORDER = 1000.0
 
 
 def automation_max_total(env: dict | None = None) -> str:
@@ -1406,6 +1426,11 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                 continue
             g = cfg.risk_per_pair * nav / max(pair["dvol"], 1e-9)
             g = min(g, cfg.per_leg_cap_mult * nav)
+            # Both legs' order ceilings (1.1 x notional) must fit the session's
+            # per-order cap, or the venue refuses the leg and the entry unwinds
+            # -- every time, for that pair. Only ever shrinks a position.
+            g = min(g, AUTOMATION_MAX_PER_ORDER
+                    / (1.1 * max(1.0, abs(pair["beta"]))))
             size_mult = 1.0
             if sentinel is not None:
                 size_mult = sentinel.size_mult(base_asset(a), base_asset(b))
@@ -1626,18 +1651,20 @@ def main() -> None:
         if args.dry_run or time.time() - session_started < 23 * 3600:
             return
         symbols = sorted({t for p in CANDIDATES for t in p})
-        # Per-order cap is 1x NAV (1000): the risk-sizing puts ~0.5x NAV of
-        # notional on a leg, but the order's safety ceiling is 1.1x that, and
-        # the hedge leg of a higher-beta pair scales with beta — so 500 was
-        # below the ceiling and blocked legitimate orders (RCLI26005). 1000
-        # clears both legs of the selected pairs and still sits under the 2x
-        # leverage limit. The TOTAL is not what this comment used to say -- "a
+        # Per-order cap is 1x NAV (1000): the risk-sizing puts up to 0.75x NAV
+        # of notional on a leg (0.5x before 2026-10-12), the order's safety
+        # ceiling is 1.1x that, and the hedge leg scales with beta -- so 500
+        # was below the ceiling and blocked legitimate orders (RCLI26005).
+        # Since x1.5, `trade_step` clamps the leg size to keep both ceilings
+        # under AUTOMATION_MAX_PER_ORDER rather than relying on this being
+        # large enough. The TOTAL is not what this comment used to say -- "a
         # coarse net" on exposure. The venue counts it as cumulative OPENING
         # notional per session (see DEFAULT_AUTOMATION_MAX_TOTAL), so it caps
         # entries per day, not exposure. Exposure is capped by the strategy's
         # gross limit (max_gross_mult=2x) and the symbols' 2x leverage.
         sid = broker.start_automation(
-            symbols, max_per_order="1000", max_total=max_total,
+            symbols, max_per_order=str(int(AUTOMATION_MAX_PER_ORDER)),
+            max_total=max_total,
             expires_s=24 * 3600, consent_text=consent)
         session_started = time.time()
         log(f"automation session {sid} (opening budget {max_total} per session)")
