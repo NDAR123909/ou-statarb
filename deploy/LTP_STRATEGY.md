@@ -1447,6 +1447,66 @@ skips another pair's stop; a failed unwind is reported, not raised; a bad
 `LTP_AUTOMATION_MAX_TOTAL` stops the agent at startup). Suite 301 → 352.
 
 
+
+## Addendum — position size ×1.5, fixed through 2026-11-04 (2026-10-12)
+
+**A change to how much the agent risks per trade.** Not to which pairs it
+trades, when it enters, exits or stops, or to any risk control.
+
+| `AgentConfig` | before | from 2026-10-12 |
+|---|---|---|
+| `risk_per_pair` | 0.002 | **0.003** |
+| `per_leg_cap_mult` | 0.5 × NAV | **0.75 × NAV** |
+| `max_gross_mult`, `dd_halt`, `stop_z`, symbol leverage | 2× NAV, 12%, 3.5, 2× | **unchanged** |
+
+**Both values move together because the second was binding.** Every entry from
+2026-10-02 to 10-07 sat exactly at 0.5 × NAV (e.g. 10-07: g 510.30 at NAV
+1020.60): the vol target asked for more and the leg cap cut it. Raising
+`risk_per_pair` alone would have changed nothing for that pair; raising both
+makes every entry 1.5× its old size, whichever limit decides it.
+
+**Why — stated as what it is.** This is **a choice of variance, not a claim of
+edge.** Phase II's per-trip edge measured **t = 0.22** over 31 round trips (mean
++0.19, sd 5.03): indistinguishable from zero. The competition's score was
+reproduced from the published formula with z-scores clipped at ±1.5 (R² 0.994
+across all 25 Phase II teams; ±2 fit Phase I at 0.980), and our own 33 daily
+returns were bootstrapped over the 24 days left. Holding the other teams fixed —
+the largest caveat — ×1.5 moved the simulated chance of a top-3 finish from
+~20% to ~27% and of finishing 12th or worse from ~29% to ~35%, median rank
+unchanged at 9. Size scales return and drawdown and leaves Sharpe where it is.
+The operator, for whom a top-3 finish is the priority, chose the wider spread of
+outcomes at the week 10 review. ×2 was rejected: it needs the per-order cap,
+the consent text and symbol leverage changed. An automatic revert to ×1 below
+980 was considered and **rejected on the same simulation** — it cuts size
+exactly when recovery needs it, and raised the bad-rank tail. The kill switch
+(12% off peak, ~898) and the existing review trigger at 950 remain.
+
+**What it costs, plainly:** each stop is ~1.5× larger (a 10-08-sized stop would
+be ~−14 rather than −9.32); the scored MDD (3.1% today) is more likely to rise;
+and because one pair's gross is now ~1.4–1.5× NAV, **the 2× gross cap holds one
+pair at a time** — a second pair's signal is a logged `gross_cap` skip.
+
+**A guard added with it.** Each leg is sent with a ceiling of 1.1 × its notional
+and the hedge leg is |β| × the first; the automation session refuses any order
+above 1000 (`AUTOMATION_MAX_PER_ORDER`, the figure the consent text names). At
+0.75 × NAV a pair with |β| above ~1.2 — ETH/BTC has run 1.16–1.20 — would have
+been refused on every entry. `trade_step` now clamps the leg so both ceilings fit
+(`g ≤ 1000 / (1.1 · max(1, |β|))`); it can only shrink a position. The session
+start reads the same constant, so the two can no longer disagree.
+
+**Also in this change:** the `tests/test_ltp_entry_frame.py` KAS/ETC fixture's
+live sigma corrected from 2.047× to 0.599× (task 06; never asserted). The
+proposed rise of `MU_SHIFT_MATERIAL` to 2.0 was **not** made — see the 2026-10-12
+review entry: `reversion_note()` only writes its sentence when the entry frame
+would not have exited, which is a true statement whatever the cause, and raising
+the threshold would have suppressed it.
+
+**Pinned:** `tests/test_ltp_sizing.py` — the two values and the four that must
+not move with them; a cap-bound entry takes 0.75 × NAV; a vol-bound entry is
+exactly 1.5× its old size; a high-β hedge leg is shrunk to fit the per-order cap,
+not refused (β 1.16–2.5); a second pair is a logged `gross_cap` skip. Suite
+352 → 361.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;
