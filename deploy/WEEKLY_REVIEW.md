@@ -6897,6 +6897,8 @@ restart.
    per-leg cap (0.5 × NAV) binds every entry, so sizing is four coupled limits;
    ×1.5 fits them, ×2 does not without the per-order cap, consent text and
    symbol leverage.**
+   **Also the 10-08 Phase I board analysis: bring the FULL Phase II board (all
+   pages) so the score model can be re-fitted on Phase II's own pool.**
 4. **Standing:** 950 trigger · AI spend both ends · leaderboard · the reboot on a
    flat book (15 updates).
 
@@ -7171,6 +7173,247 @@ gives roughly **+3.1% at today's size, ~+3.9% at ×1.5, ~+4.6% at ×2** — **if
 pace holds, which t = 0.84 does not promise**, and with drawdowns scaled by the
 same factor against a banked 3.1% scored MDD. Inputs for decision 4, not a
 recommendation.
+
+---
+
+## 2026-10-08 — the Phase I board, all 30 teams: what high MDD at the top does and does not mean
+
+The operator brought the full Phase I final board (screenshots, 30 rows) as an
+input for decision 4, with two cautions of their own: **four weeks is a small
+sample, and there may be survivor bias** — teams with nearly the same MDD sat far
+outside the top 10. Recorded now so the review uses it. Data, transcribed:
+
+```
+#  team         score  ret%   Sharpe  MDD%  |  #  team         score  ret%  Sharpe  MDD%
+1  Little J     90.2   22.9   3.28    7.2   | 16  FenTian      65.2   1.0   1.67   1.5
+2  X-Explore    89.4   18.0   3.20    7.5   | 17  Gamma        63.9   0.9   1.38   2.1
+3  Quantech     84.0   31.5   3.76   15.5   | 18  tosprk       61.4   1.2   0.88   3.2
+4  ohmyyimboy   80.1    5.2   3.48    1.3   | 19  PSJeevaa     59.7  -0.4   1.02   1.1
+5  T.Anh        80.1    5.9   3.55    3.8   | 20  Pair Trade   59.6   0.1   0.72   1.9
+6  NDAR         78.4    3.8   4.86    3.7   | 21  Stream4AI    59.4   1.8   0.45   6.4
+7  btcol        78.4    3.1   4.84    1.3   | 22  NeuPortal    54.9   0.8  -0.87   1.2
+8  Imnzzz       76.8    4.3   2.93    1.6   | 23  MurAlpha     52.4  -0.3  -0.86   1.5
+9  Krosus       74.6    1.7   4.52    2.2   | 24  TDB          49.3  -1.2  -0.36   7.2
+10 Poetikrule   71.4    1.6   3.18    2.0   | 25  Iwance       49.1  -0.0  -1.81   0.8
+11 Kinance      70.8    2.2   2.50    1.4   | 26  NorthStar    49.0  -0.6  -0.77   5.0
+12 Supes (K)    70.4    2.5   2.17    2.6   | 27  ROKA Gen.    48.4  -1.5  -0.77   4.2
+13 RR25         66.2    2.8   1.18    5.0   | 28  ZZKK         46.4  -0.1  -2.51   1.0
+14 Quant nunu   65.7    0.8   1.92    0.9   | 29  EQV UK       46.0  -1.3  -1.87   2.7
+15 TSIEN        65.6    1.1   1.66    1.4   | 30  MAX          44.9  -0.0  -2.95   0.0
+(PnL = return x 10 on 1,000 USDT throughout)
+```
+
+**The operator's two cautions both hold, and the data shows the second directly.**
+Seven teams finished with MDD ≥ 5%: **1st, 2nd, 3rd — and 13th, 21st, 24th,
+26th.** Large drawdown was not a path to the top; it was a **bimodal bet**, and
+what separated the two groups was return (+18 to +31% against −1.2 to +2.8%) and
+Sharpe. MDD tracks return (r = +0.78), so high MDD at the top is mostly a
+by-product of big returns, not a cause of rank. Rank against MDD alone is weak
+(Spearman −0.30).
+
+**A third point: the published formula reproduces the board — if z-scores are
+damped.** Score ≈ a + b·(0.40 z_Sharpe + 0.25 z_PnL + 0.20 z_ROI − 0.15 z_MDD) over
+the 30 teams fits with R² 0.944, but misses Quantech by 12 points. **Clipping each
+z at ±2 fits R² 0.980, max residual 4.6**; ±1.5, ±2.5, ±3, percentile ranks and
+min-max all fit worse. Best of seven variants on 30 points — **suggestive, not
+established.** If the scorer winsorizes, an extreme return earns far less than a
+straight z would pay, which is exactly what limits a variance play.
+
+**Our Phase I record replayed at larger size in that pool** (others held fixed;
+Sharpe unchanged by scaling; MDD scaled with return — all assumptions):
+
+| | return | MDD | score (plain z) | score (z clipped ±2) | rank |
+|---|---|---|---|---|---|
+| actual | 3.8% | 3.7% | 77.6 | 79.6 | 5 (actual: 6) |
+| ×1.5 | 5.7% | 5.5% | 78.1 | 80.2 | 5 |
+| ×2 | 7.6% | 7.4% | 78.7 | 80.9 | 5 |
+| ×3 | 11.4% | 11.1% | 80.2 | 83.3 | 4 |
+| ×2 and Sharpe −1.0 | 7.6% | 7.4% | 75.4 | 77.2 | **8** |
+
+**In Phase I, doubling would have bought ~1 point and no rank;** the top three's
+returns were too far out. And **a 1.0 loss of Sharpe costs ~3.6 points** against
+~1.2 per 1% of return and ~1.0 per 1pp of MDD (plain-z marginals) — a sizing
+change that also degrades Sharpe is a net loss.
+
+**What does not transfer, stated before it is used.** Phase II's pool is less
+extreme: on 10-07 the top returns were 4.6–6.7%, not 18–31%, so each 1% of return
+is likely worth more in Phase II than these Phase I marginals say. **The way to
+settle it is to fit the same model to the full Phase II board.** Many Phase I top
+curves (Little J, X-Explore, Quantech, ohmyyimboy, Imnzzz) also show their gains
+arriving in the final days — read from the sparklines only; we made ours in the
+last 48 hours too.
+
+**For Sunday:** the operator brings **the full Phase II board, all three pages**;
+the model is re-fitted on it and our ×1.5 and ×2 scenarios are scored on Phase
+II's own pool, together with the 10-08 per-leg-cap table.
+
+---
+
+## Week 10 — Phase II days 27-33 (reviewed Sun 2026-10-11 evening MST = 2026-10-12 00:00 UTC)
+
+### Position at review
+
+```
+equity      1005.15   peak 1020.95 (10-04)   current dd 1.55%     Phase II +0.5%
+kill        898.43    headroom 106.72        banked MDD 2.36% (ours, since 09-29) | SCORED 3.1%
+rank        9th of 25, score 68.8   (5th / 81.7 on 10-07)      Sharpe 0.26 (2.36 on 10-07)
+book        FLAT, universe empty at glance; pid 129816, restarts 0 all week; ai spend ~$1.15
+```
+
+Source for the intra-week numbers: the operator's seven daily glances, summarised
+in a file they brought to the review (assessed below).
+
+### The week: three trades, two stops, no reversion exit
+
+| pair | entry | close | z in → out | net |
+|---|---|---|---|---|
+| 1000SHIB/DOGE long | 10-07 06:01 | **intra-bar stop** 10-07 13:45 | −1.83 → −3.80 | −4.71 |
+| **ALGO/HBAR** short | 10-08 06:02 | **intra-bar stop** 10-08 07:20 | +0.74 → +3.60 | −9.32 |
+| 1000SHIB/DOGE short | 10-09 06:01 | refit_drop 10-11 06:01 | +1.58 → +0.36 (live frame) | ≈ −1.5 (fills for 10-11 not yet published) |
+
+**−15.45 on the week.** ALGO/HBAR is the first HBAR/ALGO trade of Phase II — the
+pair passed the 10-08 06:01 refit, entered a minute later, and was stopped 78
+minutes after entry. Both stops were the intra-bar stop, both within 0.3σ of 3.5
+(the first a gap through it). **The ALGO/HBAR firing is not yet audited**: the
+published ledger slice ends 10-07 19:00, so the 08:00 bar's z — the test of
+whether the hourly stop would also have fired — needs a fresh export. The
+1000SHIB/DOGE hold closed slightly negative although live z came back toward 0:
+P&L runs on the entry beta (0.877) while z was read on the refitted one (0.861) —
+task 06's frame disagreement, observed live.
+
+**Per-trip edge, all 31 Phase II round trips: mean +0.19, sd 5.03, t = 0.22**
+(was +0.77, t = 0.84, on 28). 22 wins, 9 losses, net ≈ +6.0. Indistinguishable
+from zero.
+
+### The Phase II board, and the scorer reproduced
+
+```
+#  team        score  ret%  PnL     Sharpe  MDD%  |  #  team        score  ret%   PnL      Sharpe  MDD%
+1  Imnzzz      95.6   7.3   73.19   4.53   3.8   | 14 T.Anh       58.8  -0.2    -2.14   -1.45   0.5
+2  Stream4AI   83.6   4.6   45.73   1.31   5.0   | 15 ZZKK        50.4  -1.1   -11.43   -2.40   2.5
+3  Quantech    83.5   5.7   57.40   1.36  11.0   | 16 ohmyyimboy  48.8  -0.2    -1.59   -3.62   0.2
+4  Little J    78.6   0.1    0.53   3.45   0.0   | 17 MurAlpha    48.0  -0.9    -9.31   -3.08   1.6
+5  NorthStar   77.5   1.9   18.86   1.58   6.8   | 18 NeuPortal   42.9  -1.4   -14.05   -3.91   1.6
+6  Gamma       77.0   1.3   13.35   1.54   4.3   | 19 Kinance     40.1  -4.0   -39.60   -1.41  10.1
+7  EQV UK      72.6   0.6    6.26   0.67   1.7   | 20 tosprk      39.3  -1.9   -19.33   -4.40   2.5
+8  X-Explore   69.6   4.5   44.56   0.86  24.5   | 21 RR25        36.2  -1.6   -15.88   -6.60   1.9
+9  NDAR        68.8   0.5    5.15   0.26   3.1   | 22 btcol       23.0  -5.6   -56.13   -4.24   8.2
+10 PSJeevaa    68.1  -0.7   -7.36   0.83   2.8   | 23 TDB         21.7  -6.0   -59.59   -4.42   8.1
+11 Quant nunu  60.8  -0.7   -6.60  -0.75   1.6   | 24 FenTian     19.4  -5.7   -57.27   -7.42   6.1
+12 Krosus      60.5  -0.7   -6.60  -0.22   6.5   | 25 Poetikrule  15.3 -16.5  -165.15   -3.09  18.4
+13 Supes (K)   60.1  -0.9   -8.83  -0.13   7.2   |
+```
+
+**25 teams in the Phase II pool.** The published formula with each z clipped at
+**±1.5** reproduces the board at **R² 0.994, max residual 3.9** (plain z: 0.946,
+max 16.3; ±2: 0.982). With the Phase I fit (±2 best there, 0.980) that is two
+pools, two good fits: **the scorer is a z-composite with damped extremes**, very
+likely. At our position (others held fixed):
+
+```
++1.0 Sharpe   ~ +3.4 to +3.7 points       +1% return ~ +2.5 to +2.8      +1pp MDD ~ -0.7 to -0.8
+3rd place (83.5) needs ~ +14.7: e.g. return +3.5% AND Sharpe ~2.0 by 11-04
+a bad finish (return -1%, Sharpe -0.5, MDD 4%) ~ 59-60, rank 13; (-3%, -1.5, 6%) ~ 48-50, rank 17
+```
+
+From +0.5% and Sharpe 0.26 with ~24 days left, +3.5% is **+30 USDT, ~1.25/day,
+against +0.16/day realised over Phase II.** Return and Sharpe would both have to
+come from an unbroken good run.
+
+### Decision 4, sizing — framed for the operator, decision pending
+
+**With t = 0.22, sizing is not a bet on the edge; it is a choice of variance.**
+Sizing scales return and drawdown and leaves Sharpe where luck puts it, so a
+larger size widens the spread of finishing positions in both directions: the
+good tail above (rank ~2 in the model) gets reachable on a run like 10-02→04,
+and the bad tail (rank 13–17) gets reachable on a week like this one. **Whether
+that is rational depends only on what 4th–25th are worth against 1st–3rd** — if
+only the top 3 counts, more variance raises the chance of it; if a 9th is worth
+more than a 17th, it costs. That is the operator's value, not a statistical
+finding, and this log says so rather than dressing it as one.
+
+Mechanics (10-08 table): **×1.5** = `risk_per_pair` 0.003 and `per_leg_cap_mult`
+0.75, inside every other limit, but the gross cap then holds **one pair at a
+time** (a second entry is a logged `gross_cap` skip). **×2** additionally needs
+the per-order cap above 1000, the consent text, and symbol leverage above 2×.
+
+### The operator's weekly summary — assessed
+
+Useful, and accurate on the numbers checked: the glance-by-glance NAV catches
+intra-day lows the 23:50 rows miss (the Saturday ratchet to 2.36%), and **the
+989.3 line is right** (1020.95 × (1 − 0.031)). Four corrections:
+
+1. **"Both spreads overshot ±3.5 rather than reverting at it"** reads the
+   1000SHIB/DOGE z path −4.00 → −4.23 as overshoot; those readings came **after**
+   the 13:45 stop, with the book flat. The spread kept breaking, which is the stop
+   working.
+2. **"Entry ceiling ~3.0 is still the standing structural suggestion"** — it
+   is not in this record. Task 04 (09-13) measured depth against stops and decided
+   **do nothing**; the top-3 prep found a tighter stop fails out of sample. **This
+   week's three entries were at −1.83, +0.74 and +1.58** — a 3.0 ceiling would have
+   blocked none of them.
+3. **`z_sample` freezing while flat is by design**: it samples open positions
+   only (`sample_open_positions`). Its tail statistics are conditional on holding,
+   which is the right population for a stop question.
+4. The suggested exit band ~0.15 and "hedge re-sync" are new proposals with no
+   evidence behind them yet; the second is task 06's frame question.
+
+**Not adopted as a weekly artifact.** It duplicates what the ledger export
+already carries, and its interpretive half contradicted two recorded decisions
+without citing them. What *is* worth carrying to Sunday: any glance that met an
+escalation row, and intra-day NAV lows.
+
+---
+
+### (same night) Sizing, simulated — and my recommendation revised
+
+The operator asked whether ×1.5 is worth a ~4% MDD, and what the top three do
+that we do not. Both answered from data rather than argued.
+
+**What the top three share is return, not risk control:** Imnzzz (Sharpe 4.53,
++7.3%, MDD 3.8%, 225 trades) is genuinely ahead on every term; **Stream4AI**
+(Sharpe 1.31, +4.6%, MDD 5.0%) made its return early and has been flat for weeks;
+**Quantech** (1.36, +5.7%, MDD 11.0%, 1,860 trades) runs high risk, as in Phase I.
+Two of three have Sharpe far below ours on 10-07. Under the clipped-z scorer, a
+return 4–7% above a field where most teams are negative maxes out the return
+terms and **stays maxed while the team sits still** — which is why the top three
+have been stable. What they trade cannot be seen; directional exposure in a
+falling market is one possibility a market-neutral book excludes by design.
+Speculation, labelled.
+
+**Simulation.** Our 33 Phase II daily returns (23:50 rows + the operator's 10-11
+glance), bootstrapped over the 24 days left, 20,000 paths; Sharpe from the same
+series with the current scorer-vs-proxy offset (−0.35); MDD on the daily path
+floored at the banked 3.1%; each final state scored by the ±1.5-clip model against
+the 10-11 board **held fixed**.
+
+| | P(top 3) | P(top 5) | P(12th or worse) | median rank |
+|---|---|---|---|---|
+| ×1 | 19.7% | 35.7% | 29.2% | 9 |
+| ×1.5, revert to ×1 below 980 | 26.6% | 37.8% | 37.8% | 9 |
+| ×1.5, no revert | 27.5% | 39.8% | 34.8% | 9 |
+| ×2 (needs limits changed) | 31.5% | 41.9% | 37.0% | 9 |
+| ×1, **daily mean set to 0** | 13.1% | 26.5% | 38.3% | 10 |
+| ×1.5 revert<980, **mean 0** | 20.0% | 30.2% | 46.0% | 10 |
+
+**Read:** ×1.5 adds ~7 points of top-3 probability and ~6–9 points of finishing
+12th or worse; the median does not move. **The 980 revert rule does not help** —
+it trims the equity tail slightly and *raises* the bad-rank tail (it cuts size
+exactly when recovery needs it); proposed earlier tonight, withdrawn on this
+evidence. **MDD itself is the cheapest term to spend:** 3.1% → 4% costs ~0.7
+points. **Caveats:** the other 24 teams are frozen (the largest error — they
+move); 33 days with a few large ones carry the tails; the Sharpe offset is held
+constant; daily-path MDD understates hourly.
+
+**Revised recommendation, stated as a revision:** earlier tonight I recommended
+×1 partly because "size does not move Sharpe, so ×1.5 adds only 2–3 points in
+the good world". The simulation says the trade is closer than that: a ~35%
+relative increase in the chance of the outcome the operator says matters most,
+paid for with a comparable increase in the chance of a poor finish. **That is a
+legitimate judgement either way. If the top 3 is the priority, ×1.5 is
+defensible on these numbers — framed honestly as a variance choice on an edge
+measured at t = 0.22, not as confidence in the strategy.** ×2 stays excluded for
+the reasons in the 10-08 table. Decision pending.
 
 ---
 
