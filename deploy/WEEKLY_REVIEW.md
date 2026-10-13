@@ -1826,7 +1826,7 @@ section existed; that is what it is for.
 | ~~**`status.py` should show BANKED max drawdown**~~ **BUILT 2026-09-27, DEPLOYED 2026-09-29 21:15 UTC, verified live.** `banked MDD` line from hourly `nav` records — honest only from the deploy on, so the leaderboard's 3.1% stays the floor until ours exceeds it. Original: **`status.py` should show BANKED max drawdown beside current.** `status.py:180` computes `(1 - equity/peak)`, which **falls on recovery**; the competition's MDD is the max over hourly snapshots and is monotone. On 2026-09-21 the line read `dd 2.26%` while the scored figure was stuck at **≥2.88%** — and this review nearly recorded that as an improvement before checking the definition. Show both, labelled | 2026-09-20 | build window. Small, and it prevents a misread that has already come close once |
 | ~~**DISPATCH task 05**~~ **DONE 2026-09-23 — answer: COINCIDENCE.** Stop rate 25.0% vs 25.0% either side of a 50-bar window (Fisher p = 1.0000); stops come on raw moves **2.19× larger** than non-stops; in 1000SHIB/DOGE sigma **doubled** as the window fell 56 → 43. And the window is `int(3 × half_life)` over the whole observed range (the 24-bar floor has never bound), r = +0.9996, so the hypothesis is **unidentifiable** from observational records. The "1.4%" below was wrong: it is 5.43%. See the 2026-09-23 task 05 entry. Original text: The queue refilled at this review with the only *mechanical* account of the Phase II stop cluster: `sigma` is estimated over `max(3*half_life, 24)` bars, so as the fitted half-life compresses the window shrinks with it — **56 → 37 bars across week 7** — and a smaller sigma inflates z for the same raw move. Both stable-frame stops overshot (3.76, 4.13) on **small raw moves** (1.4%, 3.4% of log spread). **Hypothesis, not finding**: two points on two pairs cannot test it | 2026-09-20 | **Wed 2026-09-23**, one line to Cowork. ~~Note the brief tells it to answer on Phase I, since the Phase II ledger is not in the repo~~ **Corrected 2026-09-23:** the brief was rewritten on 09-21 to compute on Phase I and corroborate on Phase II. The Phase II inputs live **only on `live/track-record`** and reach the research branch **because runbook step 1 now pulls them**; before that fix this dispatch would have repeated task 02's failure. **Run step 0 first**: the 09-22 refresh (546 records, last 15:00 UTC) is already a day old |
 | ~~**DECIDE: does the re-entry block survive pair eviction?**~~ **DECIDED 2026-09-20: DOCUMENT, DO NOT CHANGE.** It has never demonstrably cost us — task 02 found the XLM/XRP block ended by eviction and that episode *saved* +7.97; a returning pair carries a new beta/mu/sigma so an old-frame block measures against coordinates that no longer exist; `refit_drop` is 4 lifetime. `CLAUDE.md` invariant 4 now states the real lifetime and `tests/test_ltp_blocked_skip.py::test_the_block_does_not_survive_pair_eviction` pins it, so the doc and the code cannot drift apart again | 2026-09-16 | closed |
-| ~~**DECIDE: should `risk_per_pair` fall while the universe is thin?**~~ **DECIDED 2026-09-20: NO CHANGE, with a pre-committed trigger.** One pair surviving the gate means we run **0.2% of NAV against a designed 0.8%** — under-risked, not over. Sharpe is scale-invariant so a cut moves none of the 40%; it cuts PnL+ROI (45%) and helps only MDD (15%), the mirror of the asymmetry that decided the 0.002→0.004 question in August. The kill switch at 889.46 is the designed response | 2026-09-17 | **Trigger, so this is not re-litigated weekly: revisit only if equity closes below 950.** ~38 below the 09-21 reading and ~60 above the kill switch |
+| ~~**DECIDE: should `risk_per_pair` fall while the universe is thin?**~~ *(Superseded on size by the 2026-10-12 ×1.5 decision — `risk_per_pair` 0.003; **the 950 trigger below survives as a human review trigger**, not an automatic revert.)* **DECIDED 2026-09-20: NO CHANGE, with a pre-committed trigger.** One pair surviving the gate means we run **0.2% of NAV against a designed 0.8%** — under-risked, not over. Sharpe is scale-invariant so a cut moves none of the 40%; it cuts PnL+ROI (45%) and helps only MDD (15%), the mirror of the asymmetry that decided the 0.002→0.004 question in August. The kill switch at 889.46 is the designed response | 2026-09-17 | **Trigger, so this is not re-litigated weekly: revisit only if equity closes below 950.** ~38 below the 09-21 reading and ~60 above the kill switch |
 | ~~**Push task 02's output** — `deploy/research_queue/out/02-side-blocked-earned-its-keep.md` is on `research/side-blocked` on the operator's laptop. Then land it on the working branch and `git mv` the task into `done/`, per README step 4~~ **DONE 2026-09-16 (`0eb284f`) — this row was stale**, found on the 2026-09-23 cold start. Both paths resolve on the working branch | 2026-09-16 | closed |
 | ~~**Fix `constraint_prompt()` in `ai_deep_review.py`**~~ **DONE 2026-09-15**, same evening. The defect: `days_left()` counted to `PHASE_I_END` so it said **"0 days remain"** when 50 did; `KILL_SWITCH = 916.25` was frozen at the Phase I peak x 0.88 against a live 889.46; the 3.7% drawdown and "Phase I advancement is assured" were **string literals**. The model acted on it and recommended halting all trading on day 6 of 57. **Mine** — I added `PHASE_II_START/END`, `phase_days()` and `live_peak()` on 09-13 and never wired this function to them. The fix: `days_left()` repointed to `PHASE_II_END`; `kill_switch_level()` derives the halt from the live peak and the agent's own `AgentConfig.dd_halt`; `drawdown_pct()` measures it; an unreadable peak is labelled rather than guessed; the "advancement is assured" clause replaced by two scoring facts that cut opposite ways. Seven tests, suite 249 → 255. Disclosed in `LTP_STRATEGY.md`. **Not back-filled** — the 09-09 → 09-15 reviews stay as written, and any reading of that window must discount the constraint follow-up | 2026-09-15 | closed |
 | ~~**Re-read task 03's answer beside the 2026-09-15 stop.**~~ **DONE at the week 8 review, 2026-09-27 — and the premise dissolved.** The "13.24σ / 4.87×" that made close ten look an order of magnitude beyond task 03's sample is a **cross-beta artefact** in `mu_shift_sigma` (same-beta shift ~−0.3σ, σ ratio ~1.0). Every nonzero Phase II shift is the same artefact. Task 03's conclusion — *not big enough, not measured well enough to act on* — **stands and is stronger**: its bar was double-digit drift events with consistent direction, and Phase II's apparent events were mostly a logging defect. Original text:  That task closed with *"nine closes and two drift events … not enough to act on."* Close number ten carries `mu_shift_sigma` **13.24** (132× material), σ widening **4.87×** in 13 bars, and a stop that fired **0.49σ late** in its own entry coordinates. The conclusion has weakened; it has not been overturned, and no change is proposed | 2026-09-15 | ~~Sun 2026-09-20 review~~ **no re-read is recorded at the 09-20 review; carried to week 8, Sun 2026-09-27**, with `out/03-frame-drift-cost.md` open beside it. Pairs naturally with task 05's answer, which should land first |
@@ -1849,10 +1849,11 @@ section existed; that is what it is for.
 | ~~**BUILD fix 3 — an entry is two legs or none.**~~ **BUILT 2026-10-05 as designed; NOT YET DEPLOYED — see the deploy row.** On 10-03 a leg b refused with `RCLI26005 automation maxTotalNotional exceeded` left a ~509 USDT naked 1000SHIB short for an hour, until the next bar's reconcile closed it. Design in the week 9 entry: (a) `bar_error` for `RapidXError`; (b) unwind leg a in the same bar if leg b fails, and contain entry failures per pair; (c) skip an entry the session budget cannot hold both legs of; (d) cap to the env | 2026-10-05 | built; the deploy row below carries it |
 | ~~**BUILD fix 2 — the intra-bar stop at 3.5**~~ **BUILT 2026-10-05 as designed; NOT YET DEPLOYED.** Acting on the 5-minute samples with the hourly stop's own predicate and blocking. Reverses the 2026-09-13 drop | 2026-10-05 | built; **audit every firing at the next review** against the following bar's z |
 | ~~**DECIDE the automation budget (operator).**~~ **DECIDED 2026-10-05: 12000**, on the recommendation. `maxTotalNotional` is cumulative opening flow per 24h session (~3.8 entries a day at 4000), not the concurrent exposure the code comment and the consent text describe. Recommendation 12000 via `LTP_AUTOMATION_MAX_TOTAL`, with the consent text rewritten by the operator — **the agent must never author that text** | 2026-10-05 | closed — the env edit is a step of the deploy row |
-| **REVISIT sizing (decision 4)** — deferred, not closed, at the week 9 review. New argument: the gap to 3rd/4th is return, which sizing scales. Against: t = 0.84 over 28 trips, and the overshoot and half-open hazards both scale with size | 2026-10-05 | **week 10 review, and only once fixes 2 and 3 are live** |
+| ~~**REVISIT sizing (decision 4)**~~ **DECIDED 2026-10-12: ×1.5 fixed through 11-04** (operator), built the same night — see the 10-12 entry. Original: deferred, not closed, at the week 9 review. New argument: the gap to 3rd/4th is return, which sizing scales. Against: t = 0.84 over 28 trips, and the overshoot and half-open hazards both scale with size | 2026-10-05 | **week 10 review, and only once fixes 2 and 3 are live** |
 | ~~**`deploy/README_ltp.md`'s consent-text example is stale**~~ **DONE 2026-10-05** — the sample sentence is replaced by what the text must name. — it says "max 500 USDT per order" (the cap went to 1000 in July) and "4000 USDT total automated exposure", which is not what the venue enforces | 2026-10-05 | closed |
-| **DECIDE `MU_SHIFT_MATERIAL` (0.10).** Task 06: same-beta shifts between two refits are noise of 0.4–0.9σ₀ on these spreads, so the flag fires on ~90% of driftless refits — and `equilibrium_reestimated` drives `reversion_note()`, which writes "the target moved" into **published reasoning**. Both post-fix values (0.527, 0.418) are within the band. Options: derive the threshold from the noise band (~0.85–2.65σ₀), or drop the note. A published-reasoning change, so disclosed | 2026-10-07 | **week 10 review; needs the operator's go** |
-| **Correct the KAS/ETC fixture** — `tests/test_ltp_entry_frame.py::_kas_pair` builds `sigma: KAS_SIG0 * 2.047`; the true ratio is 0.599. Not asserted, so nothing fails — which is why it would survive unnoticed | 2026-10-07 | with the next test pass; needs the operator's go |
+| ~~**DECIDE `MU_SHIFT_MATERIAL` (0.10).**~~ **DECIDED 2026-10-12: NO CHANGE** — the go was given on my recommendation to raise it to 2.0, and I withdrew the recommendation before building: `reversion_note()` writes only when the entry frame would *not* have exited, a true statement whatever the cause, so raising the gate would suppress accurate published reasoning (e.g. 10-03 07:01). The noisy thing is the `equilibrium_reestimated` field read on its own — read it with `z_in_entry_coords` and the directional test. Original: Task 06: same-beta shifts between two refits are noise of 0.4–0.9σ₀ on these spreads, so the flag fires on ~90% of driftless refits — and `equilibrium_reestimated` drives `reversion_note()`, which writes "the target moved" into **published reasoning**. Both post-fix values (0.527, 0.418) are within the band. Options: derive the threshold from the noise band (~0.85–2.65σ₀), or drop the note. A published-reasoning change, so disclosed | 2026-10-07 | **week 10 review; needs the operator's go** |
+| ~~**Correct the KAS/ETC fixture**~~ **DONE 2026-10-12** (0.599×, with the derivation in a comment). Original: `tests/test_ltp_entry_frame.py::_kas_pair` builds `sigma: KAS_SIG0 * 2.047`; the true ratio is 0.599. Not asserted, so nothing fails — which is why it would survive unnoticed | 2026-10-07 | with the next test pass; needs the operator's go |
+| ~~**DEPLOY ×1.5 (+ fixture) with the OS-update reboot.**~~ **DONE 2026-10-12 01:13 UTC, verified** — check printed `0.003 0.75 1000.0`; 5 packages upgraded; kernel 6.8.0-142 → **146**; `self-check PASS`, session `ras_0a1d9505-…` (opening budget 12000); pid 752, restarts 0, flat, bar 813, peak 1020.95 anchored. Original: One file: `deploy/ltp_agent.py` (`ltp_broker.py` unchanged). On the droplet, flat, between :10 and :50, clear of the refit hour (~06:00 UTC) and any window: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py`; the check `.venv/bin/python -c "from deploy.ltp_agent import AgentConfig, AUTOMATION_MAX_PER_ORDER; c=AgentConfig(); print(c.risk_per_pair, c.per_leg_cap_mult, AUTOMATION_MAX_PER_ORDER)"` must print **`0.003 0.75 1000.0`**; then `apt update && apt upgrade -y` and `reboot` (the unit starts on boot — verified on every earlier reboot). **Verify after boot:** `journalctl -u ltp-agent -b` shows `self-check PASS` and `automation session … (opening budget 12000 per session)`; `status.py` flat, peak 1020.95, restarts 0. The boot's startup bar moves the refit hour one earlier (~05:00 UTC) | 2026-10-12 | closed — **first ×1.5 entry is verified at the week 11 review** |
 | ~~**DEPLOY fixes 2 and 3 + the 12000 budget.**~~ **DONE 2026-10-05 03:19:59 UTC, verified** — check printed `None True`, env printed `12000`, `self-check PASS`, `automation session ras_59c1d803-… (opening budget 12000 per session)`; pid 129816, flat, bar 646. Original: Two files, **never one**: `deploy/ltp_agent.py` and `deploy/ltp_broker.py` — the new agent with the old broker runs, then raises `AttributeError: budget_left` at every entry signal, caught as `bar_error`, and never enters again. On the droplet: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py deploy/ltp_broker.py`; the check `.venv/bin/python -c "from deploy.ltp_broker import RapidXBroker; from deploy.ltp_agent import AgentConfig, intrabar_stop; print(RapidXBroker().budget_left(), AgentConfig().intrabar_stop)"` must print **`None True`**; then the operator edits `/root/ltp.env` by hand — `LTP_AUTOMATION_MAX_TOTAL=12000` and `LTP_AUTOMATION_CONSENT_TEXT` rewritten in their own words, **never pasted into chat** — and checks `( set -a; source /root/ltp.env; set +a; .venv/bin/python -c "from deploy.ltp_agent import automation_max_total; print(automation_max_total())" )` prints **12000**; then `systemctl restart ltp-agent`. **Verify** in the journal: `self-check PASS` and `automation session ras_… (opening budget 12000 per session)`. The restart moves the refit hour one earlier (~07:00 → ~06:00 UTC) | 2026-10-05 | closed — **first intra-bar firing, if any, is audited at the week 10 review** |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
@@ -7414,6 +7415,117 @@ legitimate judgement either way. If the top 3 is the priority, ×1.5 is
 defensible on these numbers — framed honestly as a variance choice on an edge
 measured at t = 0.22, not as confidence in the strategy.** ×2 stays excluded for
 the reasons in the 10-08 table. Decision pending.
+
+---
+
+## 2026-10-12 — week 10 decisions: ×1.5; the drift gate left alone; the ALGO/HBAR stop audited
+
+**Decision 4: ×1.5, fixed through 11-04 — the operator's, on the framing above.**
+Built the same night: `risk_per_pair` 0.003, `per_leg_cap_mult` 0.75, plus a
+clamp found while building — at 0.75 × NAV a hedge leg with |β| above ~1.2 would
+have breached the 1000 per-order cap and been refused on every entry (ETH/BTC
+has run 1.16–1.20), so `trade_step` now shrinks the leg to fit. Disclosed in
+`LTP_STRATEGY.md` (addendum 2026-10-12); pinned by `tests/test_ltp_sizing.py`;
+suite 352 → 361. **Not live until the deploy row is done.** No automatic revert
+(the simulation showed the 980 rule hurts); the kill switch and the 950 review
+trigger stand. **Operator's note for later:** the resume's "20 bps of NAV …
+0.5x NAV per leg" is accurate until the deploy and should say 30 bps / 0.75x
+after it — and its "net out-of-sample Sharpe of 0.44" should read 0.36
+(`IMPROVEMENTS.md`, corrected 07-28).
+
+**`MU_SHIFT_MATERIAL`: not changed, though the go was given.** I recommended
+raising it to 2.0 and withdrew that on reading `reversion_note()` again before
+building: the note fires only when the position would *not* have exited in its
+entry frame — the directional test — and states the shift and the entry-frame z,
+both correct on the entry beta since 09-29 (task 06 verified the two post-fix
+values exactly). Its claim is about **this exit's frames**, which task 06 found
+changed the closing bar in 8 of 10 cases; it does not assert a drift
+phenomenon. Raising the gate would have deleted true sentences from the
+published reasoning. Told to the operator before any code was written.
+
+**The ALGO/HBAR stop (10-08), audited — the intra-bar stop's first clear
+payoff:**
+
+```
+06:01  refit passes ALGO/HBAR (first time in Phase II), entry band 0.40
+06:02  ENTER short at z +0.74 (g 229.85 -- vol-bound, not cap-bound)
+07:00  bar z +1.04   07:05 +1.32   07:10 +2.24   07:15 +2.27
+07:20  sample +3.60 -> STOP (intrabar), closed 07:20; net -9.32
+08:00  bar z +5.98 ("broken")   09:00 +7.83   10:00 +12.49   11:00 +11.11
+```
+
+The hourly stop would have fired at 08:00 at **+5.98**. On a stable frame (no
+refit in the hold) the loss is linear in z: −9.15 gross over 2.86σ, so +5.98 ≈
+**−16.8 gross — the intra-bar stop saved ≈ 7.6 USDT**, about the whole Phase II
+overshoot estimate in one firing. (10-07's firing saved ~0: a gap at −3.80 vs a
+bar at −3.77.) ALGO rose ~4% against HBAR inside 78 minutes.
+
+**The operator's tail question, answered and too small to use:** of 8 holds
+with `z_sample` coverage since 09-29, 3 touched an adverse 3.0; 2 went on to 3.5
+(both stopped intra-bar), 1 recovered (the 10-09 hold, worst 3.41, closed by
+`refit_drop`). n = 3 — an observation, not a rate.
+
+---
+
+## Week 11 agenda — review due Sun 2026-10-18
+
+1. **Verify the ×1.5 deploy:** first entry's `g` at 0.75 × NAV (or 1.5× its vol
+   target), both order ceilings ≤ 1000, nothing refused.
+2. **Audit every intra-bar firing** against the next bar, as for 10-07 and 10-08.
+3. **Board:** bring all pages again — the scorer model is re-fitted weekly and the
+   simulation re-run on the new pool; this is how ×1.5 is judged, not by one week.
+4. **Standing:** 950 review trigger · scored-MDD line ~989.3 · AI spend both
+   ends · no `do-release-upgrade`.
+5. **The macro question's first sub-hourly observation (added 10-13):** U.S. CPI
+   is due **Wed 10-14, usually 08:30 ET ≈ 12:30 UTC — unverified against a
+   calendar.** From the export: was a position held, what did `z_sample` do
+   12:00–14:00, did any stop fire. One event; it feeds the open 07-28
+   macro-awareness row, it does not decide it. **Deliberately not done:**
+   flattening ahead of the release via `LTP_MAINTENANCE_WINDOWS` — that path's
+   published reasoning says the venue announced maintenance, which would be false.
+
+---
+
+## 2026-10-12 01:14 UTC — ×1.5 live; reboot onto kernel 146
+
+```
+01:11  status        flat, pid 129816, bar 812 -- conditions met (flat, :11, refit ~06:00, no window)
+       checkout      deploy/ltp_agent.py from d3bfc96;  check -> 0.003 0.75 1000.0
+       apt upgrade   5 packages (libaudit, open-iscsi, sosreport); initramfs for 6.8.0-146
+       reboot        needrestart had deferred ltp-agent's restart -- the reboot did it
+01:13:59 ltp-agent started on boot;  01:14:12 self-check PASS, news stream live,
+         automation session ras_0a1d9505-... (opening budget 12000 per session)
+01:16  status        pid 752, restarts 0, flat, equity 1005.15, peak 1020.95, bar 813
+```
+
+**Position size ×1.5 is in force from 01:14 UTC 2026-10-12.** The refit hour
+moved one earlier to **~05:00 UTC** (next in 3 bars at 01:16). The first entry
+will be the first observation of the new size; nothing logs size at startup.
+Fourth clean reboot of the competition; `do-release-upgrade` (26.04) declined
+again.
+
+---
+
+## 2026-10-13 — a fresh session container started on a stale branch ref; nothing lost
+
+Recording the organizer's 10-13 Market Watch (CPI on Wednesday) found this
+session in a **new container**: no pytest, and the local
+`claude/offline-competition-deploy-nuk5tz` at `bcf78e6` — a GitHub merge into
+`main` (PRs #77–#79, the operator merging the working branch and
+`live/track-record` into `main`) — **without** the ×1.5 commit `d3bfc96` or its
+deploy record `0f9c551`. Checked against GitHub directly (`git ls-remote`): the
+branch was at **`0f9c551`** all along, and `live/track-record` had only moved
+forward (`f81a9a0`, the droplet's 10-12 daily state). The clone's
+remote-tracking ref was stale; a fetch force-updated it, the local branch was
+reset onto it (clean tree, no work of mine lost), and the suite passed, 361.
+
+**The trap, for the next cold start:** a session container can begin on a ref
+that is not the branch tip. A commit made on it and pushed would have either
+been rejected or — with force — erased the ×1.5 change the droplet is running.
+**First command in any new container: `git fetch origin
+claude/offline-competition-deploy-nuk5tz` and compare with `git ls-remote`.**
+Merging into `main` is the operator's business and harmless; `main` is not what
+the droplet pulls.
 
 ---
 

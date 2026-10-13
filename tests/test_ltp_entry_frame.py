@@ -158,7 +158,11 @@ def _kas_pair():
     return {"entry_mu": KAS_MU0, "entry_sigma": KAS_SIG0,
             "entry_beta": KAS_BETA_ENTRY,
             "mu": KAS_MU0 + 6.4427890684070634 * KAS_SIG0,
-            "sigma": KAS_SIG0 * 2.047}
+            # 0.599, not the 2.047 this fixture carried until 2026-10-07:
+            # both logged z values were on the live beta, so
+            # sigma1/sigma0 = (3.5970 - 6.4428)/(-4.7518) exactly (task 06).
+            # Not asserted anywhere -- which is why it survived.
+            "sigma": KAS_SIG0 * 0.599}
 
 
 def test_the_frame_is_rebuilt_on_the_entry_beta_not_the_live_one():
