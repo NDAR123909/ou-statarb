@@ -33,7 +33,12 @@ the organizer's advancement announcement (start) and the Phase II welcome email
 
 **Phase II rules, from the organizer's welcome email 2026-08-27:**
 - Scoring **unchanged**: ROI 20% + PnL 25% + Sharpe 40% + MDD 15%.
-- Elimination **unchanged**: equity < 800 USDT / NAV < 0.8.
+- Elimination **unchanged**: equity < 800 USDT / NAV < 0.8. **Re-confirmed
+  2026-10-13** (Technical Support): MDD is **not** an elimination condition in
+  Phase II — scored only. The organizer first answered that a 20% MDD
+  eliminates, then corrected it five hours later; the 800 line is measured on
+  the original 1,000 USDT. **Organizer answers can be reversed within hours —
+  record the final one, and the reversal.**
 - **Maximum leverage 5× (was 2×). Violating it is DISQUALIFICATION.**
 - **AI spend of at least USD 1 per day is now a formal written rule**, not an
   emailed warning. The daily pass built in August is exactly what this needs.
@@ -159,6 +164,10 @@ Hard exit: **equity < 800 USDT** → forced liquidation and elimination.
 - **AI gateway: `https://ai.ltp-contest.com` — did NOT move**, and still
   authenticates. The two domains have **diverged**; do not "tidy" one to match
   the other.
+- **The public board shows only the TOP 10 from 2026-10-12** (organizer
+  announcement). The organizer's own URL for the self-ranking call is on
+  `https://api.ltp-contest.com` — the contest domain, *not* our trading host;
+  which host answers a production key for this call is untested.
 - Self ranking: `GET {LTP_API_HOST}/api/v1/tracka/ranking/self?phase=PHASE_II`
   (V2 signature: `X-MBX-APIKEY`, `nonce`, `signature`; portfolioId derives from
   the key). Error 30016 = wrong key or T+1 data not ready.
@@ -7472,8 +7481,11 @@ with `z_sample` coverage since 09-29, 3 touched an adverse 3.0; 2 went on to 3.5
 1. **Verify the ×1.5 deploy:** first entry's `g` at 0.75 × NAV (or 1.5× its vol
    target), both order ceilings ≤ 1000, nothing refused.
 2. **Audit every intra-bar firing** against the next bar, as for 10-07 and 10-08.
-3. **Board:** bring all pages again — the scorer model is re-fitted weekly and the
-   simulation re-run on the new pool; this is how ×1.5 is judged, not by one week.
+3. **Board:** ~~bring all pages again~~ — **the public board shows only the top 10
+   from 10-12.** Bring it anyway; the model runs on the 10-11 pool with the top
+   10 updated. **Decide (needs the operator's go): a small read-only
+   self-ranking call** — first check, no code, whether the RapidX CLI already
+   exposes it (`rapidx --help`, `rapidx schema --json`, grep `rank`/`tracka`).
 4. **Standing:** 950 review trigger · scored-MDD line ~989.3 · AI spend both
    ends · no `do-release-upgrade`.
 5. **The macro question's first sub-hourly observation (added 10-13):** U.S. CPI
@@ -7569,7 +7581,47 @@ reminder.
 doubles the top-3 chance against ×1, for ~4–5 points more chance of 12th or
 worse. Roughly one in six, not better. The board itself is moving fast —
 NorthStar 77.5 → 84.3 in two days, Quantech out of the top 10 — so the
-estimate is coarse; Sunday's full board re-runs it properly.
+estimate is coarse; Sunday's full board re-runs it properly. *(Superseded the same day: the board
+now shows only the top 10 — see the 10-13 entry below.)*
+
+## 2026-10-13 (evening) — three organizer items; SoSoValue in hindsight
+
+**1. Elimination is equity < 800 only** — MDD is scored, not an elimination
+line (organizer correction, 10-13; standing context updated). Nothing changes
+for us: the 12% kill switch (~898) is ours and sits far above 800.
+
+**2. The board shows only the top 10.** We are 10th. One place lower and our
+rank disappears from public view, and **the week 11 plan to re-fit the scorer on
+the full board is no longer possible**: from now on the model runs on the 10-11
+full pool with the visible top 10 updated — less accurate each week. **The
+self-ranking endpoint answers the question again.** It was deleted from the
+agenda in August (row: "self-ranking in `status.py`: DELETED after four carries")
+because the board then showed every team; that reason is gone. Its response
+includes rank, score, Sharpe, PnL, ROI, MDD and **percentile scores**, which
+would let the model be calibrated rather than guessed. Unknowns: the V2
+signing payload and which host answers a production key.
+
+**3. SoSoValue's API has been behind a Cloudflare block since ~15:00 UTC 10-13**
+(other teams, Technical Support). Asked by the operator whether we should have
+used it, looking back: realistic answer recorded here. Its value to a
+market-neutral pairs book is news and flows *ahead of a leg-specific break*;
+the record's evidence trigger for reconsidering it (a stop on a structural
+event the sentinel rated `none` **and** their data flagged earlier) was never
+testable because we never collected their data. Our breaks this phase — 09-26
+1000SHIB, 10-08 ALGO +4% in 78 minutes — carried no news event in our own
+sentinel; whether SoSoValue would have flagged them is unknown. Best plausible
+case: a stop or two avoided, a few USDT. It does not touch the binding
+constraints (few pairs cointegrate; edge t ≈ 0.2), and today's outage is the
+dependency risk the 08-27 refusal named. **Not a missed lever for the top 3;
+possibly a small missed refinement. Not to be integrated with three weeks
+left.** (Directional teams may get more from flows data than a hedged book can
+— speculation, labelled.)
+
+**My error, recorded:** the 10-12 deploy steps gave `apt upgrade -y` without
+`--force-confold`, which this log's 09-16 entry requires — a replaced
+`sshd_config` would lock us out of the only route to the droplet. No
+configuration prompt appeared, so nothing happened; **next time the command is
+`apt upgrade -y -o Dpkg::Options::=--force-confold`.**
 
 ---
 
