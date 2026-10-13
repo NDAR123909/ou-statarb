@@ -7552,6 +7552,25 @@ line** where the scored MDD (3.1%) would start to worsen — the nearest limit.
 The operator used the non-subshell env load and exited the session on the
 reminder.
 
+**Odds re-run from 10-13 (operator asked whether ×1.5 can still work out).** The
+10-13 top-10 board, with the other 14 teams carried from 10-11 and Quantech
+(3rd on 10-11, now below 10th, values unseen) dropped — a partly stale pool. The
+±1.5-clip model reproduces our 65.8 as 65.1 and the 3rd-place line (83.2) as
+83.4. 20,000 bootstrap paths over 22 days:
+
+| | P(top 3) | P(top 5) | P(12th or worse) | median |
+|---|---|---|---|---|
+| ×1, our days as they were | 9% | 12% | 40% | 10 |
+| ×1.5, our days as they were | **17%** | 20% | 44% | 10 |
+| ×1, edge set to zero | 11% | 15% | 37% | 9 |
+| ×1.5, edge set to zero | **18%** | 22% | 42% | 10 |
+
+**From further back, the variance is worth relatively more:** ×1.5 now roughly
+doubles the top-3 chance against ×1, for ~4–5 points more chance of 12th or
+worse. Roughly one in six, not better. The board itself is moving fast —
+NorthStar 77.5 → 84.3 in two days, Quantech out of the top 10 — so the
+estimate is coarse; Sunday's full board re-runs it properly.
+
 ---
 
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
