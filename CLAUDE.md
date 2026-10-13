@@ -35,6 +35,22 @@ makes anyone *read* it.
 
 **On the trigger, read in this order, then stop:**
 
+0. **Check that this checkout IS the branch tip before reading anything from
+   it.** A new session container can start on a stale ref — on 2026-10-13 one
+   began at a `main` merge, without the ×1.5 commit the droplet was running:
+
+   ```bash
+   git fetch origin claude/offline-competition-deploy-nuk5tz
+   git status -sb                                   # must not say "behind"
+   git ls-remote origin refs/heads/claude/offline-competition-deploy-nuk5tz
+   git rev-parse HEAD                               # must match the line above
+   ```
+
+   If they differ and the tree is clean, `git checkout -B
+   claude/offline-competition-deploy-nuk5tz
+   origin/claude/offline-competition-deploy-nuk5tz`. **Never commit, and above
+   all never force-push, from a checkout that is not the tip** — this branch is
+   what the droplet deploys from.
 1. `CLAUDE.md` (this file) — invariants, style, the deployment mission.
 2. `deploy/WEEKLY_REVIEW.md` — **standing context** → the **newest entry** →
    **Open commitments** → the **current agenda**. This is the operating log.

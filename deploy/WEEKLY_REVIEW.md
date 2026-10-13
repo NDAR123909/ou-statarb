@@ -7523,9 +7523,34 @@ reset onto it (clean tree, no work of mine lost), and the suite passed, 361.
 that is not the branch tip. A commit made on it and pushed would have either
 been rejected or — with force — erased the ×1.5 change the droplet is running.
 **First command in any new container: `git fetch origin
-claude/offline-competition-deploy-nuk5tz` and compare with `git ls-remote`.**
+claude/offline-competition-deploy-nuk5tz` and compare with `git ls-remote`.** *(Now step 0 of `CLAUDE.md`'s cold start, on the operator's go, 2026-10-13.)*
 Merging into `main` is the operator's business and harmless; `main` is not what
 the droplet pulls.
+
+
+## 2026-10-13 — the first ×1.5 trade: sized, placed and stopped exactly as built
+
+From the operator's daily glance (20:25 UTC) and a read-only ledger query on
+the droplet. Equity **996.69** (−8.46 since 10-12), dd 2.38%, banked MDD 2.38%,
+**rank 10th, 65.8** (top 10 only now shown). No escalation row met.
+
+```
+05:00  refit (hour moved one earlier, as predicted) -- pair now oriented DOGE/1000SHIB, beta 1.0947
+05:01  ENTER short spread at z +1.92   g 718.89 = 0.715 x NAV (vol-target-bound; old size: 479.26 -> x1.50)
+       leg a DOGE   max_notional  790.77  FILLED     (1.1 x g)
+       leg b 1000SHIB max_notional 865.65 FILLED     (1.1 x beta x g)  -- both under the 1000 per-order cap;
+       clamp limit 830.4 not binding; gross 1.498 x NAV; session budget used 1656 of 12000
+11:20  STOP, trigger "intrabar", z +3.62; both legs closed 11:20:18 / 11:20:32;  NAV at stop 996.96 (~ -8.2)
+18:00-20:00  z +3.05 .. +3.36, short side blocked (side_blocked skips) -- the spread stayed broken
+```
+
+**Verified in live use, first time:** the ×1.5 sizing (vol-bound case), both
+order ceilings under the cap, no refusal or unwind, the intra-bar stop on the
+new size. **Not yet audited:** the 12:00 bar's z (would the hourly stop also
+have fired, and where) — from Sunday's export. Equity is **7.4 above the 989.3
+line** where the scored MDD (3.1%) would start to worsen — the nearest limit.
+The operator used the non-subshell env load and exited the session on the
+reminder.
 
 ---
 
