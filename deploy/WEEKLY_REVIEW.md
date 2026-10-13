@@ -7523,7 +7523,7 @@ reset onto it (clean tree, no work of mine lost), and the suite passed, 361.
 that is not the branch tip. A commit made on it and pushed would have either
 been rejected or — with force — erased the ×1.5 change the droplet is running.
 **First command in any new container: `git fetch origin
-claude/offline-competition-deploy-nuk5tz` and compare with `git ls-remote`.**
+claude/offline-competition-deploy-nuk5tz` and compare with `git ls-remote`.** *(Now step 0 of `CLAUDE.md`'s cold start, on the operator's go, 2026-10-13.)*
 Merging into `main` is the operator's business and harmless; `main` is not what
 the droplet pulls.
 
