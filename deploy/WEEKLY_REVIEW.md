@@ -7476,6 +7476,13 @@ with `z_sample` coverage since 09-29, 3 touched an adverse 3.0; 2 went on to 3.5
    simulation re-run on the new pool; this is how ×1.5 is judged, not by one week.
 4. **Standing:** 950 review trigger · scored-MDD line ~989.3 · AI spend both
    ends · no `do-release-upgrade`.
+5. **The macro question's first sub-hourly observation (added 10-13):** U.S. CPI
+   is due **Wed 10-14, usually 08:30 ET ≈ 12:30 UTC — unverified against a
+   calendar.** From the export: was a position held, what did `z_sample` do
+   12:00–14:00, did any stop fire. One event; it feeds the open 07-28
+   macro-awareness row, it does not decide it. **Deliberately not done:**
+   flattening ahead of the release via `LTP_MAINTENANCE_WINDOWS` — that path's
+   published reasoning says the venue announced maintenance, which would be false.
 
 ---
 
@@ -7496,6 +7503,29 @@ moved one earlier to **~05:00 UTC** (next in 3 bars at 01:16). The first entry
 will be the first observation of the new size; nothing logs size at startup.
 Fourth clean reboot of the competition; `do-release-upgrade` (26.04) declined
 again.
+
+---
+
+## 2026-10-13 — a fresh session container started on a stale branch ref; nothing lost
+
+Recording the organizer's 10-13 Market Watch (CPI on Wednesday) found this
+session in a **new container**: no pytest, and the local
+`claude/offline-competition-deploy-nuk5tz` at `bcf78e6` — a GitHub merge into
+`main` (PRs #77–#79, the operator merging the working branch and
+`live/track-record` into `main`) — **without** the ×1.5 commit `d3bfc96` or its
+deploy record `0f9c551`. Checked against GitHub directly (`git ls-remote`): the
+branch was at **`0f9c551`** all along, and `live/track-record` had only moved
+forward (`f81a9a0`, the droplet's 10-12 daily state). The clone's
+remote-tracking ref was stale; a fetch force-updated it, the local branch was
+reset onto it (clean tree, no work of mine lost), and the suite passed, 361.
+
+**The trap, for the next cold start:** a session container can begin on a ref
+that is not the branch tip. A commit made on it and pushed would have either
+been rejected or — with force — erased the ×1.5 change the droplet is running.
+**First command in any new container: `git fetch origin
+claude/offline-competition-deploy-nuk5tz` and compare with `git ls-remote`.**
+Merging into `main` is the operator's business and harmless; `main` is not what
+the droplet pulls.
 
 ---
 
