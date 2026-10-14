@@ -7641,6 +7641,34 @@ for the same position — a known cosmetic duplicate, not a double close). Same
 order of exposure as every hour before 10-05; accepted, as the news-`derisk`
 hole was. Refit is ~05:00 UTC, so a pair entered after it could be held.
 
+## 2026-10-14 — the leaderboard's MDD column stopped behaving like an MDD; we left the visible top 10
+
+The operator's screenshot (top 10 only; time relative to the 10-15 maintenance
+window not established):
+
+| team | MDD 10-13 → now | return 10-13 → now |
+|---|---|---|
+| Imnzzz | 3.8% → **0.1%** | +6.9% → +7.0% |
+| NorthStar | 6.8% → **0.0%** | +3.5% → +3.0% |
+| Stream4AI | 5.0% → **0.0%** | +4.6% → +4.6% |
+| Quantech | 11.0% (10-11) → **0.4%** | +5.7% → +3.3% |
+| X-Explore | 24.5% → **1.5%** | +7.9% → **+2.0%** |
+
+**Inconsistent with the published definition** (max over hourly snapshots,
+monotone non-decreasing — standing context). X-Explore is decisive: a fall from
++7.9% to +2.0% is a drawdown of at least ~6% of NAV, against a displayed 1.5%.
+Not "current drawdown" either — Gamma is falling yet reads 0.1%. It looks like a
+short recent window or a reset; **cause unknown**. Every score moved with it (MDD
+is 15%), so this board's ranks are not read as signal until it is explained.
+
+**We are no longer in the visible top 10** (10th: Gamma 70.3; we were 10th at
+65.8 on 10-13). **The self-ranking call moves from "decide" to "needed"** — it is
+now the only way to see our rank.
+
+**Nothing in the agent changes.** Our own risk reading stays on the published
+definition: banked 3.1%, the ~989.3 line kept until the organizer says MDD was
+reset. A question for Technical Support was drafted for the operator to post.
+
 ---
 
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
