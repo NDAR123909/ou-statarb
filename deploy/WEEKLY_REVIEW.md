@@ -7623,6 +7623,24 @@ left.** (Directional teams may get more from flows data than a hedged book can
 configuration prompt appeared, so nothing happened; **next time the command is
 `apt upgrade -y -o Dpkg::Options::=--force-confold`.**
 
+## 2026-10-14 — fifth maintenance window: guard not armed; the intra-bar stop is blind for 15 minutes
+
+RapidX announced **Thu 2026-10-15, 16:05–16:20 HKT = 08:05–08:20 UTC** —
+WebSocket, REST, Algo API, API and dashboard trading. By the 09-21 rule: it
+crosses no hour boundary, so no `:00:05` tick lands inside (08:00:05 before,
+09:00:05 after). **Guard NOT armed** — arming would flatten at the 08:00 tick
+for no protection.
+
+**New since the last window: the intra-bar stop.** Samples at 08:05, 08:10 and
+08:15 will fail their mark reads (REST down); `sample_open_positions` swallows
+each failure and `intrabar_stop` gets no readings, so **a position held through
+the window is unprotected below the hourly cadence for ~15 minutes** — the stop
+acts at the 08:25 sample. A close attempted mid-window that fails part-way is
+contained and retried at the next sample (which may write a second `stop` record
+for the same position — a known cosmetic duplicate, not a double close). Same
+order of exposure as every hour before 10-05; accepted, as the news-`derisk`
+hole was. Refit is ~05:00 UTC, so a pair entered after it could be held.
+
 ---
 
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
