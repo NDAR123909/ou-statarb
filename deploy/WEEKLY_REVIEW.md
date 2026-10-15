@@ -7669,6 +7669,16 @@ now the only way to see our rank.
 definition: banked 3.1%, the ~989.3 line kept until the organizer says MDD was
 reset. A question for Technical Support was drafted for the operator to post.
 
+**Our own MDD, the same day (status 10-14 22:22 UTC), behaves as defined:**
+banked **3.03%** (2.38% on 10-13) — an hourly reading touched ~990.0, **~0.7 above
+the 989.3 line** where the scored 3.1% would worsen. Equity 993.05, dd 2.73%.
+Holding **KAS/ETC long spread** (entered at the ~05:00 refit, z −1.62, β 1.286,
+hold 17 bars, uPnL ≈ −3.5; KAS leg ~278 notional — vol-bound, ×1.5 as built).
+A stop on it would carry the scored MDD past 3.1% (~−0.75 points per pp; accepted
+with ×1.5). **"System restart required" reappeared with 0 updates pending** — a
+background update; reboot deferred to a flat book under the usual conditions.
+Operator again loaded the env without the subshell; reminded to `exit`.
+
 ---
 
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
