@@ -7643,6 +7643,15 @@ hole was. Refit is ~05:00 UTC, so a pair entered after it could be held.
 
 ## 2026-10-14 — the leaderboard's MDD column stopped behaving like an MDD; we left the visible top 10
 
+> **⚠ RESOLVED 2026-10-15 — a data delay, not a rule change.** Organizer, to the
+> operator: *"Due to a temporary data delay affecting some teams at 00:00 on Oct
+> 15 (GMT+8), certain MDD figures were temporarily displayed as 0%. The issue has
+> since been resolved."* (= **16:00 UTC 10-14**.) The operator's next screenshot
+> shows the familiar values back (3.8%, 6.8%, 5.0%, 2.8% …). **The published
+> definition stands; our banked 3.1% and the 989.3 line matter again.** The
+> analysis below was right that the column was inconsistent; its "calc changed"
+> follow-up was not — see the correction there.
+
 The operator's screenshot (top 10 only; time relative to the 10-15 maintenance
 window not established):
 
@@ -7679,6 +7688,12 @@ with ×1.5). **"System restart required" reappeared with 0 updates pending** —
 background update; reboot deferred to a flat book under the usual conditions.
 Operator again loaded the env without the subshell; reminded to `exit`.
 
+> **⚠ WRONG, corrected 2026-10-15.** The organizer attributes the 0% figures to a
+> temporary data delay, now fixed — no change to the calculation. The Stream4AI
+> arithmetic below showed only that the *delayed* MDD fed the score while it was
+> displayed. The "×1.5's variance gets cheaper" inference is **withdrawn**. Lesson,
+> again: a competitor's statement corroborated by one board is still not a rule.
+
 **"The calc has changed too"** — another participant's reply to the operator's
 question (Technical Support, 10-14 20:59 local); the organizer has not answered.
 **Corroborated by the board itself:** Stream4AI's return and PnL are identical
@@ -7690,6 +7705,10 @@ window, the banked 3.1% and the 989.3 line stop mattering and a stop's MDD cost
 becomes temporary — ×1.5's variance gets *cheaper* than simulated. **No agent
 change:** the kill switch and stops protect equity under any definition. Awaiting
 the organizer's ruling; a competitor's statement is information, not a rule.
+
+**10-15, corrected board (operator's phone screenshot, names cropped):** none of
+the ten visible rows carries our figures (PnL ≈ −7, MDD 3.1%), so **we remain
+outside the top 10**; the self-ranking call stays on the week 11 agenda.
 
 ---
 
