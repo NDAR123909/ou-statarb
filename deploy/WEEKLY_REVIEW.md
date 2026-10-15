@@ -7679,6 +7679,18 @@ with ×1.5). **"System restart required" reappeared with 0 updates pending** —
 background update; reboot deferred to a flat book under the usual conditions.
 Operator again loaded the env without the subshell; reminded to `exit`.
 
+**"The calc has changed too"** — another participant's reply to the operator's
+question (Technical Support, 10-14 20:59 local); the organizer has not answered.
+**Corroborated by the board itself:** Stream4AI's return and PnL are identical
+on 10-13 and now (+4.6%, 45.73), its Sharpe slightly lower (1.28 → 1.26), yet its
+score rose **83.2 → 86.5** — the only input that improved is MDD (5.0% → 0.0%).
+So the new MDD feeds the score, not just the display. **What it now measures is
+unknown** (a recent window, a reset, or a bug to be reverted). If it is a short
+window, the banked 3.1% and the 989.3 line stop mattering and a stop's MDD cost
+becomes temporary — ×1.5's variance gets *cheaper* than simulated. **No agent
+change:** the kill switch and stops protect equity under any definition. Awaiting
+the organizer's ruling; a competitor's statement is information, not a rule.
+
 ---
 
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
