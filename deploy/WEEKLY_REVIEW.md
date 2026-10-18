@@ -7781,7 +7781,8 @@ our own score (~52, ~14th) is the roughest number here. 20,000 paths, 17 days:
 | ×1, edge set to 0 | 1.1% | 19% | 45% | 14 |
 | **×1.5**, edge set to 0 | **5.4%** | 28% | 46% | 14 |
 
-**Top 3 is now out of reach in any realistic sense: roughly 2–5%.** But ×1.5
+**Top 3 is now very unlikely — roughly 2–5%, i.e. 1 in 20 to 1 in 50 — not impossible**
+*(wording corrected at the operator's question: "out of reach in any realistic sense" overstated it).* But ×1.5
 still dominates ×1 from here — more chance of top 3 and of top 10, **no more of
 15th-or-worse**, because the bad tail is where we already are. **So no change: ×1.5
 stays fixed through 11-04,** now on the analysis rather than only the
@@ -7795,7 +7796,7 @@ trade, position, algo). Calling the endpoint means writing a V2 signer against a
 unpublished spec, on a host that may not accept the production key. **No
 decision left in this phase depends on our exact rank** — size is fixed, nothing
 else is open — so it would be information without a use. Final standings come
-from the organizer at the close. Operator's call.
+from the organizer at the close. **Operator agreed 2026-10-18: skipped.**
 
 ### Agenda outcomes
 
@@ -7803,7 +7804,7 @@ from the organizer at the close. Operator's call.
 |---|---|---|
 | 1 | ×1.5 deploy | **verified** on all five entries |
 | 2 | intra-bar firings | **5 audited, 0 false positives, ≈ 9 saved** |
-| 3 | board + self-ranking | top 10 recorded; self-ranking **recommended skip** |
+| 3 | board + self-ranking | top 10 recorded; self-ranking **skipped (operator agreed)** |
 | 4 | standing | 950: 29.8 above · scored MDD now ≥ ~4.0% · AI spend clear · no release upgrade |
 | 5 | CPI window | one observation, no visible effect |
 
