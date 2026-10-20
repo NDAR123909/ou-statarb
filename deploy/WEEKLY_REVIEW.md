@@ -7820,6 +7820,18 @@ from the organizer at the close. **Operator agreed 2026-10-18: skipped.**
    inputs this repo was built to produce — backtest vs live, every stop, the ×1.5
    decision and its outcome, stated as they happened.
 5. **Standing:** 950 trigger · AI spend both ends · no `do-release-upgrade`.
+
+### Mid-week, 10-19 → 10-20 (operator's glances)
+
+**Equity 979.77 → 988.67 → 995.04**: four reversion exits (exits 40 → 44), no
+stop, dd 2.54% (banked MDD stays 4.02%). **10-20 23:00: the first `anomaly_veto`
+of Phase II** — 1000SHIB/DOGE at z +0.96 was a live entry signal; the analyst
+rated the spread `broken` and the entry was refused (through the 10-18 export,
+all 117 Phase II skips were `side_blocked` 116 / `gross_cap` 1). The AI layer's
+first blocking decision this phase; whether it was right is for the review, from
+the next hours' z. **Reboot deferred twice** (10-20 00:10 a position opened at
+the 00:00 bar; 23:12 flat but `ENTRY-READY`, where a startup bar would take or
+refuse the entry off-schedule). 11 updates pending (7 security); not urgent.
 ---
 
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
