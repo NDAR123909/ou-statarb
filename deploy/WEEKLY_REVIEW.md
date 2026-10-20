@@ -7476,7 +7476,7 @@ with `z_sample` coverage since 09-29, 3 touched an adverse 3.0; 2 went on to 3.5
 
 ---
 
-## Week 11 agenda — review due Sun 2026-10-18
+## Week 11 agenda — review due Sun 2026-10-18 (COMPLETED — see the week 11 entry)
 
 1. **Verify the ×1.5 deploy:** first entry's `g` at 0.75 × NAV (or 1.5× its vol
    target), both order ceilings ≤ 1000, nothing refused.
@@ -7643,6 +7643,15 @@ hole was. Refit is ~05:00 UTC, so a pair entered after it could be held.
 
 ## 2026-10-14 — the leaderboard's MDD column stopped behaving like an MDD; we left the visible top 10
 
+> **⚠ RESOLVED 2026-10-15 — a data delay, not a rule change.** Organizer, to the
+> operator: *"Due to a temporary data delay affecting some teams at 00:00 on Oct
+> 15 (GMT+8), certain MDD figures were temporarily displayed as 0%. The issue has
+> since been resolved."* (= **16:00 UTC 10-14**.) The operator's next screenshot
+> shows the familiar values back (3.8%, 6.8%, 5.0%, 2.8% …). **The published
+> definition stands; our banked 3.1% and the 989.3 line matter again.** The
+> analysis below was right that the column was inconsistent; its "calc changed"
+> follow-up was not — see the correction there.
+
 The operator's screenshot (top 10 only; time relative to the 10-15 maintenance
 window not established):
 
@@ -7679,6 +7688,12 @@ with ×1.5). **"System restart required" reappeared with 0 updates pending** —
 background update; reboot deferred to a flat book under the usual conditions.
 Operator again loaded the env without the subshell; reminded to `exit`.
 
+> **⚠ WRONG, corrected 2026-10-15.** The organizer attributes the 0% figures to a
+> temporary data delay, now fixed — no change to the calculation. The Stream4AI
+> arithmetic below showed only that the *delayed* MDD fed the score while it was
+> displayed. The "×1.5's variance gets cheaper" inference is **withdrawn**. Lesson,
+> again: a competitor's statement corroborated by one board is still not a rule.
+
 **"The calc has changed too"** — another participant's reply to the operator's
 question (Technical Support, 10-14 20:59 local); the organizer has not answered.
 **Corroborated by the board itself:** Stream4AI's return and PnL are identical
@@ -7691,6 +7706,132 @@ becomes temporary — ×1.5's variance gets *cheaper* than simulated. **No agent
 change:** the kill switch and stops protect equity under any definition. Awaiting
 the organizer's ruling; a competitor's statement is information, not a rule.
 
+**10-15, corrected board (operator's phone screenshot, names cropped):** none of
+the ten visible rows carries our figures (PnL ≈ −7, MDD 3.1%), so **we remain
+outside the top 10**; the self-ranking call stays on the week 11 agenda.
+
+
+---
+
+## Week 11 — Phase II days 34-40 (reviewed Sun 2026-10-18, 23:00 UTC)
+
+### Position at review
+
+```
+equity      979.77    peak 1020.95   dd 4.03%      Phase II -2.0%
+banked MDD  4.02% (ours, hourly since 09-29) -- above the old scored 3.1%, so the scored MDD is now >= ~4.0%
+kill        898.43    headroom 81.34       950 review trigger: 29.8 above
+rank        outside the public top 10 (10th: 68.1); model estimate ~14th of 25, score ~52 (Sharpe est. -1.3, rough)
+book        1000SHIB/DOGE LONG-SPREAD, z -2.61, hold 18 (entered 05:01 at -1.70, g 737 = 0.75 x NAV)
+ops         pid 752, restarts 0 since 10-12; ai spend $1.159; 4 updates pending + restart required -> reboot deferred (position open)
+```
+
+### The week: four closes, three stops — ×1.5's first week went the wrong way
+
+| pair | entry → close | g / NAV | net |
+|---|---|---|---|
+| DOGE/1000SHIB short | z 1.92 → **intrabar stop** 3.62 (10-13 11:20) | 0.715 (vol-bound) | −8.61 |
+| KAS/ETC long | z −0.95 → **intrabar stop** −3.53 (10-15 14:40; 33.6h, refit inside) | 0.29 (vol-bound) | **−13.68** |
+| 1000SHIB/DOGE short | **z 3.39** → **intrabar stop** 3.70 (10-16 00:10) | 0.75 (cap) | −1.85 |
+| 1000SHIB/DOGE short | z 0.63 → reverted −0.12 (10-17 17:00) | 0.75 (cap) | +2.07 |
+
+**−22.07.** Every ×1.5 entry sized as built (cap-bound at 0.75, vol-bound at 1.5×
+the old target), no refusal, no unwind. One `gross_cap` skip (10-15 14:00, 1000SHIB/DOGE
+while KAS/ETC was held) — the one-pair-at-a-time cost, seen once.
+**Per-trip edge, all 35 Phase II trips: mean −0.44, sd 5.49, t = −0.48.** Still
+indistinguishable from zero, now on the negative side.
+
+### Every intra-bar firing, audited (agenda item 2)
+
+| firing | z at fire | next bar | verdict | est. saved |
+|---|---|---|---|---|
+| 10-07 1000SHIB/DOGE | −3.80 | −3.77 | gap through 3.5 | ~0 |
+| 10-08 ALGO/HBAR | +3.60 | **+5.98** (then 12.49) | clear payoff | ~7.6 |
+| 10-13 DOGE/1000SHIB | 3.62 | 3.69 | same price | ~0.3 |
+| 10-15 KAS/ETC | −3.53 | −3.48 — **inside** the stop | bar would have fired at **16:00, −3.75** | ~1.2 |
+| 10-16 1000SHIB/DOGE | 3.70 | 3.68 | same price | ~0 |
+
+**Five firings, no false positive** (every one was followed by the spread staying
+broken or the hourly stop firing within two bars), **≈ 9 USDT saved in all** —
+matching the prep's ~8.5 upper bound for six stops. Savings estimated linear in
+z on each entry's frame (KAS/ETC had a refit inside its hold; approximate).
+
+**The z 3.39 entry was not a stop-too-close casualty:** 101 samples between 2.18
+and 3.70 over nine hours, never reverting toward 0; the 01:00 bar would have
+stopped it at 3.68 regardless. One case; task 04's finding (depth does not
+predict stops) is not contradicted by it. No entry ceiling.
+
+**CPI (agenda item 5), 10-14 ~12:30 UTC:** KAS/ETC was held; its z sat between
+−1.55 and −1.63 across the release, no jump. **One observation: no visible
+effect.** The 07-28 macro row stays open and unmeasured.
+
+### The board and the odds, honestly
+
+Top 10 on 10-18: Imnzzz 94.1 · NorthStar 90.2 · Stream4AI 83.5 · Little J 79.4 ·
+LDMMMMMM 78.6 · PSJeevaa 75.7 · Krosus 72.3 · EQV UK 71.6 · Quantech 70.1 · Gamma
+68.1. **We are not on it.** The ±1.5-clip model (10-11 calibration; the 14 unseen
+teams carried from 10-11, X-Explore dropped) puts 3rd at 84.0 (board 83.5) and 10th
+at 65.3 (68.1); our Sharpe is estimated through the proxy offset fixed on 10-13, so
+our own score (~52, ~14th) is the roughest number here. 20,000 paths, 17 days:
+
+| | P(top 3) | P(top 10) | P(15th or worse) | median |
+|---|---|---|---|---|
+| ×1, our days as they were | 0.3% | 10% | 61% | 17 |
+| **×1.5**, our days as they were | **2.4%** | 16% | 61% | 17 |
+| ×1, edge set to 0 | 1.1% | 19% | 45% | 14 |
+| **×1.5**, edge set to 0 | **5.4%** | 28% | 46% | 14 |
+
+**Top 3 is now very unlikely — roughly 2–5%, i.e. 1 in 20 to 1 in 50 — not impossible**
+*(wording corrected at the operator's question: "out of reach in any realistic sense" overstated it).* But ×1.5
+still dominates ×1 from here — more chance of top 3 and of top 10, **no more of
+15th-or-worse**, because the bad tail is where we already are. **So no change: ×1.5
+stays fixed through 11-04,** now on the analysis rather than only the
+commitment. The 950 trigger remains the one human review point.
+
+### Self-ranking — recommended skip
+
+The CLI has no ranking command (domains: schema, doctor, auth, config, update,
+self-check, invocation, market, portfolio, automation, order, transaction,
+trade, position, algo). Calling the endpoint means writing a V2 signer against an
+unpublished spec, on a host that may not accept the production key. **No
+decision left in this phase depends on our exact rank** — size is fixed, nothing
+else is open — so it would be information without a use. Final standings come
+from the organizer at the close. **Operator agreed 2026-10-18: skipped.**
+
+### Agenda outcomes
+
+| # | item | outcome |
+|---|---|---|
+| 1 | ×1.5 deploy | **verified** on all five entries |
+| 2 | intra-bar firings | **5 audited, 0 false positives, ≈ 9 saved** |
+| 3 | board + self-ranking | top 10 recorded; self-ranking **skipped (operator agreed)** |
+| 4 | standing | 950: 29.8 above · scored MDD now ≥ ~4.0% · AI spend clear · no release upgrade |
+| 5 | CPI window | one observation, no visible effect |
+
+---
+
+## Week 12 agenda — review due Sun 2026-10-25
+
+1. **Run cleanly.** ×1.5 fixed; no parameter changes unless the 950 trigger fires.
+2. **Audit any intra-bar firing** as above.
+3. **Reboot onto the pending updates** on a flat book (`--force-confold`, :10–:40,
+   clear of the ~05:00 refit and the 23:50–23:58 jobs).
+4. **Begin the close-out:** Phase II ends **2026-11-04**. Draft the post-mortem
+   inputs this repo was built to produce — backtest vs live, every stop, the ×1.5
+   decision and its outcome, stated as they happened.
+5. **Standing:** 950 trigger · AI spend both ends · no `do-release-upgrade`.
+
+### Mid-week, 10-19 → 10-20 (operator's glances)
+
+**Equity 979.77 → 988.67 → 995.04**: four reversion exits (exits 40 → 44), no
+stop, dd 2.54% (banked MDD stays 4.02%). **10-20 23:00: the first `anomaly_veto`
+of Phase II** — 1000SHIB/DOGE at z +0.96 was a live entry signal; the analyst
+rated the spread `broken` and the entry was refused (through the 10-18 export,
+all 117 Phase II skips were `side_blocked` 116 / `gross_cap` 1). The AI layer's
+first blocking decision this phase; whether it was right is for the review, from
+the next hours' z. **Reboot deferred twice** (10-20 00:10 a position opened at
+the 00:00 bar; 23:12 flat but `ENTRY-READY`, where a startup bar would take or
+refuse the entry off-schedule). 11 updates pending (7 security); not urgent.
 ---
 
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
