@@ -7832,6 +7832,17 @@ first blocking decision this phase; whether it was right is for the review, from
 the next hours' z. **Reboot deferred twice** (10-20 00:10 a position opened at
 the 00:00 bar; 23:12 flat but `ENTRY-READY`, where a startup bar would take or
 refuse the entry off-schedule). 11 updates pending (7 security); not urgent.
+
+**10-21 20:31 UTC — reboot done, onto kernel 6.8.0-147.** Conditions met at 20:29:
+flat, no `ENTRY-READY` (z +1.22 but the short side `blocked=-1` after a stop —
+stops 19 → 20 since 10-20; equity 991.44). `apt upgrade -y -o
+Dpkg::Options::=--force-confold` (open-vm-tools, apparmor, libapparmor1, snapd;
+two apparmor profiles replaced were unmodified, so `confold` did not apply to them;
+an `apparmor.postinst … Illegal number` line is a packaging-script warning, profiles
+reloaded). Agent up 20:33:36: `self-check PASS`, session `ras_3d5f62f7-…`
+(budget 12000), pid 751, restarts 0, 0 updates pending. **The block survived the
+reboot and the startup bar skipped as predicted** (20:34 `side_blocked` at z +1.51).
+**Refit hour now ~04:00 UTC.** Fifth clean reboot of the competition.
 ---
 
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
