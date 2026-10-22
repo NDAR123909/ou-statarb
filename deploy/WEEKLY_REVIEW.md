@@ -7843,6 +7843,14 @@ reloaded). Agent up 20:33:36: `self-check PASS`, session `ras_3d5f62f7-…`
 (budget 12000), pid 751, restarts 0, 0 updates pending. **The block survived the
 reboot and the startup bar skipped as predicted** (20:34 `side_blocked` at z +1.51).
 **Refit hour now ~04:00 UTC.** Fifth clean reboot of the competition.
+
+**10-22 — DigitalOcean's PHP RCE notice (CVE-2026-109618/-109619): not exposed.**
+Sent to all customers (genuine — the operator's university IT issued the same
+warning). Checked on the droplet: `command -v php` and `dpkg -l | grep php` —
+**nothing installed**; `ss -tlnp` — **the only externally reachable listener is
+`sshd` on :22** (v4 and v6); `systemd-resolved` on 127.0.0.53/54 is loopback-only.
+**Attack surface = SSH alone**, which is the baseline to compare against for any
+future notice. The trading key remains IP-bound with withdraw/transfer off.
 ---
 
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
