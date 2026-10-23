@@ -7851,6 +7851,13 @@ warning). Checked on the droplet: `command -v php` and `dpkg -l | grep php` —
 `sshd` on :22** (v4 and v6); `systemd-resolved` on 127.0.0.53/54 is loopback-only.
 **Attack surface = SSH alone**, which is the baseline to compare against for any
 future notice. The trading key remains IP-bound with withdraw/transfer off.
+
+**10-23 — sixth maintenance window: Sun 10-25, 16:05–16:20 HKT = 08:05–08:20 UTC.**
+Same slot and shape as 10-15; crosses no hour boundary, so no `:00:05` tick
+inside. **Guard NOT armed.** Accepted exposure unchanged: a held position's
+intra-bar stop is blind for ~15 minutes (samples 08:05–08:15 fail and are
+swallowed; first possible action 08:25). Refit is ~04:00 UTC, so a pair entered
+then could be held through it.
 ---
 
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
