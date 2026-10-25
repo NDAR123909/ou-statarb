@@ -7810,7 +7810,7 @@ from the organizer at the close. **Operator agreed 2026-10-18: skipped.**
 
 ---
 
-## Week 12 agenda — review due Sun 2026-10-25
+## Week 12 agenda — review due Sun 2026-10-25 (COMPLETED — see the week 12 entry)
 
 1. **Run cleanly.** ×1.5 fixed; no parameter changes unless the 950 trigger fires.
 2. **Audit any intra-bar firing** as above.
@@ -7858,6 +7858,93 @@ inside. **Guard NOT armed.** Accepted exposure unchanged: a held position's
 intra-bar stop is blind for ~15 minutes (samples 08:05–08:15 fail and are
 swallowed; first possible action 08:25). Refit is ~04:00 UTC, so a pair entered
 then could be held through it.
+
+---
+
+## Week 12 — Phase II days 41-47 (reviewed Sun 2026-10-25, 20:30 UTC) — close-out begins
+
+### Position at review
+
+```
+equity      992.56    peak 1020.95   dd 2.78%      Phase II -0.7% (was -2.0% at week 11)
+banked MDD  4.02% (unchanged all week)   kill 898.43, headroom 94.12   950 trigger: 42.6 above
+rank        outside the public top 10 (10th: TDB 63.9) -- so 11th at best; model score ~61.7, ~2 below TDB.
+            (Corrected same night at the operator's question: "~10th of ~22" was our rank inside a model pool
+            missing four teams that left the top 10 this week -- Little J, LDMMMMMM, Quantech, X-Explore --
+            some of whom may still be above us. Plausibly ~11th-15th; exact rank unknown.)
+book        FLAT; PAXG/XAUT active (entry band 1.8, hl 7.7h), short side blocked after the 18:55 stop
+ops         pid 751 since the 10-21 reboot, restarts 0; 7 updates pending (flat-book reboot when convenient)
+```
+
+### The week, 10-18 → 10-25
+
+**16 closes: 11 reversion exits, 5 stops.** Net ≈ +10 to 10-24, then −1 on the
+10-25 PAXG stop. **PAXG/XAUT passed the gate for the first time in Phase II**
+(10-22) — briefly two pairs, and **9 `gross_cap` skips**, the one-pair-at-a-time
+cost of ×1.5 made visible. **2 anomaly vetoes** (10-20, 10-23), the first of the
+phase. The 10-20 veto delayed an entry by one bar; the 00:00 entry that followed
+reverted +0.83 — the veto avoided nothing that time. 10-25's maintenance window
+passed with the book flat.
+
+### Intra-bar stop: the full audit, and its first false alarms
+
+Every firing against a simulated hourly-only path (follow the hourly z until the
+hourly stop, the exit band or a refit drop; P&L linear in z on the entry frame):
+
+| fired | pair | z | hourly-only outcome | difference (hourly-only − actual) |
+|---|---|---|---|---|
+| 10-21 08:05 | 1000SHIB/DOGE | 3.71 | bar stop 11:00 at 3.70 | +0.03 |
+| 10-23 12:45 | 1000SHIB/DOGE | 3.56 | bar stop 16:00 at **4.18** | **−1.64** (intra-bar saved) |
+| 10-23 14:45 | PAXG/XAUT | 3.91 | **reverted** 20:00 | **+1.71 (false alarm)** |
+| 10-24 16:10 | PAXG/XAUT | −3.64 | **reverted** 10-25 05:00 | **+0.60 (false alarm)** |
+| 10-25 18:55 | PAXG/XAUT | 3.97 | bar stop 19:00 at 3.67 | ≈ +0.3 (fired worse) |
+
+**Ten firings to date: net ≈ +8 USDT** (ALGO/HBAR's ≈ 7.6 dominates), **two false
+alarms, both PAXG/XAUT** — the fastest, noisiest pair. A two-reading confirmation
+might have avoided both, but its cost on true stops cannot be measured (sampling
+stops at the close). **No change with ten days left.** The 10-24 counterfactual
+crosses a refit, so it is approximate.
+
+**Near-stop entries, now two of two stopped** (10-15 +3.39, 10-24 −3.26). Task 04's
+"deep entries pay" was measured under hourly stops; this is an open question for
+a next version, not a change now.
+
+### Edge, all 50 Phase II round trips (to 10-24)
+
+**mean −0.10, sd 4.86, t = −0.15.** Reversions 32 **+83.71**; stops 15 **−92.13**;
+refit drops 3 +3.27. **Gross +9.39 against fees 14.53.** Before ×1.5: 31 trips
++6.60; at ×1.5: 19 trips −11.74. 1000SHIB/DOGE +35.83 over 39 trips; every other
+pair −41 over 11.
+
+### Odds, 10 days left (×1.5, model on the 10-25 top 10 + stale 10-11 rest)
+
+**P(top 3) ≈ 6–7%** (up from 2–5% on 10-18). ~~P(top 10) ≈ 50%, median rank 10~~ —
+**withdrawn as too generous**: the pool omits four teams that left the top 10
+this week and still compete for those places. Pool partly stale and our Sharpe
+estimated — coarse.
+
+### Close-out begun
+
+**`deploy/PHASE2_POSTMORTEM.md` drafted** — result, backtest vs live, every stop,
+the intra-bar audit, the ×1.5 decision with its stated premise, every control
+that acted, every mistake and what caught it, and what a next version would test.
+Sections marked "final after 11-04" are filled at the close.
+
+---
+
+## Week 13 agenda — FINAL review, Sun 2026-11-01; the phase ends Wed 11-04
+
+1. **Confirm the exact end of scoring** with the organizer (Phase I ended 23:59
+   GMT+8 = 15:59 UTC; Phase II's instant is not recorded). Convert once, write it
+   here.
+2. **Decide the end-of-phase procedure** before 11-04, so nothing is improvised
+   at the bell: whether to let the agent run to the close and then flatten and
+   stop the service; the final export; the final state commit; and what happens
+   to the API key and the droplet afterwards. **Needs the operator's decisions.**
+3. **Audit any intra-bar firing**, as above.
+4. **Fill the post-mortem's final sections** after the close (rank, final numbers,
+   the ×1.5 decision judged against its premise).
+5. **Standing:** ×1.5 fixed · 950 trigger · AI spend both ends · no `do-release-upgrade`.
 ---
 
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
