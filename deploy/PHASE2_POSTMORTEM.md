@@ -17,7 +17,7 @@ reader who wants to check it, not to be impressed by it.
 
 | | Phase I (sandbox, 07-20 → 08-21) | Phase II (live capital, 09-09 → 11-04) |
 |---|---|---|
-| Finish | **6th of 30**, advanced | **[final after 11-04]** — outside the public top 10 at 10-25; model estimate ~10th of ~22 |
+| Finish | **6th of 30**, advanced | **[final after 11-04]** — outside the public top 10 at 10-25 (11th at best; model score ~2 below 10th place) |
 | Return | +3.8% | −0.7% (equity 992.56 on 10-25) |
 | Sharpe (scorer's) | **4.86 — highest of all 30 teams** | ~0 (our estimate; last published 0.23 on 10-13) |
 | Max drawdown | 3.7% | ≥ 4.02% (our hourly series; the scorer's is ≥ this) |

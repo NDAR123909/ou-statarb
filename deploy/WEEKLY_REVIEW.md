@@ -7868,7 +7868,10 @@ then could be held through it.
 ```
 equity      992.56    peak 1020.95   dd 2.78%      Phase II -0.7% (was -2.0% at week 11)
 banked MDD  4.02% (unchanged all week)   kill 898.43, headroom 94.12   950 trigger: 42.6 above
-rank        outside the public top 10 (10th: TDB 63.9); model ~10th of ~22 (rough)
+rank        outside the public top 10 (10th: TDB 63.9) -- so 11th at best; model score ~61.7, ~2 below TDB.
+            (Corrected same night at the operator's question: "~10th of ~22" was our rank inside a model pool
+            missing four teams that left the top 10 this week -- Little J, LDMMMMMM, Quantech, X-Explore --
+            some of whom may still be above us. Plausibly ~11th-15th; exact rank unknown.)
 book        FLAT; PAXG/XAUT active (entry band 1.8, hl 7.7h), short side blocked after the 18:55 stop
 ops         pid 751 since the 10-21 reboot, restarts 0; 7 updates pending (flat-book reboot when convenient)
 ```
@@ -7915,8 +7918,10 @@ pair −41 over 11.
 
 ### Odds, 10 days left (×1.5, model on the 10-25 top 10 + stale 10-11 rest)
 
-**P(top 3) ≈ 6–7%** (up from 2–5% on 10-18), **P(top 10) ≈ 50%**, median rank 10.
-Pool partly stale and our Sharpe estimated — coarse.
+**P(top 3) ≈ 6–7%** (up from 2–5% on 10-18). ~~P(top 10) ≈ 50%, median rank 10~~ —
+**withdrawn as too generous**: the pool omits four teams that left the top 10
+this week and still compete for those places. Pool partly stale and our Sharpe
+estimated — coarse.
 
 ### Close-out begun
 
