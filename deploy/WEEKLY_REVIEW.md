@@ -7957,6 +7957,15 @@ the operator's end-of-phase question to the organizer gains a third part; (2) th
 report says the scorer maps MDD to a **"drawdown tier"** score (17.5% → 30, 0% → 100)
 — the MDD term may be stepped rather than a smooth z. The ±1.5-clip model fits
 the board either way; noted as unverified.
+
+**10-26 20:37 UTC — sixth reboot, clean.** Flat (ALGO/HBAR back in the universe
+beside PAXG/XAUT; both inside their bands, no `ENTRY-READY`), 20:36. `apt upgrade
+-y -o Dpkg::Options::=--force-confold`: 8 packages (glib, cloud-init, tmux,
+ubuntu-pro-client), **no kernel change** (still 6.8.0-147); needrestart deferred
+`ltp-agent` as before, and the reboot applied the new libraries to it. Agent up
+20:37:49: `self-check PASS`, session `ras_4c514abd-…` (budget 12000), pid 752,
+restarts 0, flat, no trade on the startup bar; 0 updates pending. A first SSH
+attempt during boot was refused — normal while `sshd` starts. Equity 994.65.
 ---
 
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
