@@ -7945,6 +7945,18 @@ Sections marked "final after 11-04" are filled at the close.
 4. **Fill the post-mortem's final sections** after the close (rank, final numbers,
    the ×1.5 decision judged against its premise).
 5. **Standing:** ×1.5 fixed · 950 trigger · AI spend both ends · no `do-release-upgrade`.
+
+**10-26 — the MDD glitch again, at the same hour (another participant's report;
+organizer not yet answered).** The 16:00 UTC calculation landed late at 17:00 UTC
+with **every team's MDD at 0.0000% / "drawdown tier 100"** (one team ~17.5% / tier
+30 at 15:00). Same hour as the organizer-confirmed 10-14 data delay (00:00 GMT+8 =
+16:00 UTC, the GMT+8 date rollover): the likely reading is a recurring rollover
+bug, not a recalibration — unconfirmed. **No agent change.** Two consequences
+recorded: (1) **the final ranking must not be read from a glitched calculation** —
+the operator's end-of-phase question to the organizer gains a third part; (2) the
+report says the scorer maps MDD to a **"drawdown tier"** score (17.5% → 30, 0% → 100)
+— the MDD term may be stepped rather than a smooth z. The ±1.5-clip model fits
+the board either way; noted as unverified.
 ---
 
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
