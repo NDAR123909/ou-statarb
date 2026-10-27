@@ -7986,7 +7986,10 @@ Sections marked "final after 11-04" are filled at the close.
    "an intermediate data state during the update process"). **Read the final
    rank only from a board whose MDD column is populated**, or from the
    organizer's announced results.
-5. **Audit any intra-bar firing**, as above.
+5. **Audit any intra-bar firing**, as above. **At least two stops are not yet in
+   the record**: one on 10-26 and one on 10-27, found by tally diff at the 10-27
+   cold start. There is also the 10-27 `size_reduced`. Refresh the ledger slice
+   first (`export_phase_ledger.py`), because the published one ends 10-25 20:00.
 6. **Fill the post-mortem's final sections** after the close (rank, final numbers,
    the ×1.5 decision judged against its premise).
 7. **Standing:** ×1.5 fixed · 950 trigger · AI spend both ends · no `do-release-upgrade`.
@@ -8033,8 +8036,68 @@ attempt during boot was refused — normal while `sshd` starts. Equity 994.65.
   ~11th–15th": we are at the 10th/11th boundary.** That fits a model score ~2
   below TDB, which is inside the model's error. Top 10 is a live question for
   the last eight days. Top 3 is unchanged: very unlikely, not impossible. No
-  new odds without a full board.
+  new odds without a full board. *(Qualified the same evening — see the 19:48
+  entry: the second sighting was on a board with every MDD glitched, so "10th"
+  is plausible but not confirmed.)*
 - **No agent change.** Last reading: equity 994.65, flat (10-26 20:38 UTC).
+
+**10-27 19:48 UTC — cold start after a compaction; live status and the board.**
+
+```
+equity      999.12    peak 1020.95   dd 2.14%    Phase II -0.09%    banked MDD 4.02%
+kill        898.43, headroom 100.69   950 trigger: 49.1 above   AI spend $1.1563 (floor cleared)
+book        PAXG/XAUT LONG-SPREAD, entered 19:00 at z -2.35 (now -2.22, stop -3.5);
+            legs 748.23 / 714.53 = 1.46x NAV, uPnL +0.07
+            ALGO/HBAR ENTRY-READY (z +0.47, band 0.4) -> gross_cap skip: one pair at a time, as designed
+ops         pid 752, restarts 0, kernel 147, 0 updates; bar 1193, refit ~03:00 UTC (confirmed)
+board       10th, 65.7 -- but on a glitched MDD column (below)
+```
+
+- **Two stops and a size reduction the record never mentioned, found by
+  differencing ledger tallies** (state rows vs `status.py`). On 10-26: 2 entries,
+  1 exit, **1 stop**. On 10-27 to 19:48: 4 entries, 2 exits, **1 stop**, the
+  PAXG/XAUT position still open, and **`size_reduced` 1 → 2**: the news
+  sentinel's second size cut of the phase. It wasn't the PAXG entry, which went on
+  at full size. The pairs and triggers aren't visible from here. The published
+  ledger slice ends 10-25 20:00 and is refreshed by hand, not by the nightly
+  cron. **Added to agenda item 5.** Equity +6.56 over the two days.
+- **The leaderboard's MDD column is glitched for the third time, all ten rows.**
+  Every displayed MDD is below a minimum that team already set on the 10-11
+  board, and MDD never falls:
+
+  | team | shown | ≥ (10-11) |
+  |---|---|---|
+  | X-Explore | 1.2 | 24.5 |
+  | Kinance | 0.1 | 10.1 |
+  | TDB | 0.4 | 8.1 |
+  | Stream4AI | 0.0 | 5.0 |
+  | Gamma | 0.2 | 4.3 |
+  | **NDAR** | **0.2** | **4.02** |
+  | Imnzzz | 0.4 | 3.8 |
+  | PSJeevaa | 0.2 | 2.8 |
+  | EQV UK | 0.0 | 1.7 |
+  | Quant nunu | 0.0 | 1.6 |
+
+  Our own team-overview drawdown curve sits at −4% from 10-14 and jumps to ~0
+  at the right edge. So **this 10th place is scored on wrong MDDs for
+  everyone.** Our MDD z barely moves under the glitch: we're mid-pool either
+  way, with a 10-11 pool median of 3.8%. The ranks that move are teams with
+  extreme MDDs, and the 11th team is hidden. **10th: plausible, not
+  confirmed.** The bell-day rule (agenda item 4) stands, and is stronger for a
+  third episode that lasted hours.
+- **Correction: our Sharpe is not "~0" — the board's −0.82 is real and
+  reproducible.** The scorer's daily return (NAV 00:00 → 23:00 UTC), computed
+  from our own hourly `nav` records, gives **−1.22 over 09-30 → 10-24** (25 days).
+  Close-to-close on the 23:50 state rows gives **−0.37 over the whole phase**.
+  The 23:00 → 00:00 hours the scorer drops summed to only +0.05%, so the gap
+  between the two is the window, not the definition. **Sharpe is our weakest
+  term and the lowest in the visible top 10**, at 40% of the score. The 10-25
+  odds (top 3 ≈ 6–7%) assumed ~0 and were **too generous**. Not re-estimated.
+- **The field is swinging hard.** TDB went from 10th (63.9) on 10-25 to **3rd
+  (85.7)**, and from −6.0% on 10-11 to +3.8% now. Kinance went from 19th at −4.0%
+  on 10-11 to **5th at +1.7%**. Both carry true MDDs ≥8%, so the glitch
+  flatters them too. The top-3 line is ~20 points above us.
+- **No agent change; nothing for the operator to do.**
 
 ---
 
