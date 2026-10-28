@@ -8149,6 +8149,12 @@ under the 09-21 rule.
 - The refit is ~03:00 UTC, so a pair entered after it could be held through
   the window.
 - **Nothing for the operator to do,** and no need to be awake for it.
+- **Later on 10-28: the organizer deleted the notice.** That's a first; earlier
+  notices were never withdrawn. We don't know whether the window was
+  cancelled, moved, or posted in error. **It makes no difference to us,
+  because our response was no action.** If it is re-posted at a different
+  time, re-check it against the `:00:05` rule: a window containing an hourly
+  tick is the only kind that needs a guard decision.
 
 ---
 
