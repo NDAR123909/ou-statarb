@@ -19,7 +19,7 @@ reader who wants to check it, not to be impressed by it.
 |---|---|---|
 | Finish | **6th of 30**, advanced | **[final after 11-04]** — outside the public top 10 at 10-25 (11th at best; model score ~2 below 10th place) |
 | Return | +3.8% | −0.7% (equity 992.56 on 10-25) |
-| Sharpe (scorer's) | **4.86 — highest of all 30 teams** | ~0 (our estimate; last published 0.23 on 10-13) |
+| Sharpe (scorer's) | **4.86 — highest of all 30 teams** | ~~~0 (our estimate; last published 0.23 on 10-13)~~ **−0.82 on the 10-27 board**, lowest in the visible top 10. Reproduced from our hourly NAV: −1.22 under the scorer's definition over 09-30 → 10-24. The "~0" was too generous (corrected 10-27) |
 | Max drawdown | 3.7% | ≥ 4.02% (our hourly series; the scorer's is ≥ this) |
 | Round trips | 140 trades (board count) | 50 closed (to 10-24) |
 
@@ -129,7 +129,7 @@ outcome.]**
 | One-sided re-entry block | ~150 `side_blocked` skips |
 | Gross cap | ~10 `gross_cap` skips, mostly the one-pair-at-a-time cost of ×1.5 |
 | AI anomaly veto | **2** (10-20, 10-23) — first blocking AI decisions of the phase |
-| News sentinel size reduction | 1 (09-28, halved the entry that then stopped) |
+| News sentinel size reduction | 1 (09-28, halved the entry that then stopped); **a second on 10-27**, details at the final review |
 | Reconcile | 1 (10-03: closed a naked leg left by a refused hedge order) |
 | Entry unwind / budget skip (10-05 fix) | built after 10-03; not triggered since |
 | Maintenance-window guard | six windows, never armed — none contained an hourly tick |

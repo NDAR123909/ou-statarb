@@ -78,7 +78,21 @@ pressure: that is **08:59 America/Denver**, i.e. Friday *morning* local, not
 Friday evening. Consequences: the 23:50 and 23:55 UTC crons on 08-21 both run
 **after** the bell, so their rows are post-phase readings and must be labelled
 as such; and the last budget period overlapping scoring is 16:00 UTC 08-20 →
-15:59 UTC 08-21, cleared by the 16:30 UTC 08-20 pass.
+15:59 UTC 08-21, cleared by the 16:30 UTC 08-20 pass. *(Corrected 2026-10-27:
+in August Denver was on MDT (UTC−6), so 15:59 UTC was **09:59** there; 08:59
+was Arizona time. Harmless now that Phase I is closed, but it is why Phase II's
+instant below was converted with `zoneinfo`, not by hand.)*
+
+**Phase II scoring stops at 23:59 GMT+8 on Wed 2026-11-04 = 15:59 UTC = 08:59
+MST** (organizer, answering the operator, 2026-10-27). US clocks fall back on
+Sun 11-01, so Denver and Arizona both read 08:59 that morning. **The score uses
+the NAV recorded at 23:59, realized + unrealized P&L**; the Organizing Committee
+closes any positions still open *after* the close. So nothing has to be
+flattened: an open position at the bell counts at its mark. The 23:50/23:55/
+23:58 UTC crons on 11-04 run after the bell and are post-phase readings. The
+last budget period overlapping scoring is 16:00 UTC 11-03 → 15:59 UTC 11-04,
+covered by the 16:30 UTC 11-03 spend pass. The end-of-phase procedure is in the
+week 13 agenda.
 
 **Phase I scores do NOT carry into Phase II** — every team resets to 1,000 USDT
 (organizer, 2026-08-13). Phase I is worth advancement and evidence, nothing
@@ -1864,6 +1878,8 @@ section existed; that is what it is for.
 | ~~**Correct the KAS/ETC fixture**~~ **DONE 2026-10-12** (0.599×, with the derivation in a comment). Original: `tests/test_ltp_entry_frame.py::_kas_pair` builds `sigma: KAS_SIG0 * 2.047`; the true ratio is 0.599. Not asserted, so nothing fails — which is why it would survive unnoticed | 2026-10-07 | with the next test pass; needs the operator's go |
 | ~~**DEPLOY ×1.5 (+ fixture) with the OS-update reboot.**~~ **DONE 2026-10-12 01:13 UTC, verified** — check printed `0.003 0.75 1000.0`; 5 packages upgraded; kernel 6.8.0-142 → **146**; `self-check PASS`, session `ras_0a1d9505-…` (opening budget 12000); pid 752, restarts 0, flat, bar 813, peak 1020.95 anchored. Original: One file: `deploy/ltp_agent.py` (`ltp_broker.py` unchanged). On the droplet, flat, between :10 and :50, clear of the refit hour (~06:00 UTC) and any window: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py`; the check `.venv/bin/python -c "from deploy.ltp_agent import AgentConfig, AUTOMATION_MAX_PER_ORDER; c=AgentConfig(); print(c.risk_per_pair, c.per_leg_cap_mult, AUTOMATION_MAX_PER_ORDER)"` must print **`0.003 0.75 1000.0`**; then `apt update && apt upgrade -y` and `reboot` (the unit starts on boot — verified on every earlier reboot). **Verify after boot:** `journalctl -u ltp-agent -b` shows `self-check PASS` and `automation session … (opening budget 12000 per session)`; `status.py` flat, peak 1020.95, restarts 0. The boot's startup bar moves the refit hour one earlier (~05:00 UTC) | 2026-10-12 | closed — **first ×1.5 entry is verified at the week 11 review** |
 | ~~**DEPLOY fixes 2 and 3 + the 12000 budget.**~~ **DONE 2026-10-05 03:19:59 UTC, verified** — check printed `None True`, env printed `12000`, `self-check PASS`, `automation session ras_59c1d803-… (opening budget 12000 per session)`; pid 129816, flat, bar 646. Original: Two files, **never one**: `deploy/ltp_agent.py` and `deploy/ltp_broker.py` — the new agent with the old broker runs, then raises `AttributeError: budget_left` at every entry signal, caught as `bar_error`, and never enters again. On the droplet: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py deploy/ltp_broker.py`; the check `.venv/bin/python -c "from deploy.ltp_broker import RapidXBroker; from deploy.ltp_agent import AgentConfig, intrabar_stop; print(RapidXBroker().budget_left(), AgentConfig().intrabar_stop)"` must print **`None True`**; then the operator edits `/root/ltp.env` by hand — `LTP_AUTOMATION_MAX_TOTAL=12000` and `LTP_AUTOMATION_CONSENT_TEXT` rewritten in their own words, **never pasted into chat** — and checks `( set -a; source /root/ltp.env; set +a; .venv/bin/python -c "from deploy.ltp_agent import automation_max_total; print(automation_max_total())" )` prints **12000**; then `systemctl restart ltp-agent`. **Verify** in the journal: `self-check PASS` and `automation session ras_… (opening budget 12000 per session)`. The restart moves the refit hour one earlier (~07:00 → ~06:00 UTC) | 2026-10-05 | closed — **first intra-bar firing, if any, is audited at the week 10 review** |
+| **SETTLE THE END-OF-PHASE PROCEDURE.** The bell is **15:59 UTC Wed 11-04 (08:59 MST)**, scored on NAV including unrealized P&L. No flatten is needed. **Stop and disable `ltp-agent` at the bell.** `reconcile_positions` would otherwise treat the committee's closes as "the exchange closed what we thought we held" and could re-enter after the bell. The full proposal is in week 13 agenda item 2: crons, keys, droplet | 2026-10-27 | **final review Sun 11-01; needs the operator's decisions** |
+| **ASK THE ORGANIZER: is a Phase II Reasoning Log required, in what format, by when?** Phase I's was due three days after its close. `reasoning_log.py` is a Phase I packager with no date filter, so it must not be run for Phase II as it stands | 2026-10-27 | **operator, this week.** Any build needs a go and is cheaper before 11-04 than after |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
 > *below* the closing horizontal rule since 2026-08-09 — outside the table, where
@@ -7934,20 +7950,52 @@ Sections marked "final after 11-04" are filled at the close.
 
 ## Week 13 agenda — FINAL review, Sun 2026-11-01; the phase ends Wed 11-04
 
-1. **Confirm the exact end of scoring** with the organizer (Phase I ended 23:59
-   GMT+8 = 15:59 UTC; Phase II's instant is not recorded). Convert once, write it
-   here.
+1. ~~**Confirm the exact end of scoring**~~ **ANSWERED 2026-10-27: 23:59 GMT+8
+   Wed 11-04 = 15:59 UTC = 08:59 MST**, scored on NAV including unrealized P&L;
+   the committee closes leftover positions afterwards. In standing context.
 2. **Decide the end-of-phase procedure** before 11-04, so nothing is improvised
-   at the bell: whether to let the agent run to the close and then flatten and
-   stop the service; the final export; the final state commit; and what happens
-   to the API key and the droplet afterwards. **Needs the operator's decisions.**
-3. **Audit any intra-bar firing**, as above.
-4. **Fill the post-mortem's final sections** after the close (rank, final numbers,
+   at the bell. **Needs the operator's decisions.** The organizer's answer
+   removed the flatten question. Proposal for 11-01:
+   - **Before the bell: nothing.** The agent runs unchanged. Flattening would
+     only turn the mark into cash minus ~0.3 USDT in fees, and doing it through
+     `LTP_MAINTENANCE_WINDOWS` is barred anyway. No last-day rule; ×1.5 is fixed
+     through the bell.
+   - **At the bell, 15:59 UTC (08:59 MST): stop the agent.** Run `status.py` at
+     ~15:50, then `systemctl stop ltp-agent && systemctl disable ltp-agent` at
+     15:59. It has no SIGTERM handler and no flatten-on-exit, so positions stay
+     as they are, and `Restart=always` does not undo an explicit stop. **Why at
+     the bell and not "some time after":** if the committee closes our legs
+     while the agent runs, `reconcile_positions` reads it as "the exchange closed
+     what we thought we held". It resets the pair, and the agent can **re-enter
+     after the bell** on its own signal. Separately, the 16:00:05 bar would trade
+     after the bell. If 08:59 MST is impossible, stop it as early as possible
+     after the bell.
+   - **After the bell:** no manual orders (standing rule; the committee closes).
+     Let the 23:55 fills and 23:58 publish crons run once more on 11-04 so the
+     committee's closes land in the record. Then remove the spend and publish
+     crons with `crontab -e`. Revoke the trading key and AI key **only after
+     final results are published**. Keep the droplet until then too: the full
+     ledger exists only there.
+3. **New, for the operator to ask: is a Phase II Reasoning Log required, and by
+   when?** Phase I required one within three days of the close (2026-08-24).
+   `reasoning_log.py` is a Phase I packager with no date filter (2026-09-21
+   entry). A Phase II submission would be built from `export_phase_ledger.py`
+   plus the fills, which means code, which means a go. Ask now, not on 11-05.
+4. **The final board will be computed in the glitch hour.** The bell is 15:59
+   UTC, and both MDD-0 episodes hit the 16:00 UTC calculation (organizer:
+   "an intermediate data state during the update process"). **Read the final
+   rank only from a board whose MDD column is populated**, or from the
+   organizer's announced results.
+5. **Audit any intra-bar firing**, as above. **At least two stops are not yet in
+   the record**: one on 10-26 and one on 10-27, found by tally diff at the 10-27
+   cold start. There is also the 10-27 `size_reduced`. Refresh the ledger slice
+   first (`export_phase_ledger.py`), because the published one ends 10-25 20:00.
+6. **Fill the post-mortem's final sections** after the close (rank, final numbers,
    the ×1.5 decision judged against its premise).
-5. **Standing:** ×1.5 fixed · 950 trigger · AI spend both ends · no `do-release-upgrade`.
+7. **Standing:** ×1.5 fixed · 950 trigger · AI spend both ends · no `do-release-upgrade`.
 
 **10-26 — the MDD glitch again, at the same hour (another participant's report;
-organizer not yet answered).** The 16:00 UTC calculation landed late at 17:00 UTC
+organizer not yet answered — *answered 10-27, see below: a data delay again*).** The 16:00 UTC calculation landed late at 17:00 UTC
 with **every team's MDD at 0.0000% / "drawdown tier 100"** (one team ~17.5% / tier
 30 at 15:00). Same hour as the organizer-confirmed 10-14 data delay (00:00 GMT+8 =
 16:00 UTC, the GMT+8 date rollover): the likely reading is a recurring rollover
@@ -7957,6 +8005,100 @@ the operator's end-of-phase question to the organizer gains a third part; (2) th
 report says the scorer maps MDD to a **"drawdown tier"** score (17.5% → 30, 0% → 100)
 — the MDD term may be stepped rather than a smooth z. The ±1.5-clip model fits
 the board either way; noted as unverified.
+
+**10-26 20:37 UTC — sixth reboot, clean.** Flat (ALGO/HBAR back in the universe
+beside PAXG/XAUT; both inside their bands, no `ENTRY-READY`), 20:36. `apt upgrade
+-y -o Dpkg::Options::=--force-confold`: 8 packages (glib, cloud-init, tmux,
+ubuntu-pro-client), **no kernel change** (still 6.8.0-147); needrestart deferred
+`ltp-agent` as before, and the reboot applied the new libraries to it. Agent up
+20:37:49: `self-check PASS`, session `ras_4c514abd-…` (budget 12000), pid 752,
+restarts 0, flat, no trade on the startup bar; 0 updates pending. A first SSH
+attempt during boot was refused — normal while `sshd` starts. Equity 994.65.
+
+**10-27 — the organizer answered both questions, and we touched 10th place.**
+
+- **End of scoring: 23:59 GMT+8 Wed 11-04 = 15:59 UTC = 08:59 MST**, scored
+  on *"the NAV recorded at 23:59, including both realized and unrealized PnL"*;
+  *"any remaining open positions will be closed by the Organizing Committee
+  after the competition has concluded."* Now in standing context. Agenda item 2
+  is rewritten around it. The main consequence: **stop the agent at the bell**,
+  because a running agent would reconcile the committee's closes and could
+  re-enter.
+- **MDD at 0% on 10-26:** *"Similar to the previous incident, a temporary delay
+  in data updates for some teams … can occur occasionally as an intermediate
+  data state during the update process."* Same answer as 10-14. Benign for the
+  score. What survives is agenda item 4: the final board is calculated in that
+  same hour. The "drawdown tier" mapping was not addressed and stays
+  unverified.
+- **Rank: the operator saw NDAR at exactly 10th** on the public board overnight
+  10-26 → 10-27 (their evening), before it dropped back out. It is the first
+  sighting inside the top 10 since 10-14. **This corrects the 10-25 "plausibly
+  ~11th–15th": we are at the 10th/11th boundary.** That fits a model score ~2
+  below TDB, which is inside the model's error. Top 10 is a live question for
+  the last eight days. Top 3 is unchanged: very unlikely, not impossible. No
+  new odds without a full board. *(Qualified the same evening — see the 19:48
+  entry: the second sighting was on a board with every MDD glitched, so "10th"
+  is plausible but not confirmed.)*
+- **No agent change.** Last reading: equity 994.65, flat (10-26 20:38 UTC).
+
+**10-27 19:48 UTC — cold start after a compaction; live status and the board.**
+
+```
+equity      999.12    peak 1020.95   dd 2.14%    Phase II -0.09%    banked MDD 4.02%
+kill        898.43, headroom 100.69   950 trigger: 49.1 above   AI spend $1.1563 (floor cleared)
+book        PAXG/XAUT LONG-SPREAD, entered 19:00 at z -2.35 (now -2.22, stop -3.5);
+            legs 748.23 / 714.53 = 1.46x NAV, uPnL +0.07
+            ALGO/HBAR ENTRY-READY (z +0.47, band 0.4) -> gross_cap skip: one pair at a time, as designed
+ops         pid 752, restarts 0, kernel 147, 0 updates; bar 1193, refit ~03:00 UTC (confirmed)
+board       10th, 65.7 -- but on a glitched MDD column (below)
+```
+
+- **Two stops and a size reduction the record never mentioned, found by
+  differencing ledger tallies** (state rows vs `status.py`). On 10-26: 2 entries,
+  1 exit, **1 stop**. On 10-27 to 19:48: 4 entries, 2 exits, **1 stop**, the
+  PAXG/XAUT position still open, and **`size_reduced` 1 → 2**: the news
+  sentinel's second size cut of the phase. It wasn't the PAXG entry, which went on
+  at full size. The pairs and triggers aren't visible from here. The published
+  ledger slice ends 10-25 20:00 and is refreshed by hand, not by the nightly
+  cron. **Added to agenda item 5.** Equity +6.56 over the two days.
+- **The leaderboard's MDD column is glitched for the third time, all ten rows.**
+  Every displayed MDD is below a minimum that team already set on the 10-11
+  board, and MDD never falls:
+
+  | team | shown | ≥ (10-11) |
+  |---|---|---|
+  | X-Explore | 1.2 | 24.5 |
+  | Kinance | 0.1 | 10.1 |
+  | TDB | 0.4 | 8.1 |
+  | Stream4AI | 0.0 | 5.0 |
+  | Gamma | 0.2 | 4.3 |
+  | **NDAR** | **0.2** | **4.02** |
+  | Imnzzz | 0.4 | 3.8 |
+  | PSJeevaa | 0.2 | 2.8 |
+  | EQV UK | 0.0 | 1.7 |
+  | Quant nunu | 0.0 | 1.6 |
+
+  Our own team-overview drawdown curve sits at −4% from 10-14 and jumps to ~0
+  at the right edge. So **this 10th place is scored on wrong MDDs for
+  everyone.** Our MDD z barely moves under the glitch: we're mid-pool either
+  way, with a 10-11 pool median of 3.8%. The ranks that move are teams with
+  extreme MDDs, and the 11th team is hidden. **10th: plausible, not
+  confirmed.** The bell-day rule (agenda item 4) stands, and is stronger for a
+  third episode that lasted hours.
+- **Correction: our Sharpe is not "~0" — the board's −0.82 is real and
+  reproducible.** The scorer's daily return (NAV 00:00 → 23:00 UTC), computed
+  from our own hourly `nav` records, gives **−1.22 over 09-30 → 10-24** (25 days).
+  Close-to-close on the 23:50 state rows gives **−0.37 over the whole phase**.
+  The 23:00 → 00:00 hours the scorer drops summed to only +0.05%, so the gap
+  between the two is the window, not the definition. **Sharpe is our weakest
+  term and the lowest in the visible top 10**, at 40% of the score. The 10-25
+  odds (top 3 ≈ 6–7%) assumed ~0 and were **too generous**. Not re-estimated.
+- **The field is swinging hard.** TDB went from 10th (63.9) on 10-25 to **3rd
+  (85.7)**, and from −6.0% on 10-11 to +3.8% now. Kinance went from 19th at −4.0%
+  on 10-11 to **5th at +1.7%**. Both carry true MDDs ≥8%, so the glitch
+  flatters them too. The top-3 line is ~20 points above us.
+- **No agent change; nothing for the operator to do.**
+
 ---
 
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
