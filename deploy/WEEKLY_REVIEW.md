@@ -8128,6 +8128,28 @@ equal to our banked 4.02%**, so the scored MDD and our hourly series agree.
   the repo or the track record names either symbol, and the agent trades only
   Binance perps.
 
+**10-28 — seventh maintenance window: Thu 10-29, 14:30–15:00 HKT = 06:30–07:00
+UTC.** WebSocket, REST, Algo API, and API and dashboard trading. No `:00:05` tick
+falls inside (06:00:05 before, 07:00:05 after), so **the guard is NOT armed**,
+under the 09-21 rule.
+
+- **What's new: the window ends 5 seconds before an hourly tick.** It is the
+  first to end flush against one. If it overruns, the 07:00 bar's reads fail
+  and are logged as `bar_error`, and the bar is retried at 08:00.
+- **Worst case:** an entry whose second leg fails mid-recovery, whose unwind
+  also fails, is left as a naked leg until the 08:00 bar's `reconcile_positions`.
+  That is the 10-03 shape, contained by the 10-05 fix. It needs an entry signal
+  at that exact bar and a half-working API, so it is unlikely.
+- Arming the guard with padding would flatten at 06:00 to guard against a
+  5-second overrun. Not worth a round trip of fees.
+- **Accepted exposure: a held position's intra-bar stop is blind for ~30
+  minutes** (samples 06:30–06:55 fail and are swallowed). The first possible
+  action is the 07:00:05 bar. That's twice the 15 minutes of the last two
+  windows, and the same order as every hour before 10-05.
+- The refit is ~03:00 UTC, so a pair entered after it could be held through
+  the window.
+- **Nothing for the operator to do,** and no need to be awake for it.
+
 ---
 
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
