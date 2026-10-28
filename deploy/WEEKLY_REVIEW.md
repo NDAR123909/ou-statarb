@@ -8038,7 +8038,8 @@ attempt during boot was refused — normal while `sshd` starts. Equity 994.65.
   the last eight days. Top 3 is unchanged: very unlikely, not impossible. No
   new odds without a full board. *(Qualified the same evening — see the 19:48
   entry: the second sighting was on a board with every MDD glitched, so "10th"
-  is plausible but not confirmed.)*
+  is plausible but not confirmed. **Confirmed 10-28 on a clean board** — see
+  that entry.)*
 - **No agent change.** Last reading: equity 994.65, flat (10-26 20:38 UTC).
 
 **10-27 19:48 UTC — cold start after a compaction; live status and the board.**
@@ -8098,6 +8099,34 @@ board       10th, 65.7 -- but on a glitched MDD column (below)
   on 10-11 to **5th at +1.7%**. Both carry true MDDs ≥8%, so the glitch
   flatters them too. The top-3 line is ~20 points above us.
 - **No agent change; nothing for the operator to do.**
+
+**10-28 — 10th confirmed on a clean board.** The MDD column is populated again,
+and every value sits at or above that team's 10-11 floor. **Ours reads 4.0%,
+equal to our banked 4.02%**, so the scored MDD and our hourly series agree.
+
+```
+ 1 Imnzzz     94.9  +7.3%   3.71   3.8%  |  6 TDB        73.8  +3.1%   1.23  17.5%
+ 2 PSJeevaa   84.0  +1.5%   2.39   2.8%  |  7 Gamma      70.7  +0.2%   0.59   5.4%
+ 3 Stream4AI  83.6  +4.6%   1.08   5.0%  |  8 Kinance    70.6  +0.7%   0.70  10.1%
+ 4 NorthStar  75.0  +1.4%   0.72   7.0%  |  9 Quant nunu 67.0  -0.5%  -0.30   1.6%
+ 5 EQV UK     74.2  +0.6%   0.42   1.8%  | 10 NDAR       63.5  -0.3%  -0.82   4.0%   PnL -2.69
+```
+
+- **We are 10th.** 9th is 3.5 points above us: roughly +1.3% return at the 10-11
+  sensitivities, other things fixed. 3rd is 20.1 above. 11th is hidden, so the
+  margin below us is unknown. One ×1.5 stop (−5 to −14 USDT) is worth ~1.5–3.5
+  points.
+- **What the glitch did to the board:**
+  - TDB went 85.7 (3rd) → 73.8 (6th) once its real 17.5% MDD showed. That is
+    the "one team at 17.5%, tier 30" from the 10-26 report.
+  - Kinance went 78.7 → 70.6.
+  - X-Explore (MDD ≥24.5%) dropped out of the top 10, and NorthStar came back
+    in at 4th.
+  - Total Trades fell between the two boards for five teams, us included
+    (828 → 808). So the glitched state recomputed more than MDD.
+- **The 10-29 RapidX delisting (OKX `KII`, `MSTU`) is not ours.** No text file in
+  the repo or the track record names either symbol, and the agent trades only
+  Binance perps.
 
 ---
 
