@@ -1880,7 +1880,7 @@ section existed; that is what it is for.
 | ~~**DEPLOY fixes 2 and 3 + the 12000 budget.**~~ **DONE 2026-10-05 03:19:59 UTC, verified** — check printed `None True`, env printed `12000`, `self-check PASS`, `automation session ras_59c1d803-… (opening budget 12000 per session)`; pid 129816, flat, bar 646. Original: Two files, **never one**: `deploy/ltp_agent.py` and `deploy/ltp_broker.py` — the new agent with the old broker runs, then raises `AttributeError: budget_left` at every entry signal, caught as `bar_error`, and never enters again. On the droplet: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py deploy/ltp_broker.py`; the check `.venv/bin/python -c "from deploy.ltp_broker import RapidXBroker; from deploy.ltp_agent import AgentConfig, intrabar_stop; print(RapidXBroker().budget_left(), AgentConfig().intrabar_stop)"` must print **`None True`**; then the operator edits `/root/ltp.env` by hand — `LTP_AUTOMATION_MAX_TOTAL=12000` and `LTP_AUTOMATION_CONSENT_TEXT` rewritten in their own words, **never pasted into chat** — and checks `( set -a; source /root/ltp.env; set +a; .venv/bin/python -c "from deploy.ltp_agent import automation_max_total; print(automation_max_total())" )` prints **12000**; then `systemctl restart ltp-agent`. **Verify** in the journal: `self-check PASS` and `automation session ras_… (opening budget 12000 per session)`. The restart moves the refit hour one earlier (~07:00 → ~06:00 UTC) | 2026-10-05 | closed — **first intra-bar firing, if any, is audited at the week 10 review** |
 | **SETTLE THE END-OF-PHASE PROCEDURE.** The bell is **15:59 UTC Wed 11-04 (08:59 MST)**, scored on NAV including unrealized P&L. No flatten is needed. **Stop and disable `ltp-agent` at the bell.** `reconcile_positions` would otherwise treat the committee's closes as "the exchange closed what we thought we held" and could re-enter after the bell. The full proposal is in week 13 agenda item 2: crons, keys, droplet | 2026-10-27 | **final review Sun 11-01; needs the operator's decisions** |
 | ~~**ASK THE ORGANIZER: is a Phase II Reasoning Log required, in what format, by when?**~~ **ANSWERED 2026-10-28: yes, same requirements as Phase I, within one week of the close** | 2026-10-27 | closed — the build row below |
-| **SUBMIT THE PHASE II REASONING LOG.** Deadline **15:59 UTC Wed 11-11** (conservative reading); **target: send by Sun 11-08**. ~~The build~~ **BUILT 2026-10-28** (`reasoning_log.py --phase`, `deploy/REASONING_LOG_PHASE2.md`, `tests/test_reasoning_log_phase2.py`). Left: deploy the two files, dry run on the droplet, fill the three blanks after the close, final build after the 11-04 23:55 snapshot, email with the deep-review file linked, record the receipt. Steps in week 13 agenda item 3 | 2026-10-28 | **dry run at or before the 11-01 review**; final build 11-05; send by 11-08 |
+| **SUBMIT THE PHASE II REASONING LOG.** Deadline **15:59 UTC Wed 11-11** (conservative reading); **target: send by Sun 11-08**. ~~The build~~ **BUILT 2026-10-28** (`reasoning_log.py --phase`, `deploy/REASONING_LOG_PHASE2.md`, `tests/test_reasoning_log_phase2.py`). ~~Deploy the two files, dry run on the droplet~~ **DONE 10-28 21:14** (deep-review file 50.99 MB, ~58 MB by the bell; email archive 1.05 MB). Left: fill the three blanks after the close, final build after the 11-04 23:55 snapshot, email with the deep-review file **linked from a file share**, record the receipt. Steps in week 13 agenda item 3 | 2026-10-28 | final build 11-05; send by 11-08 |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
 > *below* the closing horizontal rule since 2026-08-09 — outside the table, where
@@ -8275,6 +8275,45 @@ droplet dry run will.
 Suite 361 → 376 (14 new tests in `tests/test_reasoning_log_phase2.py`, plus the
 streaming pin). Phase I's 7 tests pass unchanged. **No change to anything the
 agent runs.**
+
+**10-28 21:14 UTC — droplet dry run: clean, and the size is measured.** The two
+files were deployed with `git checkout` (no restart). The build ran into
+`/root/p2dry/`, outside `track_record/`.
+
+```
+ledger read          189.4 MB, streamed
+reasoning.jsonl      6,890 records    2.80 MB
+ai_deep_review       18,958 records  50.99 MB gz   (2.69 KB each; Phase I 2.70)
+fills snapshots      50  (09-08 .. 10-27, i.e. every night so far)
+outside the window   5,161 before, 0 after, 0 undated, 0 unparseable
+email archive        1.05 MB
+```
+
+- **5,161 "before" reconciles exactly.** Lifetime deep reviews 22,382 minus
+  Phase II's 18,958 is **3,424, Phase I's submitted count to the record**, so
+  the build window wrote none. The other 1,737 are Phase I's 1,271 plus 466
+  build-window records.
+- **At ~360 reviews a day the file reaches ~58 MB by the bell.** That is too
+  big to email, so separate delivery is needed whatever else is true.
+- **Correction to the 10-28 build entry:** at ~58 MB the nightly push would
+  have *succeeded*, with GitHub's 50 MB warning. The 100 MB hard limit was not
+  in reach. So keeping the file out of git was precaution, plus avoiding ~58 MB
+  in the repo's history forever, not a fix for a push that would have broken.
+  **Delivery: a file-share link, the operator's choice of host**, checkable
+  against the SHA-256 in the manifest.
+- **Agenda item 3, steps 1–2 done.** Next: the blanks after the close, then
+  the final build after 23:55 UTC 11-04.
+
+**Live at 21:15 UTC:**
+
+```
+equity      1010.01   peak 1020.95   dd 1.07%    Phase II +1.0%   kill 898.43, headroom 111.58
+book        ALGO/HBAR SHORT-SPREAD, entered 20:00 at z +2.11 (now +1.78, stop +3.5), legs 335.74 / 211.58
+            (0.54x NAV: vol-bound, not cap-bound), uPnL +0.70
+universe    PAXG/XAUT, ALGO/HBAR, DOGE/1000SHIB (beta 1.177, back in a new orientation); 3 pairs
+ops         pid 752, restarts 0; AI spend $1.1602; refit ~03:00 UTC (bar 1224)
+since 10-27 19:48: 4 entries, 4 exits, 0 stops -- equity +10.89, the best day in weeks
+```
 
 ---
 
