@@ -1880,7 +1880,7 @@ section existed; that is what it is for.
 | ~~**DEPLOY fixes 2 and 3 + the 12000 budget.**~~ **DONE 2026-10-05 03:19:59 UTC, verified** — check printed `None True`, env printed `12000`, `self-check PASS`, `automation session ras_59c1d803-… (opening budget 12000 per session)`; pid 129816, flat, bar 646. Original: Two files, **never one**: `deploy/ltp_agent.py` and `deploy/ltp_broker.py` — the new agent with the old broker runs, then raises `AttributeError: budget_left` at every entry signal, caught as `bar_error`, and never enters again. On the droplet: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py deploy/ltp_broker.py`; the check `.venv/bin/python -c "from deploy.ltp_broker import RapidXBroker; from deploy.ltp_agent import AgentConfig, intrabar_stop; print(RapidXBroker().budget_left(), AgentConfig().intrabar_stop)"` must print **`None True`**; then the operator edits `/root/ltp.env` by hand — `LTP_AUTOMATION_MAX_TOTAL=12000` and `LTP_AUTOMATION_CONSENT_TEXT` rewritten in their own words, **never pasted into chat** — and checks `( set -a; source /root/ltp.env; set +a; .venv/bin/python -c "from deploy.ltp_agent import automation_max_total; print(automation_max_total())" )` prints **12000**; then `systemctl restart ltp-agent`. **Verify** in the journal: `self-check PASS` and `automation session ras_… (opening budget 12000 per session)`. The restart moves the refit hour one earlier (~07:00 → ~06:00 UTC) | 2026-10-05 | closed — **first intra-bar firing, if any, is audited at the week 10 review** |
 | **SETTLE THE END-OF-PHASE PROCEDURE.** The bell is **15:59 UTC Wed 11-04 (08:59 MST)**, scored on NAV including unrealized P&L. No flatten is needed. **Stop and disable `ltp-agent` at the bell.** `reconcile_positions` would otherwise treat the committee's closes as "the exchange closed what we thought we held" and could re-enter after the bell. The full proposal is in week 13 agenda item 2: crons, keys, droplet | 2026-10-27 | **final review Sun 11-01; needs the operator's decisions** |
 | ~~**ASK THE ORGANIZER: is a Phase II Reasoning Log required, in what format, by when?**~~ **ANSWERED 2026-10-28: yes, same requirements as Phase I, within one week of the close** | 2026-10-27 | closed — the build row below |
-| **BUILD AND SUBMIT THE PHASE II REASONING LOG.** Deadline **15:59 UTC Wed 11-11** (conservative reading); **target: send by Sun 11-08**. The build: a phase window for `reasoning_log.py`, a `deploy/REASONING_LOG_PHASE2.md` narrative, and tests. Full plan in week 13 agenda item 3. Then a dry run on the droplet, the final run after the 11-04 23:55 fills snapshot, email to `events@liquiditytech.com`, and record the receipt | 2026-10-28 | **build needs the operator's go** — before 11-04 if possible, at the 11-01 review at the latest |
+| **SUBMIT THE PHASE II REASONING LOG.** Deadline **15:59 UTC Wed 11-11** (conservative reading); **target: send by Sun 11-08**. ~~The build~~ **BUILT 2026-10-28** (`reasoning_log.py --phase`, `deploy/REASONING_LOG_PHASE2.md`, `tests/test_reasoning_log_phase2.py`). Left: deploy the two files, dry run on the droplet, fill the three blanks after the close, final build after the 11-04 23:55 snapshot, email with the deep-review file linked, record the receipt. Steps in week 13 agenda item 3 | 2026-10-28 | **dry run at or before the 11-01 review**; final build 11-05; send by 11-08 |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
 > *below* the closing horizontal rule since 2026-08-09 — outside the table, where
@@ -7979,7 +7979,10 @@ Sections marked "final after 11-04" are filled at the close.
      ledger exists only there. **And not before the Phase II Reasoning Log
      (item 3) is sent and receipt confirmed.** The 11-04 23:55 fills snapshot
      needs the trading key, and the package is built from the droplet's
-     ledger.
+     ledger. **Keep the 23:58 publish cron until the night after the final
+     build**: it is what publishes `track_record/phase2_submission/`. The
+     spend crons can go after the bell; their post-bell deep reviews fall
+     outside the package's window.
 3. ~~**New, for the operator to ask: is a Phase II Reasoning Log required, and by
    when?**~~ **ANSWERED 2026-10-28 (organizer, Telegram):** *"Yes, the requirements
    are the same as in Phase I. Please submit the Phase II Reasoning Log within
@@ -8008,6 +8011,28 @@ Sections marked "final after 11-04" are filled at the close.
    - **Run:** a dry run on the droplet at or after the 11-01 review (the full
      ledger exists only there), then the final run after the 11-04 23:55 fills
      snapshot. Check the archive size against email limits before sending.
+   - **BUILT 2026-10-28 on the operator's go** — see that day's entry. What is
+     left, all on the droplet (no restart: nothing the agent runs imports
+     the packager):
+     1. **Deploy, any time:** `git fetch origin
+        claude/offline-competition-deploy-nuk5tz && git checkout
+        origin/claude/offline-competition-deploy-nuk5tz --
+        deploy/reasoning_log.py deploy/REASONING_LOG_PHASE2.md`.
+     2. **Dry run**, between :10 and :50, never under `track_record/` (the
+        script refuses there before the bell): `.venv/bin/python
+        deploy/reasoning_log.py --phase II --out /root/p2dry/phase2_submission
+        --archive`. It reports the deep-review file's real size, the first
+        measurement of the ~55–60 MB estimate.
+     3. **Fill the three `[FINAL AFTER THE BELL` blanks** in
+        `deploy/REASONING_LOG_PHASE2.md` after the close; then deploy it again.
+        The final build refuses while any remain.
+     4. **Final build, after 23:55 UTC 11-04** (the last fills snapshot):
+        `.venv/bin/python deploy/reasoning_log.py --phase II --archive`. It
+        writes `track_record/phase2_submission/`, which the 23:58 cron
+        publishes, and the email archive `/root/ou-statarb/phase2_submission.tar.gz`.
+     5. **Deliver:** email the archive to `events@liquiditytech.com`, with
+        `ai_deep_review.jsonl.gz` linked rather than attached (scp it off the
+        droplet; its SHA-256 is in the manifest). Record the receipt here.
 4. **The final board will be computed in the glitch hour.** The bell is 15:59
    UTC, and both MDD-0 episodes hit the 16:00 UTC calculation (organizer:
    "an intermediate data state during the update process"). **Read the final
@@ -8182,6 +8207,74 @@ under the 09-21 rule.
   because our response was no action.** If it is re-posted at a different
   time, re-check it against the `:00:05` rule: a window containing an hourly
   tick is the only kind that needs a guard decision.
+
+**10-28 — the Phase II Reasoning Log packager, built on the operator's go.**
+The organizer confirmed the requirement the same day (agenda item 3).
+Changes, in `deploy/reasoning_log.py`:
+
+- **`--phase` is required** and selects a window from `PHASES`. Phase II is
+  `2026-09-08T16:00Z <= ts < 2026-11-04T16:00Z`: 00:00 GMT+8 09-09 to the end
+  of the last competition day, one minute after the bell. Ledger records are
+  kept by `ts`, fills snapshots by the date in their name.
+  - Everything left out is counted in the manifest as before, after or
+    undated. Nothing is silently dropped.
+  - Run bare, the old script would have packaged the whole ledger. It now
+    refuses.
+- **The deep-review file is kept out of git and out of the email.** It stays
+  in the package, hashed. Phase I's 3,424 reviews were 9.2 MB compressed;
+  Phase II's ~21,000 are estimated at ~55–60 MB. That is too big to email, and
+  close enough to GitHub's 100 MB limit that the nightly
+  `git add track_record/` could break the droplet's push, and every later
+  one, silently.
+  - A `.gitignore` written into the package keeps the file out. It is nested
+    rather than in the root `.gitignore`, because the droplet commits from
+    `live/track-record`, whose root `.gitignore` is older than ours. A real
+    `git add` in a test proves it.
+  - The email archive is written at the repo root, never under
+    `track_record/`.
+- **Two refusals:**
+  - a build before the window closes is marked PARTIAL, and is refused under
+    `track_record/`, where the cron would publish it as the submission;
+  - a final build is refused while the narrative has a placeholder left.
+- **The manifest now also reports** stops by trigger (`bar` / `intrabar` /
+  unlabelled before 10-05), `automation_budget` at zero, and any day of the
+  window without a fills snapshot.
+- **The ledger is streamed**, not read whole. It is ~200 MB by the close and is
+  read on the droplet beside the live agent.
+
+**The narrative, `deploy/REASONING_LOG_PHASE2.md`.** Phase I's stays exactly as
+submitted. The new one covers:
+
+- every Phase II change, with the date it went live and the field that shows
+  it;
+- the controls that fired;
+- the 09-09 → 09-21 deep reviews written under the "0 days remain" prompt;
+- the 10-03 naked leg;
+- the two exit reasonings with false `mu_shift_sigma` magnitudes;
+- closes still carrying no price;
+- that the Committee's post-bell closes are not agent operations;
+- the edge, measured as zero.
+
+**Three `[FINAL AFTER THE BELL` blanks** are left for the close.
+
+**What the tests caught.** The first placeholder guard matched one exact
+string, and the narrative already held a placeholder wrapped across a line
+inside the marker. The guard would have let it through into the email. It now
+matches any bracketed `final`, in any case, however it wraps.
+
+**Dry run on real data** (published slice and fills, scratchpad):
+- 5,880 records;
+- 50 fills snapshots, 09-08 → 10-27, with no missing day;
+- core archive 0.98 MB;
+- counts that match the slice: `side_blocked` 147, `gross_cap` 10,
+  `anomaly_veto` 2, stops 10 intra-bar and 6 unlabelled.
+
+It cannot measure the deep-review file, which the slice excludes. The
+droplet dry run will.
+
+Suite 361 → 376 (14 new tests in `tests/test_reasoning_log_phase2.py`, plus the
+streaming pin). Phase I's 7 tests pass unchanged. **No change to anything the
+agent runs.**
 
 ---
 

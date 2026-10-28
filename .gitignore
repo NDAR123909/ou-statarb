@@ -24,3 +24,6 @@ deploy/ltp_ledger.jsonl
 
 # derived: rebuild with deploy/reasoning_log.py --archive
 track_record/phase1_submission.tar.gz
+# from 2026-10-28 the archive is written at the repo root, never under
+# track_record/, which the droplet's nightly cron commits wholesale
+/phase*_submission.tar.gz
