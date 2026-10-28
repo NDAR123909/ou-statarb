@@ -1879,7 +1879,8 @@ section existed; that is what it is for.
 | ~~**DEPLOY ×1.5 (+ fixture) with the OS-update reboot.**~~ **DONE 2026-10-12 01:13 UTC, verified** — check printed `0.003 0.75 1000.0`; 5 packages upgraded; kernel 6.8.0-142 → **146**; `self-check PASS`, session `ras_0a1d9505-…` (opening budget 12000); pid 752, restarts 0, flat, bar 813, peak 1020.95 anchored. Original: One file: `deploy/ltp_agent.py` (`ltp_broker.py` unchanged). On the droplet, flat, between :10 and :50, clear of the refit hour (~06:00 UTC) and any window: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py`; the check `.venv/bin/python -c "from deploy.ltp_agent import AgentConfig, AUTOMATION_MAX_PER_ORDER; c=AgentConfig(); print(c.risk_per_pair, c.per_leg_cap_mult, AUTOMATION_MAX_PER_ORDER)"` must print **`0.003 0.75 1000.0`**; then `apt update && apt upgrade -y` and `reboot` (the unit starts on boot — verified on every earlier reboot). **Verify after boot:** `journalctl -u ltp-agent -b` shows `self-check PASS` and `automation session … (opening budget 12000 per session)`; `status.py` flat, peak 1020.95, restarts 0. The boot's startup bar moves the refit hour one earlier (~05:00 UTC) | 2026-10-12 | closed — **first ×1.5 entry is verified at the week 11 review** |
 | ~~**DEPLOY fixes 2 and 3 + the 12000 budget.**~~ **DONE 2026-10-05 03:19:59 UTC, verified** — check printed `None True`, env printed `12000`, `self-check PASS`, `automation session ras_59c1d803-… (opening budget 12000 per session)`; pid 129816, flat, bar 646. Original: Two files, **never one**: `deploy/ltp_agent.py` and `deploy/ltp_broker.py` — the new agent with the old broker runs, then raises `AttributeError: budget_left` at every entry signal, caught as `bar_error`, and never enters again. On the droplet: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py deploy/ltp_broker.py`; the check `.venv/bin/python -c "from deploy.ltp_broker import RapidXBroker; from deploy.ltp_agent import AgentConfig, intrabar_stop; print(RapidXBroker().budget_left(), AgentConfig().intrabar_stop)"` must print **`None True`**; then the operator edits `/root/ltp.env` by hand — `LTP_AUTOMATION_MAX_TOTAL=12000` and `LTP_AUTOMATION_CONSENT_TEXT` rewritten in their own words, **never pasted into chat** — and checks `( set -a; source /root/ltp.env; set +a; .venv/bin/python -c "from deploy.ltp_agent import automation_max_total; print(automation_max_total())" )` prints **12000**; then `systemctl restart ltp-agent`. **Verify** in the journal: `self-check PASS` and `automation session ras_… (opening budget 12000 per session)`. The restart moves the refit hour one earlier (~07:00 → ~06:00 UTC) | 2026-10-05 | closed — **first intra-bar firing, if any, is audited at the week 10 review** |
 | **SETTLE THE END-OF-PHASE PROCEDURE.** The bell is **15:59 UTC Wed 11-04 (08:59 MST)**, scored on NAV including unrealized P&L. No flatten is needed. **Stop and disable `ltp-agent` at the bell.** `reconcile_positions` would otherwise treat the committee's closes as "the exchange closed what we thought we held" and could re-enter after the bell. The full proposal is in week 13 agenda item 2: crons, keys, droplet | 2026-10-27 | **final review Sun 11-01; needs the operator's decisions** |
-| **ASK THE ORGANIZER: is a Phase II Reasoning Log required, in what format, by when?** Phase I's was due three days after its close. `reasoning_log.py` is a Phase I packager with no date filter, so it must not be run for Phase II as it stands | 2026-10-27 | **operator, this week.** Any build needs a go and is cheaper before 11-04 than after |
+| ~~**ASK THE ORGANIZER: is a Phase II Reasoning Log required, in what format, by when?**~~ **ANSWERED 2026-10-28: yes, same requirements as Phase I, within one week of the close** | 2026-10-27 | closed — the build row below |
+| **BUILD AND SUBMIT THE PHASE II REASONING LOG.** Deadline **15:59 UTC Wed 11-11** (conservative reading); **target: send by Sun 11-08**. The build: a phase window for `reasoning_log.py`, a `deploy/REASONING_LOG_PHASE2.md` narrative, and tests. Full plan in week 13 agenda item 3. Then a dry run on the droplet, the final run after the 11-04 23:55 fills snapshot, email to `events@liquiditytech.com`, and record the receipt | 2026-10-28 | **build needs the operator's go** — before 11-04 if possible, at the 11-01 review at the latest |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
 > *below* the closing horizontal rule since 2026-08-09 — outside the table, where
@@ -7975,12 +7976,38 @@ Sections marked "final after 11-04" are filled at the close.
      committee's closes land in the record. Then remove the spend and publish
      crons with `crontab -e`. Revoke the trading key and AI key **only after
      final results are published**. Keep the droplet until then too: the full
-     ledger exists only there.
-3. **New, for the operator to ask: is a Phase II Reasoning Log required, and by
-   when?** Phase I required one within three days of the close (2026-08-24).
-   `reasoning_log.py` is a Phase I packager with no date filter (2026-09-21
-   entry). A Phase II submission would be built from `export_phase_ledger.py`
-   plus the fills, which means code, which means a go. Ask now, not on 11-05.
+     ledger exists only there. **And not before the Phase II Reasoning Log
+     (item 3) is sent and receipt confirmed.** The 11-04 23:55 fills snapshot
+     needs the trading key, and the package is built from the droplet's
+     ledger.
+3. ~~**New, for the operator to ask: is a Phase II Reasoning Log required, and by
+   when?**~~ **ANSWERED 2026-10-28 (organizer, Telegram):** *"Yes, the requirements
+   are the same as in Phase I. Please submit the Phase II Reasoning Log within
+   one week after the competition ends."*
+   - **Deadline, read conservatively: 23:59 GMT+8 Wed 11-11 = 15:59 UTC = 08:59
+     MST. Target: send by Sun 11-08**, so the exact instant never matters.
+   - Phase I's requirements (2026-08-20 entry) were JSONL plus a written
+     architecture document covering every operation, with its reasoning,
+     decision basis and final result. Delivery was by email to
+     `events@liquiditytech.com`, with receipt confirmed.
+   - **The packager must change first.** `reasoning_log.py` reads the whole
+     ledger and globs every `fills_*.json`, so run as it stands it would
+     package mostly Phase I under a Phase II label.
+   - **Proposed build, which needs a go:**
+     - a phase window on `reasoning_log.py` (`--since`/`--until`; Phase II =
+       2026-09-09 → 2026-11-04T15:59Z), applied to ledger records by `ts` and
+       to fills snapshots by date;
+     - a Phase II narrative `deploy/REASONING_LOG_PHASE2.md` (Phase I's file
+       stays as submitted). It covers the production host, the intra-bar
+       stop, entry atomicity, ×1.5, the `entry_frame` and `mu_shift_sigma`
+       fixes, and the 10-03 naked leg. It discloses the 09-09 → 09-21 deep
+       reviews written under the "phase is over" prompt, and that the
+       committee's post-bell closes are not agent operations;
+     - tests: no Phase I record and no post-bell record in a Phase II package,
+       and the existing Phase I tests unchanged.
+   - **Run:** a dry run on the droplet at or after the 11-01 review (the full
+     ledger exists only there), then the final run after the 11-04 23:55 fills
+     snapshot. Check the archive size against email limits before sending.
 4. **The final board will be computed in the glitch hour.** The bell is 15:59
    UTC, and both MDD-0 episodes hit the 16:00 UTC calculation (organizer:
    "an intermediate data state during the update process"). **Read the final
