@@ -8315,6 +8315,61 @@ ops         pid 752, restarts 0; AI spend $1.1602; refit ~03:00 UTC (bar 1224)
 since 10-27 19:48: 4 entries, 4 exits, 0 stops -- equity +10.89, the best day in weeks
 ```
 
+**10-29 01:00 UTC — 5th on a clean board; the odds re-estimated at the
+operator's request.**
+
+```
+ 1 Imnzzz     94.8  +6.8%   3.32   3.8%  |  6 EQV UK     73.1  +0.2%  -0.03   1.8%
+ 2 PSJeevaa   85.4  +1.3%   2.35   2.8%  |  7 Quant nunu 69.9  -0.5%  -0.21   1.6%
+ 3 Stream4AI  85.1  +4.6%   1.06   5.0%  |  8 Gamma      69.1  -0.4%   0.13   5.4%
+ 4 Kinance    81.8  +3.1%   1.46  10.1%  |  9 LDMMMMMM   66.0  -0.6%  -0.86   1.5%
+ 5 NDAR       75.5  +0.8%   0.38   4.0%  | 10 T.Anh      65.2  -0.2%  -1.17   0.5%
+```
+
+- **Our Sharpe went −0.82 → +0.38 in two days.** One +1.1% day moves a
+  ~48-day Sharpe by ~+0.9 on its own. The same arithmetic cuts both ways.
+- NorthStar and TDB left the top 10. Their values are unknown.
+- The board's PnL (+8.37) matches the 10-28 23:50 state row (1008.70), so the
+  board reflects data through 10-28.
+
+**The model** (`scratchpad/sim6.py`). The scorer is the ±1.5-clipped
+z-composite, re-fitted on today's visible ten (R² 0.96–0.97, max residual
+2.6–3.4). Two changes from 10-25's version:
+
+- **Rivals now move.** Their future daily returns have zero drift, with vol
+  implied from each team's own Sharpe and return, or a generic 0.3–0.4% where
+  Sharpe is too near 0 to invert. Idle teams (flat curves: Stream4AI, Quant
+  nunu, T.Anh) draw zero, so their Sharpe decays.
+- **Our post-10-12 days are no longer scaled ×1.5 a second time.** sim5 did
+  that.
+
+Each future is 7 daily returns, the last weighted 16/24 for the 15:59 bell.
+Pool variants: hidden teams carried stale, with or without the teams that
+left the top 10 since 10-11 (the "with" variant puts them at their last-seen
+values, which models us 8th against the board's 5th — too pessimistic on
+rank).
+
+```
+                         P(top3)     P(top5)    P(top10)   median rank
+stale-only pool          13-18%      50-58%     85-90%     5
+with the gone teams      10-14%      23-31%     57-61%     8-9   (inconsistent with the board)
+```
+
+**Headline: P(top 3) ≈ 15%, plausibly 10–18%** (up from 6–7% on 10-25).
+P(top 10) ≈ 85–90%.
+
+**What a top-3 future looks like:** final equity median **~1034** (10th
+percentile ~1022), Sharpe ~1.8, 5 of 7 days up. **Ending at or above ~1030
+gives top 3 in ~90% of runs.**
+
+Coarse throughout:
+- rival vols are inferred, not observed;
+- hidden teams are stale;
+- the scorer is reproduced, not published;
+- the MDD "tier" mapping is unverified.
+
+**No change to the agent.** ×1.5 is fixed through 11-04, as decided.
+
 ---
 
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
