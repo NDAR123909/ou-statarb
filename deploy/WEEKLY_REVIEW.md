@@ -8431,6 +8431,45 @@ UTC.** Same slot and shape as 10-15 and 10-25.
 - **Nothing for the operator to do.** It is the day of the final review, and
   the review needs nothing from the venue.
 
+**10-30 20:26 UTC — the organizer's AI gateway is down for several teams; our
+spend for this period is $0.00.**
+
+- **Since ~16:00 UTC 10-30** (00:00 GMT+8 10-31, the budget-period rollover),
+  calls fail upstream with **HTTP 402 `insufficient_balance_error (1008)`**.
+  The organizer's MiniMax account behind the gateway is out of balance; our
+  key is fine.
+- PSJeevaa and EQV UK reported the same in the competition Telegram (EQV:
+  "since 16:00 UTC").
+- Status: news gate `DEGRADED (quota)`. `sentinel_degraded` went 2 → 3, logged
+  on the transition. `ai_assessment_unavailable` went 14 → 19, one per bar
+  since 16:00.
+- **AI spend is $0.0000.** The 16:30 pass failed, and the 20:30 top-up will
+  too while the gateway is down.
+
+**The risk is the USD 1/day floor, a written disqualification rule** — through
+no fault of ours, and shared with other teams.
+
+- **Do:**
+  1. the operator reports it in the same thread and asks (a) for the floor
+     to be waived for the outage, and (b) whether trading under the
+     quantitative rules is acceptable while AI is dark;
+  2. **as soon as the gateway is back, run the 20:30 cron line's command by
+     hand** (from `crontab -l`). It must run **before 16:00 UTC 10-31**,
+     when this period closes. `--floor 1.05` makes it a no-op if spend has
+     already cleared, so it is safe to repeat.
+- **The agent keeps trading, fail-open, as decided in Phase I week 1** and
+  disclosed in the Phase I Reasoning Log, which the organizer accepted. Every
+  bar logs the missing assessment, and every entry carries `screened: false`.
+  If the organizer says pause: `systemctl stop ltp-agent` while flat, and
+  restart after.
+- **The Reasoning Log** gains a placeholder in §7 for this outage, so the final
+  build cannot ship without it being disclosed.
+
+**Also since 10-30 04:45:** +3 entries and +3 stops, all PAXG/XAUT (the only
+active pair). Equity 1013.36 → 1011.18 (−2.18). The short side is blocked
+after the last stop. Added to Sunday's audit, with whether any of those
+entries went in unscreened after 16:00.
+
 ---
 
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
