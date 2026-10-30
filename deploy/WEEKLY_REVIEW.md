@@ -8418,6 +8418,19 @@ PAXG/XAUT. Not done.**
 **Added to agenda item 5:** the 10-29 ALGO/HBAR and PAXG/XAUT stops (with the 10-26 and 10-27 ones),
 the refit-bar entry and exit, and the near-stop count.
 
+**10-30 — eighth maintenance window: Sun 11-01, 16:05–16:20 HKT = 08:05–08:20
+UTC.** Same slot and shape as 10-15 and 10-25.
+
+- No `:00:05` tick falls inside (08:00:05 before, 09:00:05 after), so **the
+  guard is NOT armed**.
+- Accepted exposure, unchanged: a held position's intra-bar stop is blind for
+  ~15 minutes (the 08:05–08:15 samples fail and are swallowed; the first
+  possible action is the 08:25 sample).
+- The refit is ~03:00 UTC, so a pair entered after it could be held through
+  the window.
+- **Nothing for the operator to do.** It is the day of the final review, and
+  the review needs nothing from the venue.
+
 ---
 
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
