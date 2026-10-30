@@ -292,8 +292,19 @@ Stated because an audit is entitled to them.
 6. **News screening can be stale.** As in Phase I, an entry whose legs were not
    freshly rated says `news_status: stale` or `missing_legs` with
    `screened: false`. Such an entry was not screened, and the record says so.
-7. **Funding was measured, not modelled.** It is in `fills/`.
-8. **Corporate and token events are not modelled.** The z-stop limits the
+7. **The organizer's AI gateway failed from 2026-10-30 ~16:00 UTC** for us and
+   other teams: every call returned HTTP 402,
+   `insufficient_balance_error (1008)`, from the upstream model provider. The
+   agent behaved as in Phase I's key expiry: fail-open and loud.
+   - one `sentinel_degraded` record on the transition;
+   - an `ai_assessment_unavailable` record on every bar while it lasted;
+   - every entry in that window marked `screened: false`.
+
+   **[FINAL AFTER THE BELL: when it ended, how many bars and entries ran
+   unscreened, and the organizer's ruling on the USD 1/day floor for that
+   period.]**
+8. **Funding was measured, not modelled.** It is in `fills/`.
+9. **Corporate and token events are not modelled.** The z-stop limits the
    damage. Every delisting notice we received was checked against the symbols
    we trade; none named one.
 
