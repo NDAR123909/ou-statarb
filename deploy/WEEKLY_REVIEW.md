@@ -8370,6 +8370,54 @@ Coarse throughout:
 
 **No change to the agent.** ×1.5 is fixed through 11-04, as decided.
 
+**10-30 04:45 UTC — two more stops; ALGO/HBAR dropped at the refit; no action.**
+Equity is **1013.36** (dd 0.74%), flat, with PAXG/XAUT the only active pair.
+From tallies (10-28 21:15 → 10-30 04:45: +3 entries, +2 exits, +2 stops) and
+the operator's ledger query:
+
+- **10-29 03:01:44 ALGO/HBAR long at −3.07 → intra-bar stop 03:45 at −3.51.**
+  - The entry came on the **refit bar**. z read −1.07 at 02:00 and −3.07 at
+    03:01, and beta was re-estimated 0.63 → 0.606 at that refit. So the depth
+    is probably partly the new frame, not only the market (not separable from
+    here).
+  - Near-stop entries since the intra-bar stop went live are **three of three
+    stopped**: 10-15 +3.39, 10-24 −3.26, 10-29 −3.07. Each one cost little,
+    because entry and stop were close together.
+- **10-29 evening, a PAXG/XAUT long stopped.** Inferred: it is the only
+  pair-and-time that fits the tallies, and z read −3.75 at 22:00. Time and
+  trigger are for the audit.
+  - **This position is what filled the gross cap** from 17:00 to 20:00. ALGO/HBAR
+    long signals at −0.61, −0.97, −2.04 and −2.37 were skipped as `gross_cap`,
+    and ALGO/HBAR then broke to −8.25.
+  - The cap kept us out of that break, but the room was held by a trade that
+    stopped too. That is one-pair-at-a-time doing what it does, not a save.
+- **10-30 03:01 refit: ALGO/HBAR dropped while flat** (`refit_drop` still 7).
+  On the same bar, a PAXG/XAUT position exited "reverted" at +0.64 and netted
+  −0.24 (1013.60 → 1013.36, flat to flat). A ≥2.6σ reversion that loses money
+  is most likely the refit's new frame, not the spread. The exit record's
+  `z_in_entry_coords` settles it at the audit.
+- **The day 10-29 netted +3.5** (1010.09 → 1013.60), despite both stops.
+
+**An analysis the operator pasted proposed an entry ceiling and excluding
+PAXG/XAUT. Not done.**
+
+- **Neither exists as a setting.** Both mean a code change, a deploy and a
+  restart with five days left. Flattening through `LTP_MAINTENANCE_WINDOWS` for
+  a non-maintenance reason stays barred.
+- **The evidence is three small losses.** An entry ceiling also gives up the
+  large deep-entry reversions; it remains a next-version question, as recorded
+  10-25.
+- **Excluding the only active pair means idle days.** That cuts exactly the
+  upside a top-3 finish needs (~1030 by the bell).
+- **Corrections to that analysis:**
+  - its list of "five near-stop cases" includes NEAR/ICP 09-16 (entry +2.37,
+    1.1σ from the stop, so not near);
+  - it missed the PAXG/XAUT stop that held the gross room;
+  - it read the −0.24 as a full reversion.
+
+**Added to agenda item 5:** the 10-29 ALGO/HBAR and PAXG/XAUT stops (with the 10-26 and 10-27 ones),
+the refit-bar entry and exit, and the near-stop count.
+
 ---
 
 ## PHASE II agenda — opens **2026-09-09**, everything resets to 1,000 USDT
