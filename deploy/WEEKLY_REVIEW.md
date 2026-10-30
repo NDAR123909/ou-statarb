@@ -8450,9 +8450,11 @@ spend for this period is $0.00.**
 no fault of ours, and shared with other teams.
 
 - **Do:**
-  1. the operator reports it in the same thread and asks (a) for the floor
+  1. ~~the operator reports it in the same thread and asks (a) for the floor
      to be waived for the outage, and (b) whether trading under the
-     quantitative rules is acceptable while AI is dark;
+     quantitative rules is acceptable while AI is dark;~~ **the operator
+     decided not to post** (10-30): other teams have already raised the same
+     questions. They will relay the organizer's answer and the fix;
   2. **as soon as the gateway is back, run the 20:30 cron line's command by
      hand** (from `crontab -l`). It must run **before 16:00 UTC 10-31**,
      when this period closes. `--floor 1.05` makes it a no-op if spend has
