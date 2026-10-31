@@ -8467,6 +8467,23 @@ no fault of ours, and shared with other teams.
 - **The Reasoning Log** gains a placeholder in §7 for this outage, so the final
   build cannot ship without it being disclosed.
 
+**10-31 — the gateway was restored** (organizer, Telegram, ~01:50 UTC).
+`sentinel_restored` at 01:00. The manual top-up started ~02:20 UTC and was
+still running at 04:02:
+
+- **Spend $0.8775 after ~300 calls**, ~$0.0029 a call. All 37 topics were
+  exhausted below target, so it is on its second lap (`pass_index=2`, labelled
+  compliance volume). Four isolated call failures, under the 5-in-a-row stop.
+- **Memory was 72% (normally ~20%) and swap 16% during the run.**
+  `stop_facts()` in `deploy/ai_deep_review.py` loads every record of the
+  190 MB ledger (the 22k deep reviews included) once at startup. That is a
+  plateau for the life of the run, not a leak, and it happens on every 16:30
+  pass too. If memory ran out, the kernel would kill the review run, the
+  biggest process, not the agent.
+- **Proposed after the bell:** filter to `stop` lines before parsing, as the
+  refit reader 30 lines above already does. Not now: an advisory tool, a
+  day-to-day risk of zero, and the run in progress.
+
 **Also since 10-30 04:45:** +3 entries and +3 stops, all PAXG/XAUT (the only
 active pair). Equity 1013.36 → 1011.18 (−2.18). The short side is blocked
 after the last stop. Added to Sunday's audit, with whether any of those
