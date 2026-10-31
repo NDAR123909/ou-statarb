@@ -8483,6 +8483,24 @@ still running at 04:02:
 - **Proposed after the bell:** filter to `stop` lines before parsing, as the
   refit reader 30 lines above already does. Not now: an advisory tool, a
   day-to-day risk of zero, and the run in progress.
+- **CLEARED ~04:33 UTC 10-31: `target $1.15 reached at $1.15172`.** 398 calls
+  (241 first pass, 157 second, labelled `pass_index=2`), $0.00289 a call,
+  `floor $1.00: CLEARED for this budget period`. **The affected period (16:00
+  10-30 → 16:00 10-31) cleared inside itself, so no waiver is needed for us.**
+- **The outage, for us:** `sentinel_degraded` at 16:00 10-30 to
+  `sentinel_restored` at 01:00 10-31. That is **9 hourly bars without AI
+  assessment** (`ai_assessment_unavailable` 14 → 23). At least one entry fell
+  inside it: the PAXG/XAUT short that stopped overnight. The exact count of
+  unscreened entries goes in the Reasoning Log at the bell.
+- **Live at 04:33:** equity 1009.46. **Two pairs open at once**, the first
+  time since ×1.5:
+  - 1000SHIB/DOGE short spread, cap-bound at 0.75 × NAV;
+  - NEAR/ICP long spread, small and vol-bound;
+  - gross 1.74 × NAV.
+
+  **Both entered on the 03:02 refit bar** — the refit-bar pattern again
+  (agenda item 5).
+
 
 **Also since 10-30 04:45:** +3 entries and +3 stops, all PAXG/XAUT (the only
 active pair). Equity 1013.36 → 1011.18 (−2.18). The short side is blocked

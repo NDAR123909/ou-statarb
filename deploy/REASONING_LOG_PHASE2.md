@@ -300,9 +300,11 @@ Stated because an audit is entitled to them.
    - an `ai_assessment_unavailable` record on every bar while it lasted;
    - every entry in that window marked `screened: false`.
 
-   **[FINAL AFTER THE BELL: when it ended, how many bars and entries ran
-   unscreened, and the organizer's ruling on the USD 1/day floor for that
-   period.]**
+   For us it lasted from 16:00 UTC 10-30 to 01:00 UTC 10-31: **nine hourly
+   bars without AI assessment.** The USD 1/day floor for that budget period
+   was still met inside the period: a manual deep-review pass, run once the
+   gateway was back, reached $1.15 at ~04:33 UTC 10-31. **[FINAL AFTER THE
+   BELL: how many entries ran unscreened in that window.]**
 8. **Funding was measured, not modelled.** It is in `fills/`.
 9. **Corporate and token events are not modelled.** The z-stop limits the
    damage. Every delisting notice we received was checked against the symbols
