@@ -8501,6 +8501,92 @@ still running at 04:02:
   **Both entered on the 03:02 refit bar** — the refit-bar pattern again
   (agenda item 5).
 
+---
+
+## Week 13 — FINAL review, Sun 2026-11-01 (21:00 UTC) — 2nd place, decision pending
+
+### Position at review
+
+```
+board (11-01)  1 Imnzzz 92.1 | 2 NDAR 86.3 (+3.8%, PnL 38.29, Sharpe 1.62, MDD 4.0%) | 3 PSJeevaa 85.3
+               4 TDB 84.9 (+11.3%, MDD 17.5%) | 5 Stream4AI 83.9 (idle) | 6 Gamma 76.6 ... Kinance gone from the top 10
+equity         1030.02 at 10-31 23:50 (a NEW PEAK, 1029.87); ~1038 by the board's PnL on 11-01
+banked MDD     4.0% on the board = our 4.02%
+time left      ~67 h to the 15:59 UTC 11-04 bell
+```
+
+### The week, from the 10-31 fills snapshot (every trip closed 10-25 → 10-31)
+
+- **21 round trips, net +37.52:**
+  - 12 reversion exits, gross **+48.60** (all 12 won);
+  - 9 stops, gross only **−3.51**;
+  - fees 7.57.
+- **Where it came from:**
+  - ALGO/HBAR: 6 reversions, ≈ +21.5 net, before its −1.62 stop;
+  - 1000SHIB/DOGE and DOGE/1000SHIB: +12.4;
+  - NEAR/ICP: +11.7, on 10-31 alone.
+- **10-31 was +19.68**: three reversions after the 03:02 refit entries.
+- **PAXG/XAUT: 10 trips, all 10 net negative, −6.32.** 8 were stops, each
+  −0.34 to −1.02. Its two "reverted" exits still lost (gross +0.37 / +0.27
+  against 0.51 in fees). Both of those exited on a 03:01 refit bar, so they
+  probably "reverted" in the new frame, not the entry frame. Its spread is so
+  tight in USDT that **one round trip of fees ≈ a full reversion's gross.**
+- **The previously unrecorded stops, identified:** 10-26 00:10 PAXG (short),
+  10-27 14:10 PAXG (long, intra-bar, closed at **−4.35**, the largest overshoot
+  of the week), 10-29 21:00 PAXG (long; a bar-time close), 10-30 07:15 /
+  14:05 / 16:10 / 21:20 PAXG. **During the gateway outage two entries went in
+  unscreened** (10-30 16:00 and 21:00, PAXG, both stopped). Pending a check of
+  `screened: false` in the ledger at the bell.
+
+### The decision this review exists for: the ×1.5 premise has flipped
+
+**×1.5 was chosen as a variance choice for a top-3 objective, when we were
+outside the top 3:** "variance helps when you are behind". **Inside the top 3
+by one point, the same objective says the opposite.** That is a new argument,
+not the old one re-heard, so the decision can be honestly re-opened. Whether
+to re-open it is the operator's call.
+
+`scratchpad/sim7*.py` setup:
+- today's board, with the scorer re-fitted (R² 0.961);
+- every visible team **pinned to its board score**, so the model drives only
+  changes. The raw model misordered TDB above us;
+- our future days bootstrapped from history;
+- rivals with zero drift, or keeping their own historical drift;
+- four days weighted to the bell.
+
+```
+                      P(top 3)        P(top 2)
+keep x1.5             75-78%          61-65%
+revert to x1.0        82-85%          63-69%     (a code change and a restart)
+FREEZE (stop flat)    95-97%          66-76%     (no code: stop the agent while flat)
+```
+
+Unpinned or partly pinned variants gave the same ordering (freeze 93–99%
+against ×1.5 67–80%). **Freezing raises the chance of keeping a top-3 finish
+by ~20 points, and does not lower the chance of 2nd.**
+
+Caveats:
+- the scorer is reproduced, not published;
+- rival vols are inferred;
+- TDB's ±2%/day makes it the main threat either way;
+- a freeze still loses top 3 if both PSJeevaa and TDB pass us.
+
+**Mechanics of a freeze, if chosen:**
+1. **Stop and disable `ltp-agent` at the first glance that shows `open
+   positions (0)`**, between :10 and :50. Never flatten by hand (standing
+   rule), and never through `LTP_MAINTENANCE_WINDOWS`.
+2. **The spend crons keep running.** The floor recurs daily through the
+   11-03 → 11-04 period. The fills, state and publish crons are unchanged.
+3. **The bell procedure collapses:** nothing to do at 08:59 MST.
+4. **Disclose** in `LTP_STRATEGY.md` and the Phase II Reasoning Log: a
+   decision about the score's variance, not a claim about the strategy.
+   Idle teams are ranked normally (Stream4AI has been flat for weeks), and
+   no rule we know of requires trading.
+
+**Needs from the operator:** a fresh `status.py` (positions now), and the
+decision. Also the prize structure if known: a freeze is better even if
+2nd pays up to ~3× what 3rd pays.
+
 
 **Also since 10-30 04:45:** +3 entries and +3 stops, all PAXG/XAUT (the only
 active pair). Equity 1013.36 → 1011.18 (−2.18). The short side is blocked
