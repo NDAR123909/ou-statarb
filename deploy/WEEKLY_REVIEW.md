@@ -1879,7 +1879,7 @@ section existed; that is what it is for.
 | ~~**DEPLOY ×1.5 (+ fixture) with the OS-update reboot.**~~ **DONE 2026-10-12 01:13 UTC, verified** — check printed `0.003 0.75 1000.0`; 5 packages upgraded; kernel 6.8.0-142 → **146**; `self-check PASS`, session `ras_0a1d9505-…` (opening budget 12000); pid 752, restarts 0, flat, bar 813, peak 1020.95 anchored. Original: One file: `deploy/ltp_agent.py` (`ltp_broker.py` unchanged). On the droplet, flat, between :10 and :50, clear of the refit hour (~06:00 UTC) and any window: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py`; the check `.venv/bin/python -c "from deploy.ltp_agent import AgentConfig, AUTOMATION_MAX_PER_ORDER; c=AgentConfig(); print(c.risk_per_pair, c.per_leg_cap_mult, AUTOMATION_MAX_PER_ORDER)"` must print **`0.003 0.75 1000.0`**; then `apt update && apt upgrade -y` and `reboot` (the unit starts on boot — verified on every earlier reboot). **Verify after boot:** `journalctl -u ltp-agent -b` shows `self-check PASS` and `automation session … (opening budget 12000 per session)`; `status.py` flat, peak 1020.95, restarts 0. The boot's startup bar moves the refit hour one earlier (~05:00 UTC) | 2026-10-12 | closed — **first ×1.5 entry is verified at the week 11 review** |
 | ~~**DEPLOY fixes 2 and 3 + the 12000 budget.**~~ **DONE 2026-10-05 03:19:59 UTC, verified** — check printed `None True`, env printed `12000`, `self-check PASS`, `automation session ras_59c1d803-… (opening budget 12000 per session)`; pid 129816, flat, bar 646. Original: Two files, **never one**: `deploy/ltp_agent.py` and `deploy/ltp_broker.py` — the new agent with the old broker runs, then raises `AttributeError: budget_left` at every entry signal, caught as `bar_error`, and never enters again. On the droplet: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py deploy/ltp_broker.py`; the check `.venv/bin/python -c "from deploy.ltp_broker import RapidXBroker; from deploy.ltp_agent import AgentConfig, intrabar_stop; print(RapidXBroker().budget_left(), AgentConfig().intrabar_stop)"` must print **`None True`**; then the operator edits `/root/ltp.env` by hand — `LTP_AUTOMATION_MAX_TOTAL=12000` and `LTP_AUTOMATION_CONSENT_TEXT` rewritten in their own words, **never pasted into chat** — and checks `( set -a; source /root/ltp.env; set +a; .venv/bin/python -c "from deploy.ltp_agent import automation_max_total; print(automation_max_total())" )` prints **12000**; then `systemctl restart ltp-agent`. **Verify** in the journal: `self-check PASS` and `automation session ras_… (opening budget 12000 per session)`. The restart moves the refit hour one earlier (~07:00 → ~06:00 UTC) | 2026-10-05 | closed — **first intra-bar firing, if any, is audited at the week 10 review** |
 | ~~**SETTLE THE END-OF-PHASE PROCEDURE.**~~ **SETTLED at the 11-01 final review, and simplified by the entry freeze.** The agent runs frozen (`deploy/ENTRY_FREEZE`) and flat to the bell; a frozen agent cannot re-enter after the committee's closes, so the 08:59 MST stop is no longer needed. **Stop and disable `ltp-agent` any time after 15:59 UTC 11-04.** Keep the spend crons through the 11-03 → 11-04 period, and the 23:58 publish cron until the Reasoning Log package is published. Revoke keys and retire the droplet only after the results are published and the log's receipt is confirmed. Original: The bell is 15:59 UTC Wed 11-04 (08:59 MST)… stop and disable at the bell, because `reconcile_positions` could re-enter after the committee's closes | 2026-10-27 | settled 11-01 |
-| **DEPLOY THE ENTRY FREEZE** (2026-11-01 decision). Two files plus `touch deploy/ENTRY_FREEZE`, then a restart. Steps, checks and the rollback (`acc8b64`, never `HEAD`) are in the week 13 entry. Verify `entry freeze ON` in the journal and `entries FROZEN` in `status.py`. Then record when the book goes flat | 2026-11-01 | **operator, tonight or at the next :10–:50 window** |
+| ~~**DEPLOY THE ENTRY FREEZE**~~ **DONE 2026-11-01 21:38:50 UTC, verified** (`self-check PASS`, `entry freeze ON`, `entries FROZEN`). (2026-11-01 decision.) Two files plus `touch deploy/ENTRY_FREEZE`, then a restart. Steps, checks and the rollback (`acc8b64`, never `HEAD`) are in the week 13 entry. Verify `entry freeze ON` in the journal and `entries FROZEN` in `status.py`. Then record when the book goes flat | 2026-11-01 | **operator, tonight or at the next :10–:50 window** |
 | ~~**ASK THE ORGANIZER: is a Phase II Reasoning Log required, in what format, by when?**~~ **ANSWERED 2026-10-28: yes, same requirements as Phase I, within one week of the close** | 2026-10-27 | closed — the build row below |
 | **SUBMIT THE PHASE II REASONING LOG.** Deadline **15:59 UTC Wed 11-11** (conservative reading); **target: send by Sun 11-08**. ~~The build~~ **BUILT 2026-10-28** (`reasoning_log.py --phase`, `deploy/REASONING_LOG_PHASE2.md`, `tests/test_reasoning_log_phase2.py`). ~~Deploy the two files, dry run on the droplet~~ **DONE 10-28 21:14** (deep-review file 50.99 MB, ~58 MB by the bell; email archive 1.05 MB). Left: fill the three blanks after the close, final build after the 11-04 23:55 snapshot, email with the deep-review file **linked from a file share**, record the receipt. Steps in week 13 agenda item 3 | 2026-10-28 | final build 11-05; send by 11-08 |
 
@@ -8663,6 +8663,73 @@ caught. Option 3's only advantage is P(1st). **Go given; built.**
 - The "stop at 08:59 MST" reason is gone: a frozen agent cannot re-enter
   after the committee's closes. Stop it any time after the bell.
 - The spend crons and the publish cron are unchanged.
+
+### 21:38 UTC — the entry freeze is LIVE, verified
+
+- **Pre-restart status (21:33):** NEAR/ICP z −0.66 and 1000SHIB/DOGE z −0.30,
+  both inside ±2.5; no `ENTRY-READY`. Two files checked out; the check
+  printed `deploy/ENTRY_FREEZE False 0.003 0.75 1000.0`; `touch
+  deploy/ENTRY_FREEZE`; restart.
+- **Journal:**
+  - `self-check PASS` 21:38:28;
+  - `ENTRY FREEZE active (deploy/ENTRY_FREEZE) …` 21:38:28;
+  - `automation session ras_4484a1fa-… (opening budget 12000 per session)`
+    21:38:29;
+  - **`entry freeze ON` at 21:38:50**, the startup bar.
+- **Status 21:39:**
+  - pid 108896, restarts 0; equity **1039.34** (peak 1039.78, dd 0.04%);
+  - **`entries FROZEN`**;
+  - `entry_freeze: 1` in the ledger tally;
+  - both positions intact: NEAR/ICP long spread z −0.53, 1000SHIB/DOGE long
+    spread z −0.21. Neither exited on the startup bar.
+- **The refit moves to ~02:00 UTC** (the startup bar).
+- **Reasoning Log:** the freeze's go-live time is filled (2026-11-01
+  21:38:50). Post-mortem §6 lists the freeze.
+- The book goes flat as the two positions close on their own exits or stops,
+  and stays flat. **Record the time it goes flat** (a Reasoning Log blank).
+
+---
+
+## Close-out agenda — from the bell, Wed 2026-11-04 15:59 UTC (08:59 MST)
+
+The final review is done; this is what remains, in order. The agent runs
+frozen to the bell. Nothing is needed from the operator before then except
+normal glances.
+
+1. **After 15:59 UTC 11-04 (any time):** `systemctl stop ltp-agent &&
+   systemctl disable ltp-agent`. Leave `deploy/ENTRY_FREEZE` in place. Record
+   the stop time and whether the book was flat at the bell.
+2. **The final board:** read the rank only from a board whose MDD column is
+   populated (ours should read 4.0%), or from the organizer's announced
+   results. The bell falls in the 16:00 UTC glitch hour.
+3. **The Reasoning Log (deadline 15:59 UTC Wed 11-11; target Sun 11-08):**
+   - **I fill the blanks:** when the book went flat; the stop time and any
+     position at the bell; the count of unscreened entries in the 10-30
+     outage (two expected, both PAXG, to be confirmed by `screened: false`);
+     intra-bar firings, false alarms and net effect through the close; final
+     equity, return, Sharpe, MDD and rank; and the edge over every Phase II
+     trip.
+   - **The operator** redeploys `deploy/REASONING_LOG_PHASE2.md`, runs the
+     final build after the 11-04 23:55 fills snapshot (`--phase II
+     --archive`), and emails `phase2_submission.tar.gz` to
+     `events@liquiditytech.com` with `ai_deep_review.jsonl.gz` linked.
+   - Record the receipt.
+4. **Crons:**
+   - remove the two spend lines after the bell (`crontab -e`, by hand). The
+     last scored period, 16:00 11-03 → 15:59 11-04, is covered by the 16:30
+     11-03 pass;
+   - **keep 23:55 fills and 23:58 publish until the package is published**,
+     then remove them.
+5. **The post-mortem's final sections:**
+   - rank and final numbers;
+   - every stop 10-26 → close;
+   - the ×1.5 decision judged against its stated premise, not its outcome;
+   - the freeze, judged the same way.
+6. **Keys and droplet:** revoke the trading and AI keys, and retire the
+   droplet, only after the results are published and the log's receipt is
+   confirmed.
+7. Optional, after all of that: `stop_facts()` reads the whole ledger
+   (10-31 entry). Only worth fixing if the tool is kept.
 
 
 **Also since 10-30 04:45:** +3 entries and +3 stops, all PAXG/XAUT (the only
