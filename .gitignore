@@ -22,6 +22,10 @@ deploy/ltp_ledger.jsonl
 # which is one `git add -A` away from pushing account state to GitHub.
 .rapidx/
 
+# the operator's entry-freeze switch (deploy/ltp_agent.py, AgentConfig.
+# entry_freeze_path): live state on the droplet, never configuration
+deploy/ENTRY_FREEZE
+
 # derived: rebuild with deploy/reasoning_log.py --archive
 track_record/phase1_submission.tar.gz
 # from 2026-10-28 the archive is written at the repo root, never under

@@ -1878,7 +1878,8 @@ section existed; that is what it is for.
 | ~~**Correct the KAS/ETC fixture**~~ **DONE 2026-10-12** (0.599×, with the derivation in a comment). Original: `tests/test_ltp_entry_frame.py::_kas_pair` builds `sigma: KAS_SIG0 * 2.047`; the true ratio is 0.599. Not asserted, so nothing fails — which is why it would survive unnoticed | 2026-10-07 | with the next test pass; needs the operator's go |
 | ~~**DEPLOY ×1.5 (+ fixture) with the OS-update reboot.**~~ **DONE 2026-10-12 01:13 UTC, verified** — check printed `0.003 0.75 1000.0`; 5 packages upgraded; kernel 6.8.0-142 → **146**; `self-check PASS`, session `ras_0a1d9505-…` (opening budget 12000); pid 752, restarts 0, flat, bar 813, peak 1020.95 anchored. Original: One file: `deploy/ltp_agent.py` (`ltp_broker.py` unchanged). On the droplet, flat, between :10 and :50, clear of the refit hour (~06:00 UTC) and any window: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py`; the check `.venv/bin/python -c "from deploy.ltp_agent import AgentConfig, AUTOMATION_MAX_PER_ORDER; c=AgentConfig(); print(c.risk_per_pair, c.per_leg_cap_mult, AUTOMATION_MAX_PER_ORDER)"` must print **`0.003 0.75 1000.0`**; then `apt update && apt upgrade -y` and `reboot` (the unit starts on boot — verified on every earlier reboot). **Verify after boot:** `journalctl -u ltp-agent -b` shows `self-check PASS` and `automation session … (opening budget 12000 per session)`; `status.py` flat, peak 1020.95, restarts 0. The boot's startup bar moves the refit hour one earlier (~05:00 UTC) | 2026-10-12 | closed — **first ×1.5 entry is verified at the week 11 review** |
 | ~~**DEPLOY fixes 2 and 3 + the 12000 budget.**~~ **DONE 2026-10-05 03:19:59 UTC, verified** — check printed `None True`, env printed `12000`, `self-check PASS`, `automation session ras_59c1d803-… (opening budget 12000 per session)`; pid 129816, flat, bar 646. Original: Two files, **never one**: `deploy/ltp_agent.py` and `deploy/ltp_broker.py` — the new agent with the old broker runs, then raises `AttributeError: budget_left` at every entry signal, caught as `bar_error`, and never enters again. On the droplet: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py deploy/ltp_broker.py`; the check `.venv/bin/python -c "from deploy.ltp_broker import RapidXBroker; from deploy.ltp_agent import AgentConfig, intrabar_stop; print(RapidXBroker().budget_left(), AgentConfig().intrabar_stop)"` must print **`None True`**; then the operator edits `/root/ltp.env` by hand — `LTP_AUTOMATION_MAX_TOTAL=12000` and `LTP_AUTOMATION_CONSENT_TEXT` rewritten in their own words, **never pasted into chat** — and checks `( set -a; source /root/ltp.env; set +a; .venv/bin/python -c "from deploy.ltp_agent import automation_max_total; print(automation_max_total())" )` prints **12000**; then `systemctl restart ltp-agent`. **Verify** in the journal: `self-check PASS` and `automation session ras_… (opening budget 12000 per session)`. The restart moves the refit hour one earlier (~07:00 → ~06:00 UTC) | 2026-10-05 | closed — **first intra-bar firing, if any, is audited at the week 10 review** |
-| **SETTLE THE END-OF-PHASE PROCEDURE.** The bell is **15:59 UTC Wed 11-04 (08:59 MST)**, scored on NAV including unrealized P&L. No flatten is needed. **Stop and disable `ltp-agent` at the bell.** `reconcile_positions` would otherwise treat the committee's closes as "the exchange closed what we thought we held" and could re-enter after the bell. The full proposal is in week 13 agenda item 2: crons, keys, droplet | 2026-10-27 | **final review Sun 11-01; needs the operator's decisions** |
+| ~~**SETTLE THE END-OF-PHASE PROCEDURE.**~~ **SETTLED at the 11-01 final review, and simplified by the entry freeze.** The agent runs frozen (`deploy/ENTRY_FREEZE`) and flat to the bell; a frozen agent cannot re-enter after the committee's closes, so the 08:59 MST stop is no longer needed. **Stop and disable `ltp-agent` any time after 15:59 UTC 11-04.** Keep the spend crons through the 11-03 → 11-04 period, and the 23:58 publish cron until the Reasoning Log package is published. Revoke keys and retire the droplet only after the results are published and the log's receipt is confirmed. Original: The bell is 15:59 UTC Wed 11-04 (08:59 MST)… stop and disable at the bell, because `reconcile_positions` could re-enter after the committee's closes | 2026-10-27 | settled 11-01 |
+| ~~**DEPLOY THE ENTRY FREEZE**~~ **DONE 2026-11-01 21:38:50 UTC, verified** (`self-check PASS`, `entry freeze ON`, `entries FROZEN`). (2026-11-01 decision.) Two files plus `touch deploy/ENTRY_FREEZE`, then a restart. Steps, checks and the rollback (`acc8b64`, never `HEAD`) are in the week 13 entry. Verify `entry freeze ON` in the journal and `entries FROZEN` in `status.py`. Then record when the book goes flat | 2026-11-01 | **operator, tonight or at the next :10–:50 window** |
 | ~~**ASK THE ORGANIZER: is a Phase II Reasoning Log required, in what format, by when?**~~ **ANSWERED 2026-10-28: yes, same requirements as Phase I, within one week of the close** | 2026-10-27 | closed — the build row below |
 | **SUBMIT THE PHASE II REASONING LOG.** Deadline **15:59 UTC Wed 11-11** (conservative reading); **target: send by Sun 11-08**. ~~The build~~ **BUILT 2026-10-28** (`reasoning_log.py --phase`, `deploy/REASONING_LOG_PHASE2.md`, `tests/test_reasoning_log_phase2.py`). ~~Deploy the two files, dry run on the droplet~~ **DONE 10-28 21:14** (deep-review file 50.99 MB, ~58 MB by the bell; email archive 1.05 MB). Left: fill the three blanks after the close, final build after the 11-04 23:55 snapshot, email with the deep-review file **linked from a file share**, record the receipt. Steps in week 13 agenda item 3 | 2026-10-28 | final build 11-05; send by 11-08 |
 
@@ -8483,6 +8484,253 @@ still running at 04:02:
 - **Proposed after the bell:** filter to `stop` lines before parsing, as the
   refit reader 30 lines above already does. Not now: an advisory tool, a
   day-to-day risk of zero, and the run in progress.
+- **CLEARED ~04:33 UTC 10-31: `target $1.15 reached at $1.15172`.** 398 calls
+  (241 first pass, 157 second, labelled `pass_index=2`), $0.00289 a call,
+  `floor $1.00: CLEARED for this budget period`. **The affected period (16:00
+  10-30 → 16:00 10-31) cleared inside itself, so no waiver is needed for us.**
+- **The outage, for us:** `sentinel_degraded` at 16:00 10-30 to
+  `sentinel_restored` at 01:00 10-31. That is **9 hourly bars without AI
+  assessment** (`ai_assessment_unavailable` 14 → 23). At least one entry fell
+  inside it: the PAXG/XAUT short that stopped overnight. The exact count of
+  unscreened entries goes in the Reasoning Log at the bell.
+- **Live at 04:33:** equity 1009.46. **Two pairs open at once**, the first
+  time since ×1.5:
+  - 1000SHIB/DOGE short spread, cap-bound at 0.75 × NAV;
+  - NEAR/ICP long spread, small and vol-bound;
+  - gross 1.74 × NAV.
+
+  **Both entered on the 03:02 refit bar** — the refit-bar pattern again
+  (agenda item 5).
+
+---
+
+## Week 13 — FINAL review, Sun 2026-11-01 (21:00 UTC) — 2nd place, decision pending
+
+### Position at review
+
+```
+board (11-01)  1 Imnzzz 92.1 | 2 NDAR 86.3 (+3.8%, PnL 38.29, Sharpe 1.62, MDD 4.0%) | 3 PSJeevaa 85.3
+               4 TDB 84.9 (+11.3%, MDD 17.5%) | 5 Stream4AI 83.9 (idle) | 6 Gamma 76.6 ... Kinance gone from the top 10
+equity         1030.02 at 10-31 23:50 (a NEW PEAK, 1029.87); ~1038 by the board's PnL on 11-01
+banked MDD     4.0% on the board = our 4.02%
+time left      ~67 h to the 15:59 UTC 11-04 bell
+```
+
+### The week, from the 10-31 fills snapshot (every trip closed 10-25 → 10-31)
+
+- **21 round trips, net +37.52:**
+  - 12 reversion exits, gross **+48.60** (all 12 won);
+  - 9 stops, gross only **−3.51**;
+  - fees 7.57.
+- **Where it came from:**
+  - ALGO/HBAR: 6 reversions, ≈ +21.5 net, before its −1.62 stop;
+  - 1000SHIB/DOGE and DOGE/1000SHIB: +12.4;
+  - NEAR/ICP: +11.7, on 10-31 alone.
+- **10-31 was +19.68**: three reversions after the 03:02 refit entries.
+- **PAXG/XAUT: 10 trips, all 10 net negative, −6.32.** 8 were stops, each
+  −0.34 to −1.02. Its two "reverted" exits still lost (gross +0.37 / +0.27
+  against 0.51 in fees). Both of those exited on a 03:01 refit bar, so they
+  probably "reverted" in the new frame, not the entry frame. Its spread is so
+  tight in USDT that **one round trip of fees ≈ a full reversion's gross.**
+- **The previously unrecorded stops, identified:** 10-26 00:10 PAXG (short),
+  10-27 14:10 PAXG (long, intra-bar, closed at **−4.35**, the largest overshoot
+  of the week), 10-29 21:00 PAXG (long; a bar-time close), 10-30 07:15 /
+  14:05 / 16:10 / 21:20 PAXG. **During the gateway outage two entries went in
+  unscreened** (10-30 16:00 and 21:00, PAXG, both stopped). Pending a check of
+  `screened: false` in the ledger at the bell.
+
+### The decision this review exists for: the ×1.5 premise has flipped
+
+**×1.5 was chosen as a variance choice for a top-3 objective, when we were
+outside the top 3:** "variance helps when you are behind". **Inside the top 3
+by one point, the same objective says the opposite.** That is a new argument,
+not the old one re-heard, so the decision can be honestly re-opened. Whether
+to re-open it is the operator's call.
+
+`scratchpad/sim7*.py` setup:
+- today's board, with the scorer re-fitted (R² 0.961);
+- every visible team **pinned to its board score**, so the model drives only
+  changes. The raw model misordered TDB above us;
+- our future days bootstrapped from history;
+- rivals with zero drift, or keeping their own historical drift;
+- four days weighted to the bell.
+
+```
+                      P(top 3)        P(top 2)
+keep x1.5             75-78%          61-65%
+revert to x1.0        82-85%          63-69%     (a code change and a restart)
+FREEZE (stop flat)    95-97%          66-76%     (no code: stop the agent while flat)
+```
+
+Unpinned or partly pinned variants gave the same ordering (freeze 93–99%
+against ×1.5 67–80%). **Freezing raises the chance of keeping a top-3 finish
+by ~20 points, and does not lower the chance of 2nd.**
+
+Caveats:
+- the scorer is reproduced, not published;
+- rival vols are inferred;
+- TDB's ±2%/day makes it the main threat either way;
+- a freeze still loses top 3 if both PSJeevaa and TDB pass us.
+
+**Mechanics of a freeze, if chosen:**
+1. **Stop and disable `ltp-agent` at the first glance that shows `open
+   positions (0)`**, between :10 and :50. Never flatten by hand (standing
+   rule), and never through `LTP_MAINTENANCE_WINDOWS`.
+2. **The spend crons keep running.** The floor recurs daily through the
+   11-03 → 11-04 period. The fills, state and publish crons are unchanged.
+3. **The bell procedure collapses:** nothing to do at 08:59 MST.
+4. **Disclose** in `LTP_STRATEGY.md` and the Phase II Reasoning Log: a
+   decision about the score's variance, not a claim about the strategy.
+   Idle teams are ranked normally (Stream4AI has been flat for weeks), and
+   no rule we know of requires trading.
+
+**Needs from the operator:** a fresh `status.py` (positions now), and the
+decision. Also the prize structure if known: a freeze is better even if
+2nd pays up to ~3× what 3rd pays.
+
+**21:15 UTC — the operator agreed to freeze, then gave the prizes: 1st $10,000,
+2nd $5,000, 3rd $3,000. CORRECTION, mine:** I had called 1st "a very long
+shot" without computing it. Computed (`sim7d.py`, all ten pinned):
+
+```
+              P(1st)   P(2nd)   P(3rd)   P(no prize)   expected prize
+keep x1.5     24-30%   35-37%   13-15%   22-25%        $4,660-5,108
+freeze         9-15%   57-61%   21-29%    3-5%         $4,612-5,194
+```
+
+- **The expected values are equal within model noise.** The choice is about
+  risk, not value: a freeze cuts the chance of no prize from ~1 in 4 to ~1 in
+  25, and pays for it with about half the chance at 1st.
+- P(1st) is the most model-sensitive figure. It leans on our last week's large
+  days, sampled again, and on Imnzzz's inferred vol.
+- Put back to the operator to reconfirm with the corrected numbers.
+
+**Live at 21:12:**
+- equity **1037.70**, a new peak (**1039.78**); the kill switch re-anchored
+  to 915.00;
+- two positions open: NEAR/ICP long spread (z −0.78) and 1000SHIB/DOGE long
+  spread (z −0.22);
+- PAXG/XAUT flat at z +5.42, broken again.
+
+**A freeze cannot start until both positions close and no new one opens**,
+and with entry bands of 0.4–0.6 the agent re-enters quickly. An entry-only
+freeze switch is proposed to make "flat" arrive and stay: no new entries,
+with exits and stops still live. It needs the operator's go: it is trading
+code.
+
+### DECIDED ~21:20 UTC: freeze new entries, with the switch (option 1) — built (pushed 21:32)
+
+**The operator's priority, in their words:** top 3 secured first, 2nd
+"lovely", 1st not pursued ("the guy at top 1 has gatekept that position for
+multiple weeks"). Asked for an unbiased view, my answer was option 1. On that
+objective it has the highest P(top 3) and P(top 2). Option 2 reaches the same
+place more slowly, with ×1.5 exposure until a flat moment happens to be
+caught. Option 3's only advantage is P(1st). **Go given; built.**
+
+- **`deploy/ltp_agent.py`:** `AgentConfig.entry_freeze_path`
+  (`deploy/ENTRY_FREEZE`); `entries_frozen()`; `note_freeze()` (one
+  `entry_freeze` ledger record per transition); `skip reason=entry_freeze` in
+  the flat-pair branch after the re-entry block; a startup log line.
+- **`deploy/status.py`:** an `entries FROZEN` line; "signal, but FROZEN" in
+  place of `ENTRY-READY`.
+- **Tests:** `tests/test_ltp_entry_freeze.py` (11). The freeze check was
+  mutation-tested by disabling it, and the refusal test failed as it should.
+- **Disclosure:** `LTP_STRATEGY.md`, 2026-11-01 addendum. Suite 376 → **387**.
+
+**Deploy, on the droplet:**
+- **When:** between :10 and :50, clear of the ~03:00 UTC refit and 23:50–23:58.
+- **Files:** two, `deploy/ltp_agent.py` and `deploy/status.py`.
+- **Check:** it must print `deploy/ENTRY_FREEZE False 0.003 0.75 1000.0`.
+- **Then:** `touch deploy/ENTRY_FREEZE` *before* the restart, so the startup bar
+  is already frozen.
+- **Verify** in the journal: `self-check PASS`, `ENTRY FREEZE active`,
+  `entry freeze ON`, and `automation session … (opening budget 12000 per
+  session)`. `status.py` should show `entries FROZEN`.
+- **The restart may exit 1000SHIB/DOGE on its startup bar.** It sat at z
+  −0.22 against an exit of 0, which breaks the usual "not within 0.3 of exit"
+  restart condition. That is accepted: under a freeze, an early exit is the
+  intended direction.
+- **ROLLBACK (never `git checkout HEAD`):** the droplet's HEAD is
+  `live/track-record`, whose committed agent is not the one running.
+  `git checkout acc8b64 -- deploy/ltp_agent.py deploy/status.py && rm -f
+  deploy/ENTRY_FREEZE && systemctl restart ltp-agent` restores exactly the
+  ×1.5 agent running before (`acc8b64`'s copies are `d3bfc96`'s and
+  `c72a4b6`'s, both deployed).
+
+**Consequences for the bell procedure (agenda item 2):**
+- The agent stays running, frozen and flat, to the bell, with its AI
+  assessments continuing.
+- The "stop at 08:59 MST" reason is gone: a frozen agent cannot re-enter
+  after the committee's closes. Stop it any time after the bell.
+- The spend crons and the publish cron are unchanged.
+
+### 21:38 UTC — the entry freeze is LIVE, verified
+
+- **Pre-restart status (21:33):** NEAR/ICP z −0.66 and 1000SHIB/DOGE z −0.30,
+  both inside ±2.5; no `ENTRY-READY`. Two files checked out; the check
+  printed `deploy/ENTRY_FREEZE False 0.003 0.75 1000.0`; `touch
+  deploy/ENTRY_FREEZE`; restart.
+- **Journal:**
+  - `self-check PASS` 21:38:28;
+  - `ENTRY FREEZE active (deploy/ENTRY_FREEZE) …` 21:38:28;
+  - `automation session ras_4484a1fa-… (opening budget 12000 per session)`
+    21:38:29;
+  - **`entry freeze ON` at 21:38:50**, the startup bar.
+- **Status 21:39:**
+  - pid 108896, restarts 0; equity **1039.34** (peak 1039.78, dd 0.04%);
+  - **`entries FROZEN`**;
+  - `entry_freeze: 1` in the ledger tally;
+  - both positions intact: NEAR/ICP long spread z −0.53, 1000SHIB/DOGE long
+    spread z −0.21. Neither exited on the startup bar.
+- **The refit moves to ~02:00 UTC** (the startup bar).
+- **Reasoning Log:** the freeze's go-live time is filled (2026-11-01
+  21:38:50). Post-mortem §6 lists the freeze.
+- The book goes flat as the two positions close on their own exits or stops,
+  and stays flat. **Record the time it goes flat** (a Reasoning Log blank).
+
+---
+
+## Close-out agenda — from the bell, Wed 2026-11-04 15:59 UTC (08:59 MST)
+
+The final review is done; this is what remains, in order. The agent runs
+frozen to the bell. Nothing is needed from the operator before then except
+normal glances.
+
+1. **After 15:59 UTC 11-04 (any time):** `systemctl stop ltp-agent &&
+   systemctl disable ltp-agent`. Leave `deploy/ENTRY_FREEZE` in place. Record
+   the stop time and whether the book was flat at the bell.
+2. **The final board:** read the rank only from a board whose MDD column is
+   populated (ours should read 4.0%), or from the organizer's announced
+   results. The bell falls in the 16:00 UTC glitch hour.
+3. **The Reasoning Log (deadline 15:59 UTC Wed 11-11; target Sun 11-08):**
+   - **I fill the blanks:** when the book went flat; the stop time and any
+     position at the bell; the count of unscreened entries in the 10-30
+     outage (two expected, both PAXG, to be confirmed by `screened: false`);
+     intra-bar firings, false alarms and net effect through the close; final
+     equity, return, Sharpe, MDD and rank; and the edge over every Phase II
+     trip.
+   - **The operator** redeploys `deploy/REASONING_LOG_PHASE2.md`, runs the
+     final build after the 11-04 23:55 fills snapshot (`--phase II
+     --archive`), and emails `phase2_submission.tar.gz` to
+     `events@liquiditytech.com` with `ai_deep_review.jsonl.gz` linked.
+   - Record the receipt.
+4. **Crons:**
+   - remove the two spend lines after the bell (`crontab -e`, by hand). The
+     last scored period, 16:00 11-03 → 15:59 11-04, is covered by the 16:30
+     11-03 pass;
+   - **keep 23:55 fills and 23:58 publish until the package is published**,
+     then remove them.
+5. **The post-mortem's final sections:**
+   - rank and final numbers;
+   - every stop 10-26 → close;
+   - the ×1.5 decision judged against its stated premise, not its outcome;
+   - the freeze, judged the same way.
+6. **Keys and droplet:** revoke the trading and AI keys, and retire the
+   droplet, only after the results are published and the log's receipt is
+   confirmed.
+7. Optional, after all of that: `stop_facts()` reads the whole ledger
+   (10-31 entry). Only worth fixing if the tool is kept.
+
 
 **Also since 10-30 04:45:** +3 entries and +3 stops, all PAXG/XAUT (the only
 active pair). Equity 1013.36 → 1011.18 (−2.18). The short side is blocked

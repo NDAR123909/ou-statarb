@@ -89,8 +89,10 @@ def test_skip_reasons_stay_a_closed_vocabulary():
                              src))
     # automation_budget added 2026-10-05: the venue's per-session opening
     # budget, checked before an entry so it cannot end half-placed.
+    # entry_freeze added 2026-11-01: the operator's freeze for the last days.
     assert reasons == {"gross_cap", "min_notional", "anomaly_veto",
-                       "news_veto", "side_blocked", "automation_budget"}, reasons
+                       "news_veto", "side_blocked", "automation_budget",
+                       "entry_freeze"}, reasons
 
 
 def test_the_block_does_not_survive_pair_eviction():

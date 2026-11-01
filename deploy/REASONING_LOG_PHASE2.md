@@ -66,13 +66,15 @@ under the date shown.
 | 2026-09-30 19:54 | Each pair is tested on its own two legs' overlapping history, not on the overlap of all 30 symbols | `panel` on every `refit` |
 | 2026-10-05 03:20 | **Intra-bar stop:** the same 3.5σ rule, checked on every five-minute `z_sample`. **Two legs or none:** a failed second leg unwinds the first. An automation-budget check before entry | `stop.trigger` = `bar` / `intrabar`; `entry_failed`, `entry_unwound`; `skip reason=automation_budget` |
 | 2026-10-12 01:13 | **Position size ×1.5**, fixed to the end of the phase: `risk_per_pair` 0.002 → 0.003, per-leg cap 0.5 → 0.75 × NAV. Each leg is clamped to fit the venue's 1,000 USDT per-order cap | `g` on every `enter` |
+| 2026-11-01 21:38:50 | **New entries frozen for the rest of the phase** by the operator. With the team inside the top three by about one point and three days left, the score's variance, not the strategy's edge, decided the result. Open positions kept every exit and stop until they closed. Disclosed in `LTP_STRATEGY.md`, 2026-11-01 | one `entry_freeze` record when it went on; `skip reason=entry_freeze` for every refused signal |
 
 **What did not change:** the gates, the cost model, the stop level, the kill
 switch rule, and the leverage. No gate was loosened to manufacture a trade.
 
-**The agent was stopped at the bell, 15:59 UTC on 2026-11-04.**
-**[FINAL AFTER THE BELL: the exact stop time, and any position open at the
-bell.]** Per the organizer, positions still open at the cutoff are closed by
+**From the freeze to the bell the agent ran, but opened nothing**, and was
+stopped after the bell. **[FINAL AFTER THE BELL: when the book went flat, the
+stop time, and any position open at the bell.]** Per the organizer, positions
+still open at the cutoff are closed by
 the Organizing Committee after the competition. **Those closes are not agent
 operations.** No decision record precedes them, and none should.
 
@@ -131,6 +133,7 @@ Every path that *refuses* or *shrinks* a trade writes a record:
 | `skip` `reason=automation_budget` | the automation session's remaining budget could not cover both legs |
 | `size_reduced` | a control halved the position rather than refusing it |
 | `entry_failed` / `entry_unwound` | an order was refused; the pair was left flat |
+| `skip` `reason=entry_freeze` | from 2026-11-01: the operator froze new entries for the rest of the phase |
 | `refit_drop` | a held pair failed re-selection and was closed |
 | `reconcile` | the venue held something the agent's state did not; it was closed |
 
@@ -300,9 +303,11 @@ Stated because an audit is entitled to them.
    - an `ai_assessment_unavailable` record on every bar while it lasted;
    - every entry in that window marked `screened: false`.
 
-   **[FINAL AFTER THE BELL: when it ended, how many bars and entries ran
-   unscreened, and the organizer's ruling on the USD 1/day floor for that
-   period.]**
+   For us it lasted from 16:00 UTC 10-30 to 01:00 UTC 10-31: **nine hourly
+   bars without AI assessment.** The USD 1/day floor for that budget period
+   was still met inside the period: a manual deep-review pass, run once the
+   gateway was back, reached $1.15 at ~04:33 UTC 10-31. **[FINAL AFTER THE
+   BELL: how many entries ran unscreened in that window.]**
 8. **Funding was measured, not modelled.** It is in `fills/`.
 9. **Corporate and token events are not modelled.** The z-stop limits the
    damage. Every delisting notice we received was checked against the symbols

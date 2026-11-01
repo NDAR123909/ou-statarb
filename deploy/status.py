@@ -44,7 +44,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from deploy.ltp_broker import RapidXBroker, RapidXError          # noqa: E402
-from deploy.ltp_agent import AgentConfig, _LEDGER_PATH, load_state  # noqa: E402
+from deploy.ltp_agent import (AgentConfig, _LEDGER_PATH,          # noqa: E402
+                              entries_frozen, load_state)
 
 ELIMINATION_FLOOR = 800.0     # contest: equity < 800 USDT (NAV<0.8) = out
 # Sentinel states in which the news gate is DOWN rather than merely quiet.
@@ -257,6 +258,10 @@ def build_report(cfg: AgentConfig, use_marks: bool, ledger_n: int) -> dict:
         for p in positions]
 
     # --- active pairs ---
+    # Under the entry freeze a live signal is refused, so ENTRY-READY would
+    # promise a trade that will not happen -- and "no ENTRY-READY" is one of
+    # the restart conditions, so the flag has to tell the truth.
+    rep["entries_frozen"] = entries_frozen(cfg)
     marks: dict = {}
     pairs_out = []
     for key, pair in state.get("pairs", {}).items():
@@ -273,7 +278,8 @@ def build_report(cfg: AgentConfig, use_marks: bool, ledger_n: int) -> dict:
                 if entry_z < abs(z) < cfg.stop_z and \
                         not (blocked == +1 and z < 0) and \
                         not (blocked == -1 and z > 0):
-                    flag = "ENTRY-READY"
+                    flag = ("signal, but FROZEN" if rep["entries_frozen"]
+                            else "ENTRY-READY")
             else:
                 if abs(z) < exit_z:
                     flag = "AT/NEAR EXIT"
@@ -350,6 +356,9 @@ def _print_human(rep: dict) -> None:
         line("banked MDD", "not measurable yet — no hourly `nav` records "
                            "(they start with the 2026-09-27 logging pass)")
     line("halted", "YES — trading stopped" if rep["halted"] else "no")
+    if rep.get("entries_frozen"):
+        line("entries", "FROZEN (deploy/ENTRY_FREEZE) — no new positions; "
+                        "exits, stops and the kill switch still live")
 
     gate = rep.get("news_gate") or {}
     gstatus = gate.get("status", "unknown")
