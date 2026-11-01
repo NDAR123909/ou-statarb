@@ -1507,6 +1507,73 @@ exactly 1.5× its old size; a high-β hedge leg is shrunk to fit the per-order c
 not refused (β 1.16–2.5); a second pair is a logged `gross_cap` skip. Suite
 352 → 361.
 
+## Addendum — new entries frozen for the last three days (2026-11-01)
+
+**A change to whether the agent opens positions, for the rest of the phase.**
+Not to how it exits, stops, sizes or selects. Positions open when the freeze
+starts keep every exit and stop until they close.
+
+**What:** while the file `deploy/ENTRY_FREEZE` exists
+(`AgentConfig.entry_freeze_path`), `trade_step` refuses every live entry
+signal. Each refusal is a `skip` with `reason=entry_freeze`. The switch itself
+writes one `entry_freeze` record when it goes on and one when it comes off,
+so a flat stretch can never be read as the strategy choosing to sit out.
+`status.py` shows `entries FROZEN` and marks a live signal "signal, but
+FROZEN" instead of `ENTRY-READY`.
+
+**Why — stated as what it is: a decision about the competition score's
+variance, not a claim about the strategy.**
+- At the final review the team was **2nd of the visible field, one point
+  clear of 3rd**, with ~67 hours left. 3rd to 5th sat within 2.4 points, and
+  1st was 5.8 ahead.
+- ×1.5 had been chosen on 2026-10-12 as "a variance choice for a top-3
+  objective" while outside the top three. Inside it, the same objective
+  calls for less variance.
+- Odds came from the reproduced scorer, with every visible team pinned to its
+  board score, our future days bootstrapped from history, and rivals moving
+  with zero or their own historical drift.
+- The operator's stated priority was a top-3 finish, with 2nd preferred and
+  1st not pursued. Prizes are $10k / $5k / $3k.
+
+```
+              P(1st)   P(2nd)   P(3rd)   P(no prize)   P(top 3)
+keep x1.5     24-30%   35-37%   13-15%   22-25%        75-78%
+freeze         9-15%   57-61%   21-29%    3-5%         95-97%
+```
+
+**The expected prize was equal within model noise** ($4.7–5.1k against
+$4.6–5.2k). A freeze trades about half the chance of 1st for cutting the
+chance of no prize from ~1 in 4 to ~1 in 25. That is a choice about risk,
+and it was the operator's to make.
+
+**Why a switch and not just stopping the service:**
+- Stopping with positions open would leave them with no stop.
+- Entry bands of 0.4–0.6 re-enter within hours of each exit, so a flat moment
+  may be brief.
+- A file read each bar refuses new risk at once, and lets open positions
+  close on their own rules.
+- The agent keeps running: its hourly AI assessments continue, and so does
+  the reasoning record.
+
+**What it cannot do:** place, close, resize or delay anything. The freeze
+check sits in the flat-pair branch after the signal and the re-entry block are
+known. The held-position branch (exits, stops, `max_hold`), the intra-bar stop,
+refit drops, reconciliation and the kill switch never read it.
+
+**Pinned:** `tests/test_ltp_entry_freeze.py`:
+- a live signal is refused and recorded;
+- the same signal enters without the file;
+- a quiet bar writes nothing;
+- a blocked side keeps its own reason;
+- frozen, an open position still exits on reversion, still stops on the bar,
+  and the intra-bar stop still fires;
+- the switch is recorded once each way, and entries resume when it is removed;
+- the default path is `deploy/ENTRY_FREEZE`, git-ignored;
+- `status.py` cannot say `ENTRY-READY` while frozen.
+
+`tests/test_ltp_blocked_skip.py` adds `entry_freeze` to the closed vocabulary.
+Suite 376 → 387.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;

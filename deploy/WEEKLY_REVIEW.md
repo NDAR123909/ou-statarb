@@ -1878,7 +1878,8 @@ section existed; that is what it is for.
 | ~~**Correct the KAS/ETC fixture**~~ **DONE 2026-10-12** (0.599×, with the derivation in a comment). Original: `tests/test_ltp_entry_frame.py::_kas_pair` builds `sigma: KAS_SIG0 * 2.047`; the true ratio is 0.599. Not asserted, so nothing fails — which is why it would survive unnoticed | 2026-10-07 | with the next test pass; needs the operator's go |
 | ~~**DEPLOY ×1.5 (+ fixture) with the OS-update reboot.**~~ **DONE 2026-10-12 01:13 UTC, verified** — check printed `0.003 0.75 1000.0`; 5 packages upgraded; kernel 6.8.0-142 → **146**; `self-check PASS`, session `ras_0a1d9505-…` (opening budget 12000); pid 752, restarts 0, flat, bar 813, peak 1020.95 anchored. Original: One file: `deploy/ltp_agent.py` (`ltp_broker.py` unchanged). On the droplet, flat, between :10 and :50, clear of the refit hour (~06:00 UTC) and any window: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py`; the check `.venv/bin/python -c "from deploy.ltp_agent import AgentConfig, AUTOMATION_MAX_PER_ORDER; c=AgentConfig(); print(c.risk_per_pair, c.per_leg_cap_mult, AUTOMATION_MAX_PER_ORDER)"` must print **`0.003 0.75 1000.0`**; then `apt update && apt upgrade -y` and `reboot` (the unit starts on boot — verified on every earlier reboot). **Verify after boot:** `journalctl -u ltp-agent -b` shows `self-check PASS` and `automation session … (opening budget 12000 per session)`; `status.py` flat, peak 1020.95, restarts 0. The boot's startup bar moves the refit hour one earlier (~05:00 UTC) | 2026-10-12 | closed — **first ×1.5 entry is verified at the week 11 review** |
 | ~~**DEPLOY fixes 2 and 3 + the 12000 budget.**~~ **DONE 2026-10-05 03:19:59 UTC, verified** — check printed `None True`, env printed `12000`, `self-check PASS`, `automation session ras_59c1d803-… (opening budget 12000 per session)`; pid 129816, flat, bar 646. Original: Two files, **never one**: `deploy/ltp_agent.py` and `deploy/ltp_broker.py` — the new agent with the old broker runs, then raises `AttributeError: budget_left` at every entry signal, caught as `bar_error`, and never enters again. On the droplet: `git fetch origin claude/offline-competition-deploy-nuk5tz`; `git checkout origin/claude/offline-competition-deploy-nuk5tz -- deploy/ltp_agent.py deploy/ltp_broker.py`; the check `.venv/bin/python -c "from deploy.ltp_broker import RapidXBroker; from deploy.ltp_agent import AgentConfig, intrabar_stop; print(RapidXBroker().budget_left(), AgentConfig().intrabar_stop)"` must print **`None True`**; then the operator edits `/root/ltp.env` by hand — `LTP_AUTOMATION_MAX_TOTAL=12000` and `LTP_AUTOMATION_CONSENT_TEXT` rewritten in their own words, **never pasted into chat** — and checks `( set -a; source /root/ltp.env; set +a; .venv/bin/python -c "from deploy.ltp_agent import automation_max_total; print(automation_max_total())" )` prints **12000**; then `systemctl restart ltp-agent`. **Verify** in the journal: `self-check PASS` and `automation session ras_… (opening budget 12000 per session)`. The restart moves the refit hour one earlier (~07:00 → ~06:00 UTC) | 2026-10-05 | closed — **first intra-bar firing, if any, is audited at the week 10 review** |
-| **SETTLE THE END-OF-PHASE PROCEDURE.** The bell is **15:59 UTC Wed 11-04 (08:59 MST)**, scored on NAV including unrealized P&L. No flatten is needed. **Stop and disable `ltp-agent` at the bell.** `reconcile_positions` would otherwise treat the committee's closes as "the exchange closed what we thought we held" and could re-enter after the bell. The full proposal is in week 13 agenda item 2: crons, keys, droplet | 2026-10-27 | **final review Sun 11-01; needs the operator's decisions** |
+| ~~**SETTLE THE END-OF-PHASE PROCEDURE.**~~ **SETTLED at the 11-01 final review, and simplified by the entry freeze.** The agent runs frozen (`deploy/ENTRY_FREEZE`) and flat to the bell; a frozen agent cannot re-enter after the committee's closes, so the 08:59 MST stop is no longer needed. **Stop and disable `ltp-agent` any time after 15:59 UTC 11-04.** Keep the spend crons through the 11-03 → 11-04 period, and the 23:58 publish cron until the Reasoning Log package is published. Revoke keys and retire the droplet only after the results are published and the log's receipt is confirmed. Original: The bell is 15:59 UTC Wed 11-04 (08:59 MST)… stop and disable at the bell, because `reconcile_positions` could re-enter after the committee's closes | 2026-10-27 | settled 11-01 |
+| **DEPLOY THE ENTRY FREEZE** (2026-11-01 decision). Two files plus `touch deploy/ENTRY_FREEZE`, then a restart. Steps, checks and the rollback (`acc8b64`, never `HEAD`) are in the week 13 entry. Verify `entry freeze ON` in the journal and `entries FROZEN` in `status.py`. Then record when the book goes flat | 2026-11-01 | **operator, tonight or at the next :10–:50 window** |
 | ~~**ASK THE ORGANIZER: is a Phase II Reasoning Log required, in what format, by when?**~~ **ANSWERED 2026-10-28: yes, same requirements as Phase I, within one week of the close** | 2026-10-27 | closed — the build row below |
 | **SUBMIT THE PHASE II REASONING LOG.** Deadline **15:59 UTC Wed 11-11** (conservative reading); **target: send by Sun 11-08**. ~~The build~~ **BUILT 2026-10-28** (`reasoning_log.py --phase`, `deploy/REASONING_LOG_PHASE2.md`, `tests/test_reasoning_log_phase2.py`). ~~Deploy the two files, dry run on the droplet~~ **DONE 10-28 21:14** (deep-review file 50.99 MB, ~58 MB by the bell; email archive 1.05 MB). Left: fill the three blanks after the close, final build after the 11-04 23:55 snapshot, email with the deep-review file **linked from a file share**, record the receipt. Steps in week 13 agenda item 3 | 2026-10-28 | final build 11-05; send by 11-08 |
 
@@ -8616,6 +8617,52 @@ and with entry bands of 0.4–0.6 the agent re-enters quickly. An entry-only
 freeze switch is proposed to make "flat" arrive and stay: no new entries,
 with exits and stops still live. It needs the operator's go: it is trading
 code.
+
+### DECIDED 21:40 UTC: freeze new entries, with the switch (option 1) — built
+
+**The operator's priority, in their words:** top 3 secured first, 2nd
+"lovely", 1st not pursued ("the guy at top 1 has gatekept that position for
+multiple weeks"). Asked for an unbiased view, my answer was option 1. On that
+objective it has the highest P(top 3) and P(top 2). Option 2 reaches the same
+place more slowly, with ×1.5 exposure until a flat moment happens to be
+caught. Option 3's only advantage is P(1st). **Go given; built.**
+
+- **`deploy/ltp_agent.py`:** `AgentConfig.entry_freeze_path`
+  (`deploy/ENTRY_FREEZE`); `entries_frozen()`; `note_freeze()` (one
+  `entry_freeze` ledger record per transition); `skip reason=entry_freeze` in
+  the flat-pair branch after the re-entry block; a startup log line.
+- **`deploy/status.py`:** an `entries FROZEN` line; "signal, but FROZEN" in
+  place of `ENTRY-READY`.
+- **Tests:** `tests/test_ltp_entry_freeze.py` (11). The freeze check was
+  mutation-tested by disabling it, and the refusal test failed as it should.
+- **Disclosure:** `LTP_STRATEGY.md`, 2026-11-01 addendum. Suite 376 → **387**.
+
+**Deploy, on the droplet:**
+- **When:** between :10 and :50, clear of the ~03:00 UTC refit and 23:50–23:58.
+- **Files:** two, `deploy/ltp_agent.py` and `deploy/status.py`.
+- **Check:** it must print `deploy/ENTRY_FREEZE False 0.003 0.75 1000.0`.
+- **Then:** `touch deploy/ENTRY_FREEZE` *before* the restart, so the startup bar
+  is already frozen.
+- **Verify** in the journal: `self-check PASS`, `ENTRY FREEZE active`,
+  `entry freeze ON`, and `automation session … (opening budget 12000 per
+  session)`. `status.py` should show `entries FROZEN`.
+- **The restart may exit 1000SHIB/DOGE on its startup bar.** It sat at z
+  −0.22 against an exit of 0, which breaks the usual "not within 0.3 of exit"
+  restart condition. That is accepted: under a freeze, an early exit is the
+  intended direction.
+- **ROLLBACK (never `git checkout HEAD`):** the droplet's HEAD is
+  `live/track-record`, whose committed agent is not the one running.
+  `git checkout acc8b64 -- deploy/ltp_agent.py deploy/status.py && rm -f
+  deploy/ENTRY_FREEZE && systemctl restart ltp-agent` restores exactly the
+  ×1.5 agent running before (`acc8b64`'s copies are `d3bfc96`'s and
+  `c72a4b6`'s, both deployed).
+
+**Consequences for the bell procedure (agenda item 2):**
+- The agent stays running, frozen and flat, to the bell, with its AI
+  assessments continuing.
+- The "stop at 08:59 MST" reason is gone: a frozen agent cannot re-enter
+  after the committee's closes. Stop it any time after the bell.
+- The spend crons and the publish cron are unchanged.
 
 
 **Also since 10-30 04:45:** +3 entries and +3 stops, all PAXG/XAUT (the only

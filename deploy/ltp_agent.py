@@ -149,6 +149,13 @@ class AgentConfig:
     # can never silently re-anchor the kill switch to a lower equity. Seeded
     # to the funded starting equity, which is also the peak's floor.
     hwm_path: str = "deploy/ltp_hwm.json"
+    # THE OPERATOR'S ENTRY FREEZE (2026-11-01, the final review). While this
+    # file exists, trade_step opens nothing: every live signal becomes a
+    # logged `entry_freeze` skip. Exits, stops, refit drops, reconciliation
+    # and the kill switch are untouched, so it can only refuse risk, never add
+    # or remove any. A file rather than an env var because it acts at the
+    # next bar without a restart, and `rm` undoes it.
+    entry_freeze_path: str = "deploy/ENTRY_FREEZE"
     initial_equity: float = 1000.0
     # Minutes before an announced venue maintenance window to go flat.
     maintenance_lead_minutes: int = 30
@@ -551,6 +558,42 @@ def leg_close(broker: RapidXBroker, pair: dict, nav: float,
         broker.close_position(sym, pos_side, max_notional=2 * nav)
     broker.op_context = {}
     pair["side"], pair["hold"] = 0, 0
+
+
+def entries_frozen(cfg: AgentConfig) -> bool:
+    """True while the operator's entry-freeze file exists.
+
+    Read on every bar, so creating or removing the file takes effect at the
+    next bar without a restart.
+    """
+    return os.path.exists(cfg.entry_freeze_path)
+
+
+def note_freeze(cfg: AgentConfig, state: dict, nav: float) -> bool:
+    """Whether entries are frozen this bar; the ledger hears of every change.
+
+    The `entry_freeze` skips record only the signals the freeze refused. If no
+    signal fires while it is on, a freeze that left no trace would read, to an
+    auditor, as a flat book the strategy chose on its own. So the switch
+    itself is a decision record: written once when it goes on, and once when
+    it comes off.
+    """
+    frozen = entries_frozen(cfg)
+    if frozen != bool(state.get("entry_freeze")):
+        state["entry_freeze"] = frozen
+        log(f"entry freeze {'ON' if frozen else 'OFF'} ({cfg.entry_freeze_path})")
+        ledger("entry_freeze", active=frozen, path=cfg.entry_freeze_path,
+               nav=nav, reasoning=(
+                   "New entries frozen by the operator's decision at the "
+                   "2026-11-01 final review: with three days left and the team "
+                   "inside the top three by about one point, the competition "
+                   "score's variance, not the strategy's edge, decides the "
+                   "result, so the agent opens nothing new. Open positions keep "
+                   "their exits and stops; this is a decision about the score, "
+                   "not a view on any spread." if frozen else
+                   "Entry freeze lifted: new entries resume under the normal "
+                   "rules."))
+    return frozen
 
 
 def stop_crossed(side: int, z: float, stop_z: float) -> bool:
@@ -1319,6 +1362,8 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
         if pair.get("side", 0) != 0:
             gross += (1 + abs(pair["beta"])) * pair.get("notional", 0.0)
 
+    frozen = note_freeze(cfg, state, nav)
+
     for key, pair in list(state["pairs"].items()):
         a, b = pair["a"], pair["b"]
         if a not in prices or b not in prices:
@@ -1423,6 +1468,23 @@ def trade_step(broker: RapidXBroker, cfg: AgentConfig, state: dict,
                                f"spread the model has already judged broken "
                                f"once; the opposite side remains available."),
                            **screening_provenance(sentinel, assessment, a, b))
+                continue
+            if frozen:
+                # Checked only once a live signal on an unblocked side exists,
+                # so a quiet bar writes nothing, and the record names exactly
+                # the trade that was refused.
+                log(f"  {short_name}: entry skipped, entries frozen")
+                ledger("skip", pair=short_name, reason="entry_freeze",
+                       z=float(z), side_wanted=want, entry_z=pair["entry_z"],
+                       nav=nav,
+                       reasoning=(
+                           f"Entry signal live (z={z:+.2f} beyond band "
+                           f"±{pair['entry_z']:.2f}), but new entries are "
+                           f"frozen by the operator for the rest of the phase: "
+                           f"a decision about the competition score's "
+                           f"variance, not a view on this spread. Nothing is "
+                           f"opened; exits and stops are unaffected."),
+                       **screening_provenance(sentinel, assessment, a, b))
                 continue
             g = cfg.risk_per_pair * nav / max(pair["dvol"], 1e-9)
             g = min(g, cfg.per_leg_cap_mult * nav)
@@ -1696,6 +1758,9 @@ def main() -> None:
     if windows:
         log("maintenance windows: " + ", ".join(
             f"{a.isoformat()} -> {b.isoformat()}" for a, b in windows))
+    if entries_frozen(cfg):
+        log(f"ENTRY FREEZE active ({cfg.entry_freeze_path}): no new positions; "
+            f"exits, stops and the kill switch unchanged")
     maint = "clear"
 
     while True:
