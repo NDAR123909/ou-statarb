@@ -8587,6 +8587,36 @@ Caveats:
 decision. Also the prize structure if known: a freeze is better even if
 2nd pays up to ~3× what 3rd pays.
 
+**21:15 UTC — the operator agreed to freeze, then gave the prizes: 1st $10,000,
+2nd $5,000, 3rd $3,000. CORRECTION, mine:** I had called 1st "a very long
+shot" without computing it. Computed (`sim7d.py`, all ten pinned):
+
+```
+              P(1st)   P(2nd)   P(3rd)   P(no prize)   expected prize
+keep x1.5     24-30%   35-37%   13-15%   22-25%        $4,660-5,108
+freeze         9-15%   57-61%   21-29%    3-5%         $4,612-5,194
+```
+
+- **The expected values are equal within model noise.** The choice is about
+  risk, not value: a freeze cuts the chance of no prize from ~1 in 4 to ~1 in
+  25, and pays for it with about half the chance at 1st.
+- P(1st) is the most model-sensitive figure. It leans on our last week's large
+  days, sampled again, and on Imnzzz's inferred vol.
+- Put back to the operator to reconfirm with the corrected numbers.
+
+**Live at 21:12:**
+- equity **1037.70**, a new peak (**1039.78**); the kill switch re-anchored
+  to 915.00;
+- two positions open: NEAR/ICP long spread (z −0.78) and 1000SHIB/DOGE long
+  spread (z −0.22);
+- PAXG/XAUT flat at z +5.42, broken again.
+
+**A freeze cannot start until both positions close and no new one opens**,
+and with entry bands of 0.4–0.6 the agent re-enters quickly. An entry-only
+freeze switch is proposed to make "flat" arrive and stay: no new entries,
+with exits and stops still live. It needs the operator's go: it is trading
+code.
+
 
 **Also since 10-30 04:45:** +3 entries and +3 stops, all PAXG/XAUT (the only
 active pair). Equity 1013.36 → 1011.18 (−2.18). The short side is blocked
