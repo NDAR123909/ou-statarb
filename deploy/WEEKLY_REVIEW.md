@@ -8618,7 +8618,7 @@ freeze switch is proposed to make "flat" arrive and stay: no new entries,
 with exits and stops still live. It needs the operator's go: it is trading
 code.
 
-### DECIDED 21:40 UTC: freeze new entries, with the switch (option 1) — built
+### DECIDED ~21:20 UTC: freeze new entries, with the switch (option 1) — built (pushed 21:32)
 
 **The operator's priority, in their words:** top 3 secured first, 2nd
 "lovely", 1st not pursued ("the guy at top 1 has gatekept that position for
