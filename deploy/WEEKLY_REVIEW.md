@@ -8756,6 +8756,26 @@ unfrozen 41–45%. Disclosed in `LTP_STRATEGY.md`, 2026-11-02.
 - 1000SHIB/DOGE is still open at z −2.05, uPnL −5.97;
 - PAXG/XAUT is flat at z −1.45, inside its ±2.0 band.
 
+**23:41 UTC 11-02 — the board says 2nd; the board has not counted today yet.**
+
+- **Board:** 1 Imnzzz 91.8 | **2 NDAR 85.5** (PnL +31.86, Sharpe still
+  **2.00**) | 3 TDB 85.5 | 4 PSJeevaa 85.1 | 5 Stream4AI 82.4.
+- **Status:** equity **1030.22**; 1000SHIB/DOGE z −1.89 (recovering), uPnL
+  −5.31; PAXG/XAUT long signals at 22:00 and 23:00 skipped as `gross_cap`,
+  as predicted.
+- **11-02 is now locked at its 23:00 NAV** (~1030 against ~1038 at 00:00, so
+  ~−0.8%). The board's Sharpe has not moved since 19:40, consistent with
+  completed days only.
+- **When it counts** (`sim9b.py`, rivals unchanged): Sharpe 2.00 → **1.44**,
+  score ~85.5 → **~83.3, 4th** behind PSJeevaa. Not a new loss: the board
+  catching up.
+- **From here** (`sim9c.py`, the 11-02 day fixed): unfrozen ×1.5 P(top 3)
+  **40–43%**, P(top 2) 22–25%; frozen would be 18–24%.
+- **Tuesday 11-03 is the day that decides it.** A 1000SHIB/DOGE reversion
+  from −1.89 to 0 is worth ~+10 USDT (~+1%), roughly +2–3 points, and new
+  entries become possible once it closes.
+- **No action.**
+
 ---
 
 ## Close-out agenda — from the bell, Wed 2026-11-04 15:59 UTC (08:59 MST)
