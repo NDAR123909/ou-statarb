@@ -8688,6 +8688,40 @@ caught. Option 3's only advantage is P(1st). **Go given; built.**
 - The book goes flat as the two positions close on their own exits or stops,
   and stays flat. **Record the time it goes flat** (a Reasoning Log blank).
 
+### 11-02 19:40 UTC — 3rd by 0.2; the freeze now works against us
+
+**Board:** 1 Imnzzz 91.7 | 2 **TDB 85.5** (+16.4%, PnL +163.91, up ~+50
+since 11-01) | **3 NDAR 85.2** (+3.0%, PnL **+30.15**, Sharpe 2.00) | 4
+PSJeevaa 85.0 (Sharpe 2.40, rising) | 5 Stream4AI 82.4.
+
+- **We lost ~8 since 11-01 23:50** (1038.45 → ~1030.15 by the board).
+  Probably one or both of the two positions that were open when the freeze
+  went live. The freeze could not remove that exposure, by design.
+- **That loss is not in the board's Sharpe yet: only completed days count.**
+  Deterministic, with rivals unchanged (`scratchpad/sim8b.py`):
+  - **if 11-02 closes at −0.8%, our Sharpe goes 2.00 → 1.43 and our score
+    85.2 → 83.3, which is 4th**, behind PSJeevaa;
+  - if 11-02 closes flat, we score 86.6, which is 2nd.
+- **Odds** (`sim8.py`, same pinned method):
+
+```
+                       P(top 2)   P(top 3)   P(4th+)
+stay frozen (flat)      2-4%      19-26%     74-81%
+lift freeze, x1.5      23-27%     41-45%     55-59%
+```
+
+- **The 11-01 decision's premise has reversed.** Then we led 3rd by one
+  point, and our own variance was the main risk. Now we sit at the boundary,
+  with a locked loss day pulling us below it. Variance is again the only way
+  back, so P(top 3) is maximised by lifting the freeze.
+- **My modelling error, owned:** the 11-01 freeze runs assumed we went flat
+  at once. Two positions stayed open for ~a day, and that residual exposure
+  is what lost.
+- **Lifting the freeze needs no restart:** `rm deploy/ENTRY_FREEZE` acts at
+  the next bar, and the agent writes `entry_freeze active=false`.
+- **Pending:** a current `status.py`, since the board's timestamp is unknown,
+  and the operator's decision.
+
 ---
 
 ## Close-out agenda — from the bell, Wed 2026-11-04 15:59 UTC (08:59 MST)
