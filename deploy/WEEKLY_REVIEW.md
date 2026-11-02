@@ -8748,6 +8748,14 @@ never remove. It decides 11-02's 23:00 NAV either way:
 Decision taken on the 19:40 analysis above: frozen P(top 3) 19–26%,
 unfrozen 41–45%. Disclosed in `LTP_STRATEGY.md`, 2026-11-02.
 
+**Verified 20:06 UTC:**
+- the journal shows `entry freeze OFF` at **20:00:26**;
+- the ledger has `entry_freeze: 2` (on, off);
+- `status.py` has no FROZEN line;
+- equity 1029.15;
+- 1000SHIB/DOGE is still open at z −2.05, uPnL −5.97;
+- PAXG/XAUT is flat at z −1.45, inside its ±2.0 band.
+
 ---
 
 ## Close-out agenda — from the bell, Wed 2026-11-04 15:59 UTC (08:59 MST)
