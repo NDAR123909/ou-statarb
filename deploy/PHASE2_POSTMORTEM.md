@@ -132,7 +132,7 @@ outcome.]**
 | News sentinel size reduction | 1 (09-28, halved the entry that then stopped); **a second on 10-27**, details at the final review |
 | Reconcile | 1 (10-03: closed a naked leg left by a refused hedge order) |
 | Entry unwind / budget skip (10-05 fix) | built after 10-03; not triggered since |
-| **Entry freeze (11-01 21:38:50 UTC)** | the operator froze new entries for the last ~66 h, 2nd place by one point; open positions kept their exits and stops. **Supersedes ×1.5 for entries** (§5): the same top-3 objective, with the premise reversed by our rank |
+| **Entry freeze (11-01 21:38:50 UTC)** | the operator froze new entries for the last ~66 h, 2nd place by one point; open positions kept their exits and stops. **Supersedes ×1.5 for entries** (§5): the same top-3 objective, with the premise reversed by our rank. **Lifted at the 11-02 20:00 bar** after ~22 h, when a position open before the freeze dragged us to the 3rd/4th boundary, and frozen P(top 3) fell to ~19–26% against ~41–45% trading. The 11-01 odds had assumed an immediate flat book |
 | Maintenance-window guard | six windows, never armed — none contained an hourly tick |
 
 ## 7. Mistakes, and how each was caught

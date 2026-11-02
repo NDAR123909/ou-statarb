@@ -1574,6 +1574,39 @@ refit drops, reconciliation and the kill switch never read it.
 `tests/test_ltp_blocked_skip.py` adds `entry_freeze` to the closed vocabulary.
 Suite 376 → 387.
 
+## Addendum — the entry freeze lifted after ~22 hours (2026-11-02)
+
+**Entries resumed at ×1.5 from the 11-02 20:00 UTC bar.** The operator
+removed `deploy/ENTRY_FREEZE` at 19:53. No code changed, and the agent
+records the switch with `entry_freeze active=false`.
+
+**Why — the premise reversed again.**
+- The freeze rested on a one-point lead over 4th, where our own variance was
+  the main risk.
+- During it, a position still open from before the freeze (1000SHIB/DOGE,
+  long spread from 10-31) moved against us: from z −0.85 to −2.05, ~−6 USDT
+  unrealized.
+- TDB rose ~50 USDT into 2nd, and the board left us 3rd by 0.2.
+- If 11-02 closed near that NAV, the completed −0.8% day would cut our
+  Sharpe from 2.00 to ~1.43 and our score from 85.2 to ~83.3, which is 4th,
+  with no way back while frozen.
+- On the same pinned method, P(top 3) was ~19–26% frozen against ~41–45%
+  unfrozen. **At the boundary, with a loss day locked in, variance is the
+  only path back.** Again a decision about the score, not a claim about the
+  strategy.
+
+**A modelling error, disclosed:** the 11-01 freeze odds assumed the book went
+flat at once. Two positions stayed open for about a day, and that residual
+exposure is where the loss came from.
+
+**Mechanically:** while 1000SHIB/DOGE (gross ~1.34 × NAV) is open, the
+2 × NAV gross cap blocks PAXG/XAUT (~1.46 ×). So new risk starts only once
+that position closes.
+
+**At the bell:** the freeze file goes back between 15:01 and 15:58 UTC on
+11-04. No scored bar falls in that window, and it prevents post-bell entries.
+The agent is stopped after 15:59.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;

@@ -8722,6 +8722,60 @@ lift freeze, x1.5      23-27%     41-45%     55-59%
 - **Pending:** a current `status.py`, since the board's timestamp is unknown,
   and the operator's decision.
 
+### 19:53 UTC 11-02 — FREEZE LIFTED by the operator (`rm deploy/ENTRY_FREEZE`)
+
+**Status just before:**
+- equity **1029.16** (dd 1.02%); `entries FROZEN`.
+- **NEAR/ICP was closed at the 02:00 refit** (`refit_drop` 7 → 8).
+- **1000SHIB/DOGE is still open**: long spread from 10-31 17:01 at z −0.85,
+  now **z −2.05**, held 51 bars, **uPnL −6.34**.
+- `skip` 207 → 215: the freeze refused signals, e.g. PAXG/XAUT long at 17:00,
+  z −2.77.
+
+**So today's loss is mostly unrealized**, on a position the freeze could
+never remove. It decides 11-02's 23:00 NAV either way:
+- reversion to 0 is worth about +10;
+- the −3.5 stop costs about −8 more.
+
+`max_hold` at 3 × 23h = 69 bars, ~18h away, also exits it.
+
+**What lifting changes, and what it does not:**
+- entries resume at ×1.5 from the 20:00 bar (`entry_freeze active=false`);
+- **while 1000SHIB/DOGE (gross ~1.34 × NAV) is open, the 2 × NAV cap blocks
+  PAXG/XAUT (~1.46 ×)**, the only other active pair;
+- so new risk can start only after this position closes.
+
+Decision taken on the 19:40 analysis above: frozen P(top 3) 19–26%,
+unfrozen 41–45%. Disclosed in `LTP_STRATEGY.md`, 2026-11-02.
+
+**Verified 20:06 UTC:**
+- the journal shows `entry freeze OFF` at **20:00:26**;
+- the ledger has `entry_freeze: 2` (on, off);
+- `status.py` has no FROZEN line;
+- equity 1029.15;
+- 1000SHIB/DOGE is still open at z −2.05, uPnL −5.97;
+- PAXG/XAUT is flat at z −1.45, inside its ±2.0 band.
+
+**23:41 UTC 11-02 — the board says 2nd; the board has not counted today yet.**
+
+- **Board:** 1 Imnzzz 91.8 | **2 NDAR 85.5** (PnL +31.86, Sharpe still
+  **2.00**) | 3 TDB 85.5 | 4 PSJeevaa 85.1 | 5 Stream4AI 82.4.
+- **Status:** equity **1030.22**; 1000SHIB/DOGE z −1.89 (recovering), uPnL
+  −5.31; PAXG/XAUT long signals at 22:00 and 23:00 skipped as `gross_cap`,
+  as predicted.
+- **11-02 is now locked at its 23:00 NAV** (~1030 against ~1038 at 00:00, so
+  ~−0.8%). The board's Sharpe has not moved since 19:40, consistent with
+  completed days only.
+- **When it counts** (`sim9b.py`, rivals unchanged): Sharpe 2.00 → **1.44**,
+  score ~85.5 → **~83.3, 4th** behind PSJeevaa. Not a new loss: the board
+  catching up.
+- **From here** (`sim9c.py`, the 11-02 day fixed): unfrozen ×1.5 P(top 3)
+  **40–43%**, P(top 2) 22–25%; frozen would be 18–24%.
+- **Tuesday 11-03 is the day that decides it.** A 1000SHIB/DOGE reversion
+  from −1.89 to 0 is worth ~+10 USDT (~+1%), roughly +2–3 points, and new
+  entries become possible once it closes.
+- **No action.**
+
 ---
 
 ## Close-out agenda — from the bell, Wed 2026-11-04 15:59 UTC (08:59 MST)
@@ -8730,9 +8784,18 @@ The final review is done; this is what remains, in order. The agent runs
 frozen to the bell. Nothing is needed from the operator before then except
 normal glances.
 
-1. **After 15:59 UTC 11-04 (any time):** `systemctl stop ltp-agent &&
-   systemctl disable ltp-agent`. Leave `deploy/ENTRY_FREEZE` in place. Record
-   the stop time and whether the book was flat at the bell.
+1. **~~After 15:59 UTC 11-04 (any time)~~ — REVISED 11-02, the freeze was
+   lifted.** An unfrozen agent could re-enter after the committee's closes,
+   and the 16:00:05 bar would trade after the bell. So:
+   - **`touch deploy/ENTRY_FREEZE` between 15:01 and 15:58 UTC 11-04
+     (08:01–08:58 MST).** No hourly bar falls between 15:00:05 and the bell,
+     so this changes nothing that is scored; intra-bar stops stay live.
+   - **Then `systemctl stop ltp-agent && systemctl disable ltp-agent` any time
+     after 15:59 UTC.**
+   - If neither can be done in that window, stop the agent as soon as
+     possible after the bell. A post-bell trade is unscored, and the
+     committee closes it.
+   - Record the times, and whether the book was flat at the bell.
 2. **The final board:** read the rank only from a board whose MDD column is
    populated (ours should read 4.0%), or from the organizer's announced
    results. The bell falls in the 16:00 UTC glitch hour.
