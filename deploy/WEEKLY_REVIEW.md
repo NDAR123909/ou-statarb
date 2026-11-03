@@ -8807,6 +8807,42 @@ unfrozen 41–45%. Disclosed in `LTP_STRATEGY.md`, 2026-11-02.
   - A re-freeze only locks 4th or 5th, and both pay nothing.
   - The bell steps are unchanged.
 
+**Later on 11-03 — the operator's observation: TDB has been flat since ~11-02
+13:00 and PSJeevaa since ~11-01 13:00** (UTC presumed).
+
+- PSJeevaa's Sharpe 2.40 → 2.37 is consistent with idle days.
+- **Re-run with both idle** (`sim10b.py`): trading on **P(top 3) ~7%**;
+  with no trades, 0%. The rival-stumble paths are gone, so it rests on our
+  own result, with one weak pair until the ~02:00 refit.
+
+**How 95–97% became ~7%, judged honestly** (`sim7e.py`, re-modelling the
+11-01 decision):
+
+| 11-01 option | P(top 3) as computed | re-modelled with the open positions |
+|---|---|---|
+| keep ×1.5 | 75–78% | 75–78% |
+| freeze | 95–97% | **82–85%** |
+
+1. **The 95–97% was overstated by ~12 points: my modelling error.** It
+   assumed a flat book the moment the freeze went live. In fact
+   1000SHIB/DOGE and NEAR/ICP stayed open for about a day. Modelled with that
+   exposure, the freeze is 82–85%. That is still the better choice, so **the
+   decision holds, but the certainty did not.**
+2. **Then the ~15–18% bad case happened.** That residual exposure lost ~9
+   USDT on 11-02, a −0.8% day that cost ~2 points once counted. The same day,
+   TDB made ~+50 USDT and went from 4th to 2nd.
+3. **From the 3rd/4th boundary:**
+   - the freeze lift bought mostly PAXG/XAUT variance (two stops);
+   - 1000SHIB/DOGE was refit-dropped under water;
+   - 11-03 is ~−0.4%.
+4. **Underneath it all: three teams sat within ~1 point**, and one day moves
+   our score ~2 points. Every percentage here was conditional on that
+   fragility, and the headline numbers made it look smaller than it was.
+
+**For the post-mortem**, the freeze judged against its stated premise: the
+right side of the odds, presented with too much certainty, and then the
+residual-exposure risk the model left out.
+
 ---
 
 ## Close-out agenda — from the bell, Wed 2026-11-04 15:59 UTC (08:59 MST)
