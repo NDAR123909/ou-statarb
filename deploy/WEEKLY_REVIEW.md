@@ -8892,6 +8892,20 @@ was mine.**
   direction) would not have changed the right decision. The option was
   missing from the menu I offered.
 
+**What it takes to get back into the top 3** (`scratchpad/need.py`,
+deterministic):
+- Assumptions: 11-03 locks at −0.42% (no trade is possible before its 23:00
+  NAV); TDB and PSJeevaa idle, decaying.
+- **If 11-04 counts as a Sharpe day:** equity **~1033–1035 at the bell**
+  (+0.8–0.9%) passes PSJeevaa for 3rd; ~1040 for 2nd.
+- **If it does not** (the bell, 15:59 UTC, precedes 11-04's 23:00 NAV):
+  Sharpe is fixed at ~1.24 and it takes **~1043–1045** (+1.7–1.9%); ~1055
+  for 2nd.
+- Not knowing which applies changes nothing we would do.
+- **The realistic path:** the ~02:00 UTC refit selects a pair other than
+  PAXG/XAUT, and one or two reversions of the +5–9 size seen on 10-31 land
+  before 15:00. The pinned model's ~7% stands.
+
 ---
 
 ## Close-out agenda — from the bell, Wed 2026-11-04 15:59 UTC (08:59 MST)
