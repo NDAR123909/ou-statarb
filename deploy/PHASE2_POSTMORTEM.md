@@ -149,6 +149,7 @@ outcome.]**
 | 10-07 | the week 8 decomposition used rounded betas where exact ones existed | task 06 |
 | 10-12 | ×1.5 would have breached the per-order cap on high-β hedge legs | building the change |
 | 10-13 | a session container started on a stale branch ref | a failed edit, checked against GitHub before any push |
+| 11-01 | **the entry freeze waited for the two open positions instead of closing them.** Its 95–97% odds assumed a flat book; modelled with the real exposure, 82–85%. That exposure lost ~9 USDT on 11-02, a −0.8% counted day, and took us from 2nd to 4th. An agent-initiated, logged close at the freeze (the kill switch's `flatten_everything` path) was available and never offered. Closed at 21:39 (+3.65 uPnL), 11-02 would have been flat: ~86.5, above 3rd place's 85.3 | the 11-03 re-model, when the operator asked whether we had been unlucky |
 | throughout | the 2026-09-13 decision to drop the intra-bar monitor (≈ 6.5 USDT of overshoot before it was reversed) | the overshoot table |
 
 **The pattern worth keeping:** most of these were corrections that inherited the

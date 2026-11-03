@@ -8843,6 +8843,38 @@ unfrozen 41–45%. Disclosed in `LTP_STRATEGY.md`, 2026-11-02.
 right side of the odds, presented with too much certainty, and then the
 residual-exposure risk the model left out.
 
+**The operator asked: wrong decision, or unlucky? Answered: both
+decisions were right on the odds. One execution choice was wrong, and it
+was mine.**
+
+- **×1.5 (10-12):** a variance choice made while outside the top 10. It did
+  what it was for: 2nd place by 11-01.
+- **Freeze (11-01):** the right call. Re-modelled at 82–85% against 75–78%
+  for staying at ×1.5.
+- **Lift (11-02):** the right call (41–45% against 19–26%), with the PAXG/XAUT
+  caveat I failed to give.
+- **The mistake: the freeze waited for the open positions instead of closing
+  them.**
+  - The 95–97% assumed a flat book. The one way to make that real was an
+    **agent-initiated, logged close of both positions at the freeze**: the
+    kill switch's `flatten_everything` path, with truthful "operator's
+    freeze" reasoning. That is not a manual order, and not the barred
+    maintenance-window route.
+  - I never offered it. At 21:39 the two positions were +3.65 uPnL. Closed
+    then, equity ≈ 1038 after fees, and 11-02 would have been a flat day.
+  - Deterministic (`sim8b.py`, the "11-02 flat" row): **~86.5, above
+    PSJeevaa's 85.3**. Both leaders went idle, so that would very likely
+    have held 3rd at the bell.
+  - **The loss that decided the outcome came from exposure that the plan
+    claimed to have removed.**
+  - Why it looked cheap at the time: both positions sat near their exits, in
+    profit. But removing variance was the whole point of the freeze, and
+    "wait for them to close" kept it.
+- **Verdict:** the ~1-in-6 bad case did happen, so there is luck in it. But
+  the plan gave that bad case a chance it did not need. The odds
+  were right and the execution left the exposure open. Into the post-mortem's
+  mistakes table.
+
 ---
 
 ## Close-out agenda — from the bell, Wed 2026-11-04 15:59 UTC (08:59 MST)
