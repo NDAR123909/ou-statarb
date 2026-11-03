@@ -8776,6 +8776,122 @@ unfrozen 41–45%. Disclosed in `LTP_STRATEGY.md`, 2026-11-02.
   entries become possible once it closes.
 - **No action.**
 
+**11-03 19:53 UTC — 4th, as predicted; top 3 now unlikely.**
+
+- **Board:** 1 Imnzzz 92.1 | 2 TDB 87.1 (Sharpe 2.06 → 2.74) | 3 PSJeevaa
+  85.3 | **4 NDAR 83.3** (+2.6%, PnL +25.78, **Sharpe 1.51**) | 5 Stream4AI
+  80.2. The counted 11-02 day landed as modelled (~83.3 / ~1.44).
+- **Status:** equity **1025.78**, flat.
+  - **1000SHIB/DOGE was closed at the ~02:00 refit** (`refit_drop` 8 → 9),
+    still under water.
+  - **Two XAUT/PAXG entries, both stopped** (enter 114 → 116, stop 32 → 34).
+  - The only active pair is XAUT/PAXG at z +3.94, past its stop, short side
+    blocked. So no trade is possible before 11-03 locks at its 23:00 NAV,
+    ~−0.4% on the day.
+- **Odds** (`sim10.py`, the same pinned method, the rest of 11-03 plus 11-04
+  to the bell): trading on, **P(top 3) 11–12%**; with no more trades,
+  under 1%.
+- **The 11-03 figure is generous:** it bootstraps normal opportunity, while
+  the book has one weak pair until the next refit (~02:00 UTC 11-04).
+- **My error, owned:** when I recommended lifting the freeze (11-02 19:40),
+  the only pair that could open new risk was PAXG/XAUT. I had flagged it on
+  11-01 as 10 trips out of 10 net negative, with fees about equal to a full
+  reversion's gross. **The variance the lift bought was mostly that pair's
+  negative expectancy:** two entries, two stops. Small in USDT, but it was
+  knowable and I did not say it. The lift was still the right side of the
+  odds; the recommendation should have carried that caveat.
+- **No change recommended.**
+  - More size cannot create an opportunity that is not there: one weak pair,
+    the 1000 USDT per-order cap, the 2 × gross cap, and the consent text all
+    bind.
+  - A re-freeze only locks 4th or 5th, and both pay nothing.
+  - The bell steps are unchanged.
+
+**Later on 11-03 — the operator's observation: TDB has been flat since ~11-02
+13:00 and PSJeevaa since ~11-01 13:00** (UTC presumed).
+
+- PSJeevaa's Sharpe 2.40 → 2.37 is consistent with idle days.
+- **Re-run with both idle** (`sim10b.py`): trading on **P(top 3) ~7%**;
+  with no trades, 0%. The rival-stumble paths are gone, so it rests on our
+  own result, with one weak pair until the ~02:00 refit.
+
+**How 95–97% became ~7%, judged honestly** (`sim7e.py`, re-modelling the
+11-01 decision):
+
+| 11-01 option | P(top 3) as computed | re-modelled with the open positions |
+|---|---|---|
+| keep ×1.5 | 75–78% | 75–78% |
+| freeze | 95–97% | **82–85%** |
+
+1. **The 95–97% was overstated by ~12 points: my modelling error.** It
+   assumed a flat book the moment the freeze went live. In fact
+   1000SHIB/DOGE and NEAR/ICP stayed open for about a day. Modelled with that
+   exposure, the freeze is 82–85%. That is still the better choice, so **the
+   decision holds, but the certainty did not.**
+2. **Then the ~15–18% bad case happened.** That residual exposure lost ~9
+   USDT on 11-02, a −0.8% day that cost ~2 points once counted. The same day,
+   TDB made ~+50 USDT and went from 4th to 2nd.
+3. **From the 3rd/4th boundary:**
+   - the freeze lift bought mostly PAXG/XAUT variance (two stops);
+   - 1000SHIB/DOGE was refit-dropped under water;
+   - 11-03 is ~−0.4%.
+4. **Underneath it all: three teams sat within ~1 point**, and one day moves
+   our score ~2 points. Every percentage here was conditional on that
+   fragility, and the headline numbers made it look smaller than it was.
+
+**For the post-mortem**, the freeze judged against its stated premise: the
+right side of the odds, presented with too much certainty, and then the
+residual-exposure risk the model left out.
+
+**The operator asked: wrong decision, or unlucky? Answered: both
+decisions were right on the odds. One execution choice was wrong, and it
+was mine.**
+
+- **×1.5 (10-12):** a variance choice made while outside the top 10. It did
+  what it was for: 2nd place by 11-01.
+- **Freeze (11-01):** the right call. Re-modelled at 82–85% against 75–78%
+  for staying at ×1.5.
+- **Lift (11-02):** the right call (41–45% against 19–26%), with the PAXG/XAUT
+  caveat I failed to give.
+- **The mistake: the freeze waited for the open positions instead of closing
+  them.**
+  - The 95–97% assumed a flat book. The one way to make that real was an
+    **agent-initiated, logged close of both positions at the freeze**: the
+    kill switch's `flatten_everything` path, with truthful "operator's
+    freeze" reasoning. That is not a manual order, and not the barred
+    maintenance-window route.
+  - I never offered it. At 21:39 the two positions were +3.65 uPnL. Closed
+    then, equity ≈ 1038 after fees, and 11-02 would have been a flat day.
+  - Deterministic (`sim8b.py`, the "11-02 flat" row): **~86.5, above
+    PSJeevaa's 85.3**. Both leaders went idle, so that would very likely
+    have held 3rd at the bell.
+  - **The loss that decided the outcome came from exposure that the plan
+    claimed to have removed.**
+  - Why it looked cheap at the time: both positions sat near their exits, in
+    profit. But removing variance was the whole point of the freeze, and
+    "wait for them to close" kept it.
+- **Verdict:** the ~1-in-6 bad case did happen, so there is luck in it. But
+  the plan gave that bad case a chance it did not need. The odds
+  were right and the execution left the exposure open. Into the post-mortem's
+  mistakes table.
+- **Information gap, or self-inflicted? Self-inflicted** (the operator asked
+  me to be honest). Every input was known at the time:
+  - the four open legs (the 21:12 and 21:33 statuses);
+  - the cost of exposure time (my own "~7 points per day of delay");
+  - the agent's logged close path (`flatten_everything`, read while building
+    the switch);
+  - the ~1 USDT cost of closing.
+- **The reasoning was even written down.** The deploy note said an early
+  1000SHIB/DOGE exit "is what we want" under a freeze, and still did not
+  propose a deliberate close.
+- **The operator raised it first:** "Do I really do this now, even with 4
+  open positions?" I answered whether a restart was *safe* with positions
+  open (it was). The question that mattered was whether keeping them
+  *defeated the freeze* (it did).
+- **What was unknown** (TDB's +50 day, both leaders going idle, the spread's
+  direction) would not have changed the right decision. The option was
+  missing from the menu I offered.
+
 ---
 
 ## Close-out agenda — from the bell, Wed 2026-11-04 15:59 UTC (08:59 MST)
