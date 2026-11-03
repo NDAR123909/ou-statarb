@@ -8902,6 +8902,16 @@ deterministic):
   Sharpe is fixed at ~1.24 and it takes **~1043–1045** (+1.7–1.9%); ~1055
   for 2nd.
 - Not knowing which applies changes nothing we would do.
+- **The counterfactual, asked by the operator: freeze and close at 21:39
+  11-01** (~1038.30 after fees), then flat (`scratchpad/counterfactual.py`,
+  today's actual board, leaders idle). Our Sharpe ~2.01 → 1.99 on flat days;
+  **score ~87.2, 2nd**: above TDB 86.8 and 2.3 clear of PSJeevaa 84.9.
+  - Not a guarantee *in advance*: on 11-01 that plan was the 95–97% the model
+    computed.
+  - **Given what actually happened, it would very likely have been top 3, and
+    probably 2nd** ($5k, against now ~7% of $3k), within the reconstructed
+    scorer's error.
+  - That is the measured cost of the missing option.
 - **The realistic path:** the ~02:00 UTC refit selects a pair other than
   PAXG/XAUT, and one or two reversions of the +5–9 size seen on 10-31 land
   before 15:00. The pinned model's ~7% stands.
