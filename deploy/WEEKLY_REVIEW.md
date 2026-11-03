@@ -8776,6 +8776,37 @@ unfrozen 41–45%. Disclosed in `LTP_STRATEGY.md`, 2026-11-02.
   entries become possible once it closes.
 - **No action.**
 
+**11-03 19:53 UTC — 4th, as predicted; top 3 now unlikely.**
+
+- **Board:** 1 Imnzzz 92.1 | 2 TDB 87.1 (Sharpe 2.06 → 2.74) | 3 PSJeevaa
+  85.3 | **4 NDAR 83.3** (+2.6%, PnL +25.78, **Sharpe 1.51**) | 5 Stream4AI
+  80.2. The counted 11-02 day landed as modelled (~83.3 / ~1.44).
+- **Status:** equity **1025.78**, flat.
+  - **1000SHIB/DOGE was closed at the ~02:00 refit** (`refit_drop` 8 → 9),
+    still under water.
+  - **Two XAUT/PAXG entries, both stopped** (enter 114 → 116, stop 32 → 34).
+  - The only active pair is XAUT/PAXG at z +3.94, past its stop, short side
+    blocked. So no trade is possible before 11-03 locks at its 23:00 NAV,
+    ~−0.4% on the day.
+- **Odds** (`sim10.py`, the same pinned method, the rest of 11-03 plus 11-04
+  to the bell): trading on, **P(top 3) 11–12%**; with no more trades,
+  under 1%.
+- **The 11-03 figure is generous:** it bootstraps normal opportunity, while
+  the book has one weak pair until the next refit (~02:00 UTC 11-04).
+- **My error, owned:** when I recommended lifting the freeze (11-02 19:40),
+  the only pair that could open new risk was PAXG/XAUT. I had flagged it on
+  11-01 as 10 trips out of 10 net negative, with fees about equal to a full
+  reversion's gross. **The variance the lift bought was mostly that pair's
+  negative expectancy:** two entries, two stops. Small in USDT, but it was
+  knowable and I did not say it. The lift was still the right side of the
+  odds; the recommendation should have carried that caveat.
+- **No change recommended.**
+  - More size cannot create an opportunity that is not there: one weak pair,
+    the 1000 USDT per-order cap, the 2 × gross cap, and the consent text all
+    bind.
+  - A re-freeze only locks 4th or 5th, and both pay nothing.
+  - The bell steps are unchanged.
+
 ---
 
 ## Close-out agenda — from the bell, Wed 2026-11-04 15:59 UTC (08:59 MST)
