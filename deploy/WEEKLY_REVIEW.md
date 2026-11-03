@@ -8874,6 +8874,23 @@ was mine.**
   the plan gave that bad case a chance it did not need. The odds
   were right and the execution left the exposure open. Into the post-mortem's
   mistakes table.
+- **Information gap, or self-inflicted? Self-inflicted** (the operator asked
+  me to be honest). Every input was known at the time:
+  - the four open legs (the 21:12 and 21:33 statuses);
+  - the cost of exposure time (my own "~7 points per day of delay");
+  - the agent's logged close path (`flatten_everything`, read while building
+    the switch);
+  - the ~1 USDT cost of closing.
+- **The reasoning was even written down.** The deploy note said an early
+  1000SHIB/DOGE exit "is what we want" under a freeze, and still did not
+  propose a deliberate close.
+- **The operator raised it first:** "Do I really do this now, even with 4
+  open positions?" I answered whether a restart was *safe* with positions
+  open (it was). The question that mattered was whether keeping them
+  *defeated the freeze* (it did).
+- **What was unknown** (TDB's +50 day, both leaders going idle, the spread's
+  direction) would not have changed the right decision. The option was
+  missing from the menu I offered.
 
 ---
 
