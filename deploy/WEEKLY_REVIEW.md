@@ -8984,6 +8984,11 @@ deterministic):
   Verify `entry freeze ON` in the journal after 05:01. Disclosed in
   `LTP_STRATEGY.md`; Reasoning Log updated.
   **Verified: `entry freeze ON` at 05:00:21 UTC 11-04.**
+- **~05:00 UTC 11-04: PSJeevaa traded again**, equity 1016.01 → 1014.30 (the
+  operator's sighting). It falls on 11-04, so it moves only their PnL and ROI.
+  Our score is now fixed (flat, frozen, Sharpe 1.21). **We pass them only if
+  they fall to ~1000 by the bell** (`scratchpad/psj.py`): another ~−14, about
+  −1.4%, or roughly 5× their typical daily swing. A sliver, outside our control.
 - **The realistic path:** the ~02:00 UTC refit selects a pair other than
   PAXG/XAUT, and one or two reversions of the +5–9 size seen on 10-31 land
   before 15:00. The pinned model's ~7% stands.
