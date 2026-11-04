@@ -8993,6 +8993,28 @@ deterministic):
   PAXG/XAUT, and one or two reversions of the +5–9 size seen on 10-31 land
   before 15:00. The pinned model's ~7% stands.
 
+### 11-04 17:14 UTC — after the bell: 4th, provisional
+
+The operator's phone screenshot of the board at 10:14 MST, after the 15:59 UTC
+bell. Our PnL reads exactly our frozen equity (+25.78), so this is very likely
+the final calculation. **Provisional until the organizer announces results.**
+
+```
+ 1 Imnzzz    91.2   +58.85 |  4 NDAR       82.2   +25.78   (equity 1025.78, flat since 11-03)
+ 2 TDB       87.2  +163.91 |  5 Stream4AI  76.8   +20.84
+ 3 PSJeevaa  84.0   +10.15 |  6 Kinance    76.5   +44.48
+```
+
+- **4th, 1.8 points out of the prizes.** PSJeevaa traded again on 11-04 and
+  fell 16.01 → 10.15, short of the ~1000 equity at which we would have passed
+  them.
+- The MDD column is cut off on the phone view. Confirm from a full board, or
+  from the announcement, before the post-mortem's final sections are written.
+- **Still to do (close-out agenda):** stop and disable the agent; the
+  Reasoning Log blanks, the final build after the 11-04 23:55 fills snapshot,
+  and the send by 11-08; crons; post-mortem; keys and droplet after results
+  and receipt.
+
 ---
 
 ## Close-out agenda — from the bell, Wed 2026-11-04 15:59 UTC (08:59 MST)
