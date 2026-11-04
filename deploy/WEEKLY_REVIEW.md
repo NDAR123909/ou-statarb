@@ -8942,6 +8942,26 @@ deterministic):
     sit in the Reasoning Log.
   - The optional freeze now, to keep XAUT/PAXG from losing more before the
     bell, is the operator's call.
+- **Why was the close omitted? The operator asked whether any justification
+  exists. None holds up, and there was no weighed decision: "close first"
+  was never put on the table.** The framings that shaped the plan:
+  1. **The standing rules were over-read.** "No manual orders" and "no
+     non-maintenance flatten via `LTP_MAINTENANCE_WINDOWS`" became "only the
+     agent's normal exits may close". They ban routes, not an honest, logged
+     agent close; `flatten_everything` already existed.
+  2. **Expected profit was used where the purpose was removing variance.**
+     The positions were in profit and near exit, so waiting looked cheap.
+     Closing would have cost ~1 USDT in fees and bought ~12 points of P(top 3).
+  3. **"Can only refuse risk, never add or remove any" was treated as a pure
+     virtue** of the switch. Minimal change is a real principle, but it made
+     the switch unable to produce the flat book its odds assumed.
+  4. **The evidence was on the page twice:** "an early exit is what we want",
+     and the operator's own question about the four open positions. Both
+     times I answered restart safety instead.
+
+  **For the post-mortem's next-version list: a freeze must ship with
+  flatten-and-freeze as its default.** And any plan's odds must be checked
+  against what the plan actually does.
 - **The realistic path:** the ~02:00 UTC refit selects a pair other than
   PAXG/XAUT, and one or two reversions of the +5–9 size seen on 10-31 land
   before 15:00. The pinned model's ~7% stands.
