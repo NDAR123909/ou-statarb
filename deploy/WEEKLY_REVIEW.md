@@ -8892,6 +8892,60 @@ was mine.**
   direction) would not have changed the right decision. The option was
   missing from the menu I offered.
 
+**What it takes to get back into the top 3** (`scratchpad/need.py`,
+deterministic):
+- Assumptions: 11-03 locks at −0.42% (no trade is possible before its 23:00
+  NAV); TDB and PSJeevaa idle, decaying.
+- **If 11-04 counts as a Sharpe day:** equity **~1033–1035 at the bell**
+  (+0.8–0.9%) passes PSJeevaa for 3rd; ~1040 for 2nd.
+- **If it does not** (the bell, 15:59 UTC, precedes 11-04's 23:00 NAV):
+  Sharpe is fixed at ~1.24 and it takes **~1043–1045** (+1.7–1.9%); ~1055
+  for 2nd.
+- Not knowing which applies changes nothing we would do.
+- **The counterfactual, asked by the operator: freeze and close at 21:39
+  11-01** (~1038.30 after fees), then flat (`scratchpad/counterfactual.py`,
+  today's actual board, leaders idle). Our Sharpe ~2.01 → 1.99 on flat days;
+  **score ~87.2, 2nd**: above TDB 86.8 and 2.3 clear of PSJeevaa 84.9.
+  - Not a guarantee *in advance*: on 11-01 that plan was the 95–97% the model
+    computed.
+  - **Given what actually happened, it would very likely have been top 3, and
+    probably 2nd** ($5k, against now ~7% of $3k), within the reconstructed
+    scorer's error.
+  - That is the measured cost of the missing option.
+- **~00:34 UTC 11-04 — the leaderboard appears frozen.** PSJeevaa in the
+  competition Telegram: "Haven't seen any new updates in the last 8 hours",
+  so since ~16:30 UTC 11-03, around the daily calculation that has glitched
+  before.
+  - **It hides nothing about us:** our equity has not moved since 19:52 UTC
+    (flat; the 23:50 state row reads 1025.78, not halted, bars advancing,
+    crons ran).
+  - It does hide whether 11-03's day has been counted, and any rival
+    movement.
+  - **The final-rank rule extends:** if the board is still frozen at the
+    bell, wait for the organizer's announced results. Never read a rank off
+    a stale board.
+  - Our own records (`status.py`, the state rows) remain the truth for our
+    numbers. No action.
+- **11-04 04:10 UTC — the 02:01 refit kept only XAUT/PAXG.** There is no
+  refit before the bell. The board is live again and has counted 11-03:
+  **NDAR 82.7, 4th**, Sharpe 1.21, against the model's ~82.4. PSJeevaa 85.8,
+  TDB 87.2. **Top 3 is out of reach by our own trading.**
+  - **The operator's read, which I share:** TDB and PSJeevaa went flat on
+    purpose to lock in their scores. Their curves have been dead flat since
+    11-02 and 11-01. So the "a rival stumbles" path is effectively zero.
+  - **They executed "close, then freeze" cleanly. We froze with two
+    positions still open.** That is the strongest evidence that the gap was
+    the missing close, not the idea of freezing.
+  - No legitimate path remains. A last-minute directional bet or manual web
+    orders were discussed and **advised against**: they abandon the
+    strategy, risk the AI-driven-trading rule and the final review, and would
+    sit in the Reasoning Log.
+  - The optional freeze now, to keep XAUT/PAXG from losing more before the
+    bell, is the operator's call.
+- **The realistic path:** the ~02:00 UTC refit selects a pair other than
+  PAXG/XAUT, and one or two reversions of the +5–9 size seen on 10-31 land
+  before 15:00. The pinned model's ~7% stands.
+
 ---
 
 ## Close-out agenda — from the bell, Wed 2026-11-04 15:59 UTC (08:59 MST)
