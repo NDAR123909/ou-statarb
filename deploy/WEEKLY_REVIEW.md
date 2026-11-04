@@ -9015,6 +9015,35 @@ the final calculation. **Provisional until the organizer announces results.**
   and the send by 11-08; crons; post-mortem; keys and droplet after results
   and receipt.
 
+### 11-04 21:11 UTC — agent stopped and disabled; the Reasoning Log is complete
+
+- **Stopped and disabled** at 21:11 UTC (`Removed .../ltp-agent.service`).
+  Status: `inactive/dead`, equity **1025.78**, flat. **No position was open at
+  the bell**: flat since 11-03.
+- **The organizer's AI gateway key expired at ~16:00 UTC 11-04, after the
+  bell:** `401 Authentication Error`; `sentinel_degraded` 3 → 4;
+  `ai_assessment_unavailable` 27 → 33, one per bar from 16:00. No effect on
+  anything scored. The spend crons will now fail harmlessly; remove them.
+- **Ledger query (Phase II window):**
+  - **78 entries**, all closed;
+  - stops: **19 intra-bar, 1 bar, 6 unlabelled** (pre-10-05);
+  - **16 `entry_freeze` skips**;
+  - **the 10-30 outage window had 2 entries, both PAXG/XAUT (16:00, 21:00),
+    both `screened: false`**, and both stopped.
+- **`deploy/REASONING_LOG_PHASE2.md`: every blank is filled.**
+  - The re-freeze and stop times, and no position at the bell.
+  - The stop counts. The ten firings to 10-25 are audited; the nine later
+    ones, eight on PAXG/XAUT, are disclosed as not individually audited.
+  - The two unscreened outage entries.
+  - The final numbers: 1025.78, +2.58%, Sharpe 1.21, MDD 4.0%, score 82.2,
+    4th as displayed, the organizer's announcement governing.
+  - **Edge over all 78 trips: +25.78 net, about +0.33 a trip, t ≈ 0.6.** Still
+    indistinguishable from zero, with most of the gain in the week of 10-25.
+- A local final build on the published data printed `STATUS final`: no
+  refusal, archive 0.99 MB.
+- **Close-out agenda:** item 1 is DONE. Item 3 remains: the droplet's final
+  build after the 11-04 23:55 fills snapshot, then the email.
+
 ---
 
 ## Close-out agenda — from the bell, Wed 2026-11-04 15:59 UTC (08:59 MST)

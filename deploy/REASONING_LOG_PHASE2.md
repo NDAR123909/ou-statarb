@@ -74,9 +74,12 @@ switch rule, and the leverage. No gate was loosened to manufacture a trade.
 **The freeze ran from 2026-11-01 21:38:50 to the 11-02 20:00 bar.** It went
 back on at the 11-04 05:00 bar, flat. The last refit had left only a pair
 with negative expectancy, and 11-04 does not count toward the final Sharpe.
-The agent was stopped after the bell. **[FINAL AFTER THE BELL: the re-freeze
-and stop times, and any position open at the bell.]** Per the organizer, positions
-still open at the cutoff are closed by
+The re-freeze went live at 05:00:21 UTC on 11-04. **No position was open at the
+bell:** the book had been flat since 11-03. The agent was stopped and disabled at
+21:11 UTC on 11-04. The organizer's AI gateway key expired at ~16:00 UTC that
+day, after the bell, and the log records that too
+(`sentinel_degraded`, then `ai_assessment_unavailable`). Per the organizer,
+positions still open at the cutoff are closed by
 the Organizing Committee after the competition. **Those closes are not agent
 operations.** No decision record precedes them, and none should.
 
@@ -272,8 +275,15 @@ Stated because an audit is entitled to them.
    rule is checked every five minutes. We audited every intra-bar firing
    against what the hourly stop alone would have done. Net, they saved money,
    almost all of it on one firing. They also produced false alarms, all on
-   PAXG/XAUT, the fastest and noisiest pair we traded. **[FINAL AFTER THE
-   BELL: firings, false alarms and net effect, through the close.]**
+   PAXG/XAUT, the fastest and noisiest pair we traded.
+   - **To the close:** the five-minute check fired **19** times, and the
+     hourly bar stop **once**; the six stops before 10-05 carry no trigger.
+     `MANIFEST.txt` reports the split.
+   - The first ten intra-bar firings (to 2026-10-25) were each audited
+     against an hourly-only path: **net ≈ +8 USDT saved**, almost all on one
+     firing, with two false alarms.
+   - **The nine later firings (eight of them on PAXG/XAUT) were not
+     individually audited before this submission.**
 3. **Maintenance windows blind the five-minute check.** During the venue's
    announced maintenance windows, the sampler's price reads fail and are
    skipped. A held position is then protected only by the hourly bar. The
@@ -308,8 +318,9 @@ Stated because an audit is entitled to them.
    For us it lasted from 16:00 UTC 10-30 to 01:00 UTC 10-31: **nine hourly
    bars without AI assessment.** The USD 1/day floor for that budget period
    was still met inside the period: a manual deep-review pass, run once the
-   gateway was back, reached $1.15 at ~04:33 UTC 10-31. **[FINAL AFTER THE
-   BELL: how many entries ran unscreened in that window.]**
+   gateway was back, reached $1.15 at ~04:33 UTC 10-31. **Two entries ran
+   unscreened in that window**, both PAXG/XAUT (16:00 and 21:00 UTC on
+   10-30), both recorded with `screened: false`, and both stopped out.
 8. **Funding was measured, not modelled.** It is in `fills/`.
 9. **Corporate and token events are not modelled.** The z-stop limits the
    damage. Every delisting notice we received was checked against the symbols
@@ -333,8 +344,18 @@ trip (t = −0.15), and fees (14.53 USDT) exceeded gross trading profit (9.39).
 The selection gate
 rejected most candidates, so the book held one pair most of the time, not the
 portfolio the engine was written for. That is the largest gap between
-backtest and deployment in this record. **[FINAL AFTER THE BELL: final equity,
-return, Sharpe, MDD and rank; the edge over every Phase II round trip.]**
+backtest and deployment in this record.
+
+**Final:** equity **1,025.78 USDT** (+2.58%). On the leaderboard after the bell:
+Sharpe **1.21** (completed UTC days only; 11-04 excluded, per the organizer), MDD
+**4.0%**, score 82.2, **4th**. That is as displayed; the organizer's announced
+results govern.
+
+**Over all 78 Phase II round trips, net P&L was +25.78 USDT**, after fees and
+funding: about +0.33 per trip, against a per-trip standard deviation of about 5,
+so **t ≈ 0.6**. That is still indistinguishable from zero. Most of the phase's
+gain came in one week (2026-10-25 → 10-31: 21 trips, +37.52), which is the
+kind of run a zero-edge strategy produces now and then.
 
 **The ×1.5 size increase on 2026-10-12 was a choice of variance, not a claim of
 edge.** It was made and written down as such before its outcome was known.
