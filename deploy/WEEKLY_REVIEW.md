@@ -92,7 +92,10 @@ flattened: an open position at the bell counts at its mark. The 23:50/23:55/
 23:58 UTC crons on 11-04 run after the bell and are post-phase readings. The
 last budget period overlapping scoring is 16:00 UTC 11-03 → 15:59 UTC 11-04,
 covered by the 16:30 UTC 11-03 spend pass. The end-of-phase procedure is in the
-week 13 agenda.
+week 13 agenda. **The final Sharpe excludes the last, incomplete UTC day
+(11-04)** (organizer, Zach | LTP, Telegram, 2026-11-04 ~04:08 UTC, answering
+PSJeevaa). Only completed UTC days count, each a return from the first to the
+last hourly snapshot of that day. So 11-04 moves PnL, ROI and MDD only.
 
 **Phase I scores do NOT carry into Phase II** — every team resets to 1,000 USDT
 (organizer, 2026-08-13). Phase I is worth advancement and evidence, nothing
@@ -8962,6 +8965,18 @@ deterministic):
   **For the post-mortem's next-version list: a freeze must ship with
   flatten-and-freeze as its default.** And any plan's odds must be checked
   against what the plan actually does.
+- **The operator asked whether the record could say the positions were kept
+  open on purpose, as a "cushion".** Advised no:
+  - it contradicts the reasoning recorded on the day;
+  - open positions are variance, not a cushion;
+  - our trades cannot affect rivals.
+
+  The honest version keeps the luck: an oversight in execution, a plan still
+  ~82–85% to hold, and the ~1-in-6 bad case happened.
+- **Organizer, 11-04: 11-04 does not count toward the final Sharpe.** So the
+  `need.py` "does NOT count" case applies: Sharpe fixed at ~1.21, and 3rd
+  needs ~1043–1045 at the bell. Out of reach with XAUT/PAXG. Any 11-04
+  trading moves only PnL and ROI.
 - **The realistic path:** the ~02:00 UTC refit selects a pair other than
   PAXG/XAUT, and one or two reversions of the +5–9 size seen on 10-31 land
   before 15:00. The pinned model's ~7% stands.
