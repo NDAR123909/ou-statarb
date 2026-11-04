@@ -1607,6 +1607,13 @@ that position closes.
 11-04. No scored bar falls in that window, and it prevents post-bell entries.
 The agent is stopped after 15:59.
 
+**Re-frozen early, 2026-11-04 ~04:28 UTC (effective at the 05:00 bar).** The
+02:01 refit kept only XAUT/PAXG, and the organizer confirmed that 11-04 is
+excluded from the final Sharpe. So any further trading could move only PnL
+and ROI, and only on a pair whose trips had all lost money net. A top-3 finish
+was out of reach by our own trading. The freeze protects a no-prize 4th from
+negative-expectancy trades; there was no position open this time.
+
 ## Sources
 
 - Alpha Arena S1 results and analyses: nof1.ai; iweaver.ai season-1 recap;

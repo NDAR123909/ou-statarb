@@ -8977,6 +8977,12 @@ deterministic):
   `need.py` "does NOT count" case applies: Sharpe fixed at ~1.21, and 3rd
   needs ~1043–1045 at the bell. Out of reach with XAUT/PAXG. Any 11-04
   trading moves only PnL and ROI.
+- **RE-FROZEN ~04:28 UTC 11-04** (`touch deploy/ENTRY_FREEZE`, operator),
+  effective at the 05:00 bar, with the book flat. **Close-out agenda item 1's
+  first step is therefore already done.** What remains at the bell is
+  `systemctl stop ltp-agent && systemctl disable ltp-agent` after 15:59 UTC.
+  Verify `entry freeze ON` in the journal after 05:01. Disclosed in
+  `LTP_STRATEGY.md`; Reasoning Log updated.
 - **The realistic path:** the ~02:00 UTC refit selects a pair other than
   PAXG/XAUT, and one or two reversions of the +5–9 size seen on 10-31 land
   before 15:00. The pinned model's ~7% stands.
