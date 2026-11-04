@@ -8926,6 +8926,22 @@ deterministic):
     a stale board.
   - Our own records (`status.py`, the state rows) remain the truth for our
     numbers. No action.
+- **11-04 04:10 UTC — the 02:01 refit kept only XAUT/PAXG.** There is no
+  refit before the bell. The board is live again and has counted 11-03:
+  **NDAR 82.7, 4th**, Sharpe 1.21, against the model's ~82.4. PSJeevaa 85.8,
+  TDB 87.2. **Top 3 is out of reach by our own trading.**
+  - **The operator's read, which I share:** TDB and PSJeevaa went flat on
+    purpose to lock in their scores. Their curves have been dead flat since
+    11-02 and 11-01. So the "a rival stumbles" path is effectively zero.
+  - **They executed "close, then freeze" cleanly. We froze with two
+    positions still open.** That is the strongest evidence that the gap was
+    the missing close, not the idea of freezing.
+  - No legitimate path remains. A last-minute directional bet or manual web
+    orders were discussed and **advised against**: they abandon the
+    strategy, risk the AI-driven-trading rule and the final review, and would
+    sit in the Reasoning Log.
+  - The optional freeze now, to keep XAUT/PAXG from losing more before the
+    bell, is the operator's call.
 - **The realistic path:** the ~02:00 UTC refit selects a pair other than
   PAXG/XAUT, and one or two reversions of the +5–9 size seen on 10-31 land
   before 15:00. The pinned model's ~7% stands.
