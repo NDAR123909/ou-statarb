@@ -8912,6 +8912,20 @@ deterministic):
     probably 2nd** ($5k, against now ~7% of $3k), within the reconstructed
     scorer's error.
   - That is the measured cost of the missing option.
+- **~00:34 UTC 11-04 — the leaderboard appears frozen.** PSJeevaa in the
+  competition Telegram: "Haven't seen any new updates in the last 8 hours",
+  so since ~16:30 UTC 11-03, around the daily calculation that has glitched
+  before.
+  - **It hides nothing about us:** our equity has not moved since 19:52 UTC
+    (flat; the 23:50 state row reads 1025.78, not halted, bars advancing,
+    crons ran).
+  - It does hide whether 11-03's day has been counted, and any rival
+    movement.
+  - **The final-rank rule extends:** if the board is still frozen at the
+    bell, wait for the organizer's announced results. Never read a rank off
+    a stale board.
+  - Our own records (`status.py`, the state rows) remain the truth for our
+    numbers. No action.
 - **The realistic path:** the ~02:00 UTC refit selects a pair other than
   PAXG/XAUT, and one or two reversions of the +5–9 size seen on 10-31 land
   before 15:00. The pinned model's ~7% stands.
