@@ -24,7 +24,11 @@ choosing the tidiest one.
 
 **Competition.** LTP Liquidity Arena 2026, **Track A "Logic Frontier"**. Team
 **NDAR**. Phase I (Sandbox Elimination) **Jul 20 – Aug 21 2026** — CLOSED, we
-finished **#6 of 30 and advanced**.
+finished **#6 of 30 and advanced**. **Phase II — CLOSED 2026-11-04 15:59 UTC.
+Final: 4th of 30 finalists** (organizer's announcement, 2026-11-06): score
+82.2, return +2.6% (equity 1,025.78), Sharpe 1.21. Outside the prizes, 1.8
+points behind 3rd. The agent was stopped and disabled at 21:11 UTC 11-04.
+**What remains is the close-out agenda** (newest agenda in this file).
 
 **Phase II (Mainnet Duel Finals) runs 2026-09-09 → 2026-11-04.** ~~Sep 7 –
 Oct 31~~ — **both** dates were wrong in this file since July; corrected from
@@ -8995,6 +8999,9 @@ deterministic):
 
 ### 11-04 17:14 UTC — after the bell: 4th, provisional
 
+> **CONFIRMED 2026-11-06** by the organizer's announcement of the final
+> results: 4th of 30 finalists. See the 11-06 entry below.
+
 The operator's phone screenshot of the board at 10:14 MST, after the 15:59 UTC
 bell. Our PnL reads exactly our frozen equity (+25.78), so this is very likely
 the final calculation. **Provisional until the organizer announces results.**
@@ -9044,6 +9051,39 @@ the final calculation. **Provisional until the organizer announces results.**
 - **Close-out agenda:** item 1 is DONE. Item 3 remains: the droplet's final
   build after the 11-04 23:55 fills snapshot, then the email.
 
+### 2026-11-06 — the official result: 4th of 30 finalists
+
+The organizer's Telegram announcement of the Track A final winners (the
+operator's screenshot, 11-06). **The final top three are Imnzzz, TDB and
+PSJeevaa.** Team NDAR is **4th of 30 finalists**: score 82.2, return +2.6%,
+Sharpe 1.21, MDD 4.0%. That matches the post-bell board of 11-04 exactly, so
+the provisional reading stood, and close-out agenda item 2 is DONE.
+
+- **Outside the prizes by 1.8 points** (PSJeevaa 84.0). The prizes were
+  10,000 / 5,000 / 3,000 USD for 1st / 2nd / 3rd.
+- **The cause is recorded, and does not change:** the 11-01 freeze waited for
+  the open positions instead of closing them. The leftover 1000SHIB/DOGE lost
+  ~9 USDT on 11-02, a counted day. Closing at 21:39 UTC 11-01 models at ~87.2,
+  2nd. That was my execution omission, not missing information (11-01 and
+  11-03 entries).
+- **A pool-size discrepancy, recorded rather than resolved.** The announcement
+  says **30 finalists**. The scorer reproduction since 10-12 assumed **25 teams
+  in the Phase II pool**, from the board (week 10 entry). Possibly five
+  finalists never showed as scored rows; that is a guess, not checked. It does
+  not touch the rank, which comes from the announcement. It does mean the
+  ±1.5-clipped fit was tuned on a pool that may not be the one the organizer
+  z-scored over. Its R² of 0.994 says the shape was right; the population count
+  is unconfirmed.
+- **`deploy/REASONING_LOG_PHASE2.md` §8 now states the announced result**,
+  in place of "4th as displayed; the announcement governs". **If the droplet's
+  final build already ran,** re-run it after checking out the narrative again
+  (two minutes, nothing else changes). If the email has already gone, leave it:
+  the earlier wording was true and deferred to this announcement.
+- **Still open (close-out agenda):** item 3, the Reasoning Log build and
+  email by Sun 11-08; item 4, the crons; item 5, the post-mortem's final
+  sections; item 6, keys and droplet after the receipt; and the new item 8
+  below.
+
 ---
 
 ## Close-out agenda — from the bell, Wed 2026-11-04 15:59 UTC (08:59 MST)
@@ -9064,9 +9104,11 @@ normal glances.
      possible after the bell. A post-bell trade is unscored, and the
      committee closes it.
    - Record the times, and whether the book was flat at the bell.
-2. **The final board:** read the rank only from a board whose MDD column is
-   populated (ours should read 4.0%), or from the organizer's announced
-   results. The bell falls in the 16:00 UTC glitch hour.
+2. **~~The final board~~ DONE 2026-11-06: 4th of 30 finalists**, from the
+   organizer's announcement (MDD 4.0%, as expected). Original: read the rank
+   only from a board whose MDD column is populated (ours should read 4.0%), or
+   from the organizer's announced results. The bell falls in the 16:00 UTC
+   glitch hour.
 3. **The Reasoning Log (deadline 15:59 UTC Wed 11-11; target Sun 11-08):**
    - **I fill the blanks:** when the book went flat; the stop time and any
      position at the bell; the count of unscreened entries in the 10-30
@@ -9095,6 +9137,12 @@ normal glances.
    confirmed.
 7. Optional, after all of that: `stop_facts()` reads the whole ledger
    (10-31 entry). Only worth fixing if the tool is kept.
+8. **The freshness test will go red about 10 days after the last entry**
+   (`tests/test_review_log.py::test_review_log_is_not_stale`, limit 10 days),
+   whether or not the project continues. Once the close-out is finished, decide
+   explicitly: either keep appending, or retire the test with a commit that
+   says the competition record is closed. **Never fix it by editing a date**
+   (the test's own rule). Added 11-06.
 
 
 **Also since 10-30 04:45:** +3 entries and +3 stops, all PAXG/XAUT (the only

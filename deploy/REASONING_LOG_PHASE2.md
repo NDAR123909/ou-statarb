@@ -348,8 +348,8 @@ backtest and deployment in this record.
 
 **Final:** equity **1,025.78 USDT** (+2.58%). On the leaderboard after the bell:
 Sharpe **1.21** (completed UTC days only; 11-04 excluded, per the organizer), MDD
-**4.0%**, score 82.2, **4th**. That is as displayed; the organizer's announced
-results govern.
+**4.0%**, score 82.2: **4th of 30 finalists**, as the organizer's announcement
+of the final results (2026-11-06) confirmed.
 
 **Over all 78 Phase II round trips, net P&L was +25.78 USDT**, after fees and
 funding: about +0.33 per trip, against a per-trip standard deviation of about 5,

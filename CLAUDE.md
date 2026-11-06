@@ -2,10 +2,14 @@
 
 ## If the task involves the LTP competition, READ THIS FIRST
 
-The agent is **live in the LTP Liquidity Arena 2026 competition** (Track A,
-**Phase II, live capital, 2026-09-09 → 2026-11-04**; Phase I closed 2026-08-21
-and we advanced 6th of 30). Before answering questions about it, reviewing its
-performance, or changing anything under `deploy/`, read
+**The competition is over.** LTP Liquidity Arena 2026, Track A: Phase I closed
+2026-08-21 (6th of 30, advanced). **Phase II** (live capital, 2026-09-09 →
+2026-11-04) closed at 15:59 UTC 11-04, and the agent was stopped and disabled
+at 21:11 UTC that day. **Final: 4th of 30 finalists** (organizer's
+announcement, 2026-11-06). What remains is the close-out agenda in
+`deploy/WEEKLY_REVIEW.md`: the Reasoning Log submission, crons, the
+post-mortem, and key and droplet retirement. Before answering questions about
+it, reviewing its performance, or changing anything under `deploy/`, read
 **`deploy/WEEKLY_REVIEW.md`** — it is the durable record that survives context
 loss: standing rules and scoring, what each weekly review decided and why,
 open incidents, and the agenda the next review must pick up. Then read
