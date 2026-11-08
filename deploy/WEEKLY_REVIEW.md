@@ -9103,7 +9103,9 @@ reading deploy/ltp_ledger.jsonl (209.6 MB)
 - **No refusal, no unparseable lines, no placeholder note.** The build was
   after the window closed, so it is not PARTIAL. 58 snapshots for 58 days, so
   no day is missing. **I said `STATUS final` would show on the console; it
-  doesn't. It is line 4 of `MANIFEST.txt`.** Not checked by eye.
+  doesn't. It is line 4 of `MANIFEST.txt`.** **Checked by grep on the
+  droplet:** `STATUS  final`, `unparseable lines skipped 0`, `days with no
+  fills snapshot none`. The email archive was copied to the PC (1316 KB).
 - **The 19 "after" are the post-bell bars** (16:00 → the 21:11 stop: the
   `ai_assessment_unavailable` records and the like). They are correctly out of
   the package.
