@@ -9084,6 +9084,37 @@ the provisional reading stood, and close-out agenda item 2 is DONE.
   sections; item 6, keys and droplet after the receipt; and the new item 8
   below.
 
+### 2026-11-08 — the Phase II Reasoning Log: final build done on the droplet
+
+The operator hadn't started: they were waiting for organizer instructions, and
+none came. Advised that the 10-28 answer is the instruction. The droplet then
+checked out the tip (`5fca516`) and ran `reasoning_log.py --phase II --archive`:
+
+```
+Phase II: 2026-09-08T16:00:00+00:00 <= ts < 2026-11-04T16:00:00+00:00
+reading deploy/ltp_ledger.jsonl (209.6 MB)
+  reasoning.jsonl            9215 records    3.63 MB
+  ai_deep_review.jsonl.gz   21336 records   56.99 MB   (NOT in the archive)
+  fills snapshots              58 files  (2026-09-08 .. 2026-11-04)
+  outside the window      5161 before, 19 after, 0 undated
+  archive  /root/ou-statarb/phase2_submission.tar.gz  1.35 MB
+```
+
+- **No refusal, no unparseable lines, no placeholder note.** The build was
+  after the window closed, so it is not PARTIAL. 58 snapshots for 58 days, so
+  no day is missing. **I said `STATUS final` would show on the console; it
+  doesn't. It is line 4 of `MANIFEST.txt`.** Not checked by eye.
+- **The 19 "after" are the post-bell bars** (16:00 → the 21:11 stop: the
+  `ai_assessment_unavailable` records and the like). They are correctly out of
+  the package.
+- **The deep-review file came in at 56.99 MB**, against the ~58 MB estimate.
+- **The 23:58 cron will publish `track_record/phase2_submission/`** to
+  `live/track-record` (the advisory file stays out through its nested
+  `.gitignore`). That commit is the public timestamp of the package.
+- **Left:** scp both files to the PC, put the advisory file on Drive with a
+  link, email `events@liquiditytech.com`, and record the receipt. Deadline
+  15:59 UTC Wed 11-11.
+
 ---
 
 ## Close-out agenda — from the bell, Wed 2026-11-04 15:59 UTC (08:59 MST)
