@@ -1888,7 +1888,7 @@ section existed; that is what it is for.
 | ~~**SETTLE THE END-OF-PHASE PROCEDURE.**~~ **SETTLED at the 11-01 final review, and simplified by the entry freeze.** The agent runs frozen (`deploy/ENTRY_FREEZE`) and flat to the bell; a frozen agent cannot re-enter after the committee's closes, so the 08:59 MST stop is no longer needed. **Stop and disable `ltp-agent` any time after 15:59 UTC 11-04.** Keep the spend crons through the 11-03 → 11-04 period, and the 23:58 publish cron until the Reasoning Log package is published. Revoke keys and retire the droplet only after the results are published and the log's receipt is confirmed. Original: The bell is 15:59 UTC Wed 11-04 (08:59 MST)… stop and disable at the bell, because `reconcile_positions` could re-enter after the committee's closes | 2026-10-27 | settled 11-01 |
 | ~~**DEPLOY THE ENTRY FREEZE**~~ **DONE 2026-11-01 21:38:50 UTC, verified** (`self-check PASS`, `entry freeze ON`, `entries FROZEN`). (2026-11-01 decision.) Two files plus `touch deploy/ENTRY_FREEZE`, then a restart. Steps, checks and the rollback (`acc8b64`, never `HEAD`) are in the week 13 entry. Verify `entry freeze ON` in the journal and `entries FROZEN` in `status.py`. Then record when the book goes flat | 2026-11-01 | **operator, tonight or at the next :10–:50 window** |
 | ~~**ASK THE ORGANIZER: is a Phase II Reasoning Log required, in what format, by when?**~~ **ANSWERED 2026-10-28: yes, same requirements as Phase I, within one week of the close** | 2026-10-27 | closed — the build row below |
-| **SUBMIT THE PHASE II REASONING LOG.** Deadline **15:59 UTC Wed 11-11** (conservative reading); **target: send by Sun 11-08**. ~~The build~~ **BUILT 2026-10-28** (`reasoning_log.py --phase`, `deploy/REASONING_LOG_PHASE2.md`, `tests/test_reasoning_log_phase2.py`). ~~Deploy the two files, dry run on the droplet~~ **DONE 10-28 21:14** (deep-review file 50.99 MB, ~58 MB by the bell; email archive 1.05 MB). Left: fill the three blanks after the close, final build after the 11-04 23:55 snapshot, email with the deep-review file **linked from a file share**, record the receipt. Steps in week 13 agenda item 3. **11-08: NOT STARTED.** The operator was waiting for organizer instructions, and none came. Advised that the 10-28 answer is the instruction ("same requirements as Phase I … within one week after the competition ends"). Send now through the Phase I route, and resubmit if a different mechanism is announced later | 2026-10-28 | final build 11-05; send by 11-08; **hard deadline 15:59 UTC Wed 11-11** |
+| **SUBMIT THE PHASE II REASONING LOG.** Deadline **15:59 UTC Wed 11-11** (conservative reading); **target: send by Sun 11-08**. ~~The build~~ **BUILT 2026-10-28** (`reasoning_log.py --phase`, `deploy/REASONING_LOG_PHASE2.md`, `tests/test_reasoning_log_phase2.py`). ~~Deploy the two files, dry run on the droplet~~ **DONE 10-28 21:14** (deep-review file 50.99 MB, ~58 MB by the bell; email archive 1.05 MB). Left: fill the three blanks after the close, final build after the 11-04 23:55 snapshot, email with the deep-review file **linked from a file share**, record the receipt. Steps in week 13 agenda item 3. **11-08: NOT STARTED.** The operator was waiting for organizer instructions, and none came. Advised that the 10-28 answer is the instruction ("same requirements as Phase I … within one week after the competition ends"). Send now through the Phase I route, and resubmit if a different mechanism is announced later. **SENT 2026-11-08** by the operator to `events@liquiditytech.com`, with `phase2_submission.tar.gz` attached and `ai_deep_review.jsonl.gz` as a Google Drive link. **Awaiting receipt; record it here when it comes.** Then keys, crons and droplet (close-out agenda items 4 and 6) | 2026-10-28 | final build 11-05; send by 11-08; **hard deadline 15:59 UTC Wed 11-11** |
 
 > **Table hygiene, 2026-08-12.** Three rows above this line had been stranded
 > *below* the closing horizontal rule since 2026-08-09 — outside the table, where
@@ -9116,6 +9116,16 @@ reading deploy/ltp_ledger.jsonl (209.6 MB)
 - **Left:** scp both files to the PC, put the advisory file on Drive with a
   link, email `events@liquiditytech.com`, and record the receipt. Deadline
   15:59 UTC Wed 11-11.
+- **The operator's archive was checked before sending** (uploaded copy,
+  extracted in the scratchpad): all 60 files match the manifest's SHA-256s,
+  `REASONING_LOG.md` is byte-identical to the tip's
+  `REASONING_LOG_PHASE2.md`, and all 9,215 records fall inside the window
+  (78 `enter`, 306 `operation`, 3 `entry_freeze`, 0 advisory). Manifest
+  SHA-256 of the advisory file: `38c60da7…592a0cf`, 56,988,249 bytes. I
+  didn't see that file's PC copy checked against it.
+- **SENT 2026-11-08** to `events@liquiditytech.com`: the archive attached,
+  the advisory file as a Google Drive link. **Awaiting the organizer's
+  receipt.** Three days inside the deadline.
 
 ---
 
