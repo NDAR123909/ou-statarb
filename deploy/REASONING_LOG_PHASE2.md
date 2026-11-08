@@ -66,13 +66,20 @@ under the date shown.
 | 2026-09-30 19:54 | Each pair is tested on its own two legs' overlapping history, not on the overlap of all 30 symbols | `panel` on every `refit` |
 | 2026-10-05 03:20 | **Intra-bar stop:** the same 3.5σ rule, checked on every five-minute `z_sample`. **Two legs or none:** a failed second leg unwinds the first. An automation-budget check before entry | `stop.trigger` = `bar` / `intrabar`; `entry_failed`, `entry_unwound`; `skip reason=automation_budget` |
 | 2026-10-12 01:13 | **Position size ×1.5**, fixed to the end of the phase: `risk_per_pair` 0.002 → 0.003, per-leg cap 0.5 → 0.75 × NAV. Each leg is clamped to fit the venue's 1,000 USDT per-order cap | `g` on every `enter` |
+| 2026-11-01 21:38:50 → lifted at the 11-02 20:00 bar (20:00:26) → re-frozen 2026-11-04 05:00:21 | **New entries frozen** by the operator, then **lifted after ~22 hours**: a position still open from before the freeze moved against us, and with a loss day about to lock in at the top-3 boundary, the freeze no longer served the same objective. With the team inside the top three by about one point and three days left, the score's variance, not the strategy's edge, decided the result. Open positions kept every exit and stop until they closed. Disclosed in `LTP_STRATEGY.md`, 2026-11-01 | one `entry_freeze` record when it went on; `skip reason=entry_freeze` for every refused signal |
 
 **What did not change:** the gates, the cost model, the stop level, the kill
 switch rule, and the leverage. No gate was loosened to manufacture a trade.
 
-**The agent was stopped at the bell, 15:59 UTC on 2026-11-04.**
-**[FINAL AFTER THE BELL: the exact stop time, and any position open at the
-bell.]** Per the organizer, positions still open at the cutoff are closed by
+**The freeze ran from 2026-11-01 21:38:50 to the 11-02 20:00 bar.** It went
+back on at the 11-04 05:00 bar, flat. The last refit had left only a pair
+with negative expectancy, and 11-04 does not count toward the final Sharpe.
+The re-freeze went live at 05:00:21 UTC on 11-04. **No position was open at the
+bell:** the book had been flat since 11-03. The agent was stopped and disabled at
+21:11 UTC on 11-04. The organizer's AI gateway key expired at ~16:00 UTC that
+day, after the bell, and the log records that too
+(`sentinel_degraded`, then `ai_assessment_unavailable`). Per the organizer,
+positions still open at the cutoff are closed by
 the Organizing Committee after the competition. **Those closes are not agent
 operations.** No decision record precedes them, and none should.
 
@@ -131,6 +138,7 @@ Every path that *refuses* or *shrinks* a trade writes a record:
 | `skip` `reason=automation_budget` | the automation session's remaining budget could not cover both legs |
 | `size_reduced` | a control halved the position rather than refusing it |
 | `entry_failed` / `entry_unwound` | an order was refused; the pair was left flat |
+| `skip` `reason=entry_freeze` | from 2026-11-01: the operator froze new entries for the rest of the phase |
 | `refit_drop` | a held pair failed re-selection and was closed |
 | `reconcile` | the venue held something the agent's state did not; it was closed |
 
@@ -267,8 +275,15 @@ Stated because an audit is entitled to them.
    rule is checked every five minutes. We audited every intra-bar firing
    against what the hourly stop alone would have done. Net, they saved money,
    almost all of it on one firing. They also produced false alarms, all on
-   PAXG/XAUT, the fastest and noisiest pair we traded. **[FINAL AFTER THE
-   BELL: firings, false alarms and net effect, through the close.]**
+   PAXG/XAUT, the fastest and noisiest pair we traded.
+   - **To the close:** the five-minute check fired **19** times, and the
+     hourly bar stop **once**; the six stops before 10-05 carry no trigger.
+     `MANIFEST.txt` reports the split.
+   - The first ten intra-bar firings (to 2026-10-25) were each audited
+     against an hourly-only path: **net ≈ +8 USDT saved**, almost all on one
+     firing, with two false alarms.
+   - **The nine later firings (eight of them on PAXG/XAUT) were not
+     individually audited before this submission.**
 3. **Maintenance windows blind the five-minute check.** During the venue's
    announced maintenance windows, the sampler's price reads fail and are
    skipped. A held position is then protected only by the hourly bar. The
@@ -292,8 +307,22 @@ Stated because an audit is entitled to them.
 6. **News screening can be stale.** As in Phase I, an entry whose legs were not
    freshly rated says `news_status: stale` or `missing_legs` with
    `screened: false`. Such an entry was not screened, and the record says so.
-7. **Funding was measured, not modelled.** It is in `fills/`.
-8. **Corporate and token events are not modelled.** The z-stop limits the
+7. **The organizer's AI gateway failed from 2026-10-30 ~16:00 UTC** for us and
+   other teams: every call returned HTTP 402,
+   `insufficient_balance_error (1008)`, from the upstream model provider. The
+   agent behaved as in Phase I's key expiry: fail-open and loud.
+   - one `sentinel_degraded` record on the transition;
+   - an `ai_assessment_unavailable` record on every bar while it lasted;
+   - every entry in that window marked `screened: false`.
+
+   For us it lasted from 16:00 UTC 10-30 to 01:00 UTC 10-31: **nine hourly
+   bars without AI assessment.** The USD 1/day floor for that budget period
+   was still met inside the period: a manual deep-review pass, run once the
+   gateway was back, reached $1.15 at ~04:33 UTC 10-31. **Two entries ran
+   unscreened in that window**, both PAXG/XAUT (16:00 and 21:00 UTC on
+   10-30), both recorded with `screened: false`, and both stopped out.
+8. **Funding was measured, not modelled.** It is in `fills/`.
+9. **Corporate and token events are not modelled.** The z-stop limits the
    damage. Every delisting notice we received was checked against the symbols
    we trade; none named one.
 
@@ -315,8 +344,18 @@ trip (t = −0.15), and fees (14.53 USDT) exceeded gross trading profit (9.39).
 The selection gate
 rejected most candidates, so the book held one pair most of the time, not the
 portfolio the engine was written for. That is the largest gap between
-backtest and deployment in this record. **[FINAL AFTER THE BELL: final equity,
-return, Sharpe, MDD and rank; the edge over every Phase II round trip.]**
+backtest and deployment in this record.
+
+**Final:** equity **1,025.78 USDT** (+2.58%). On the leaderboard after the bell:
+Sharpe **1.21** (completed UTC days only; 11-04 excluded, per the organizer), MDD
+**4.0%**, score 82.2: **4th of 30 finalists**, as the organizer's announcement
+of the final results (2026-11-06) confirmed.
+
+**Over all 78 Phase II round trips, net P&L was +25.78 USDT**, after fees and
+funding: about +0.33 per trip, against a per-trip standard deviation of about 5,
+so **t ≈ 0.6**. That is still indistinguishable from zero. Most of the phase's
+gain came in one week (2026-10-25 → 10-31: 21 trips, +37.52), which is the
+kind of run a zero-edge strategy produces now and then.
 
 **The ×1.5 size increase on 2026-10-12 was a choice of variance, not a claim of
 edge.** It was made and written down as such before its outcome was known.

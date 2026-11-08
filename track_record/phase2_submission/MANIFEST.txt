@@ -1,0 +1,136 @@
+LTP Liquidity Arena 2026 — Track A Phase II Reasoning Log
+Team NDAR
+Generated 2026-11-08T02:01:47+00:00
+STATUS  final
+Window  2026-09-08T16:00:00+00:00 <= ts < 2026-11-04T16:00:00+00:00
+Outside the window, not packaged: 5161 before, 19 after, 0 undated
+Records span 2026-09-08T16:31:09+00:00 .. 2026-11-04T15:00:30+00:00
+
+CONTENTS
+  REASONING_LOG.md         how to read these records: architecture,
+                           the decision -> order -> execution chain,
+                           and a stated list of known gaps.
+  reasoning.jsonl          the audit chain: every decision, operation
+                           and refit, plus the hourly AI assessments
+                           the agent actually consulted.
+  ai_deep_review.jsonl.gz  ADVISORY analysis layer. Not in the
+                           decision path: nothing imports it, the
+                           agent never reads the ledger, and they run
+                           as separate processes. Included for
+                           completeness of AI usage, NOT presented as
+                           decision reasoning.
+                           NOT in the emailed archive: too large.
+                           Delivered separately; check it against
+                           its SHA-256 below.
+  fills/                   dated execution snapshots reconciled
+                           against the venue -- the outcome half of
+                           the chain.
+
+  records in reasoning.jsonl        9215
+  records in ai_deep_review.jsonl   21336
+  unparseable lines skipped         0
+  fills snapshots                   58
+  days with no fills snapshot       none
+
+EVENT TALLY (inside the window)
+  ai_deep_review                21336   [advisory]
+  z_sample                       5012   [reasoning]
+  ai_spread_assessment           1470   [reasoning]
+  news_assessment                1049   [reasoning]
+  nav                             865   [reasoning]
+  operation                       306   [reasoning]
+  skip                            225   [reasoning]
+  enter                            78   [reasoning]
+  refit                            57   [reasoning]
+  ai_refit_review                  56   [reasoning]
+  exit                             45   [reasoning]
+  stop                             26   [reasoning]
+  ai_assessment_unavailable        13   [reasoning]
+  refit_drop                        5   [reasoning]
+  entry_freeze                      3   [reasoning]
+  size_reduced                      2   [reasoning]
+  reconcile                         1   [reasoning]
+  sentinel_degraded                 1   [reasoning]
+  sentinel_restored                 1   [reasoning]
+
+RISK CONTROLS THAT ACTUALLY FIRED
+  (paths that never fired are listed too, at zero -- an audit
+   should not have to infer a control's silence from absence)
+  side_blocked                    176
+  news_veto                         0
+  anomaly_veto                      2
+  gross_cap                        31
+  min_notional                      0
+  automation_budget                 0
+  size_reduced                      2
+  entry_freeze                     16
+
+STOPS BY TRIGGER
+  (`trigger` exists from 2026-10-05; every stop before it is
+   unlabelled and was the hourly-bar stop, the only one there was)
+  bar                               1
+  intrabar                         19
+  unlabelled                        6
+
+SHA-256
+  b0c13453ebd252a9de6765047c719929c222a9a585dd6c3c18cbf6f1697a1cc2       21108  REASONING_LOG.md
+  db624bc253101aa2801b530fbe83c0c2ef430ca25f44ff274c66b5c2633c868d     3629883  reasoning.jsonl
+  38c60da77dfa7ea8ae7557752f746d99706c542e496b65a004cb9f37e592a0cf    56988249  ai_deep_review.jsonl.gz   <- not in the emailed archive; delivered separately
+  3dc8c861c8a6f1e9c4a50f874defb9ee75d5d874e3a3ed522a66d3750fceee70       53212  fills/fills_2026-09-08.json
+  3dc8c861c8a6f1e9c4a50f874defb9ee75d5d874e3a3ed522a66d3750fceee70       53212  fills/fills_2026-09-09.json
+  3dc8c861c8a6f1e9c4a50f874defb9ee75d5d874e3a3ed522a66d3750fceee70       53212  fills/fills_2026-09-10.json
+  3dc8c861c8a6f1e9c4a50f874defb9ee75d5d874e3a3ed522a66d3750fceee70       53212  fills/fills_2026-09-11.json
+  c6b0708fbf061d037dc271c0967f620481df572ee3d3546803d7e62f03b4780a       54706  fills/fills_2026-09-12.json
+  197cb0d4252d971a77cfe946f437ef4ce6f4c45aa393c68bbf5aa0b4596905ce       54706  fills/fills_2026-09-13.json
+  e08acd69c5ee3e2e40831eb2440cfb7a8d91a3ed35f91da087b2697ba3514796       56794  fills/fills_2026-09-14.json
+  bffe409a66a5829627f697f23005ac70b7294a1591fb1dcb67932153dcc220aa       61968  fills/fills_2026-09-15.json
+  07ecc0f38682c1f1e41f8ae03b5277b3fe0b9b4eebc8a2c9f2050e506becdcd1       62168  fills/fills_2026-09-16.json
+  06dc96994cc567b65337e51b6f8f2775e364d827788643535483584317b119b0       63849  fills/fills_2026-09-17.json
+  06dc96994cc567b65337e51b6f8f2775e364d827788643535483584317b119b0       63849  fills/fills_2026-09-18.json
+  93f56fe6d2cf91d063ffa903bd841fafe168c307011d35633f42bd99c78cf3cf       66990  fills/fills_2026-09-19.json
+  d97a18e2f77f688d55589d4b47c54990609ffa7bc34fadfa702f0544f006dbe9       68673  fills/fills_2026-09-20.json
+  f50e8e18e2cf6dee892a52f6f72b1c3a67c8ea57c8ceb9ac91582295905f745e       70466  fills/fills_2026-09-21.json
+  bcadef21eea1967e40970d942f8fa1a1935c326a48d320891642ddc89c39d91a       73348  fills/fills_2026-09-22.json
+  78b951827f02c022483ab2fd5e766a6975dfd4e89d006b90713f9a4ef4f56b04       75238  fills/fills_2026-09-23.json
+  a8ff9339e032bd58323c4604e4faca9515dfd4ee6135a427f52aa19e17b2445c       74867  fills/fills_2026-09-24.json
+  05d74b8385cf754f562b82295215af746c9d56da3afb3587818d6d3dfb4db9c9       78012  fills/fills_2026-09-25.json
+  955e1e1ddd562cad793ceb1b2ff3e1574aa4979345ca2098c9104d9fcd665efc       81277  fills/fills_2026-09-26.json
+  e97c25bf53f1a9f3b68a94a609edb3bf87e0220ce000cf3dc4a252a09e729091       85588  fills/fills_2026-09-27.json
+  958bead2ea6eeed7f59abbde7047988d83f5202e09c26ca171a95d2718f6600b       89145  fills/fills_2026-09-28.json
+  48edc73ce0f3e1471ad0b6eb4229adefbd1351f355fe85ba73a944c2a22b4314       90433  fills/fills_2026-09-29.json
+  8fc22e23cb88dab8532b1a34b1fd12180a656d4dff6e58aeb1b6f56ee9fd7a52       90662  fills/fills_2026-09-30.json
+  9f7327a19258385dc3c19127b346033d0c3f52215d979a322173f20c64c4c8a0       90671  fills/fills_2026-10-01.json
+  283a533c9786b1c6a86c55fac13603279b81ac3079d2febaed28f373454e9110       93770  fills/fills_2026-10-02.json
+  0c7a62c2b4966846bb6c4a02b434acc25bef2f30e68e5f72916029bf9d7bc3e7       99725  fills/fills_2026-10-03.json
+  f6455e6642cccd8762ecefcf3d2cd6dbf1fb9acc3ffc9632af7e23296b12c0f9       99641  fills/fills_2026-10-04.json
+  96f1fdcb50b4c8fe9d5fa5edc42af5817be3633f01355a1e81d39277a25c73a7       99122  fills/fills_2026-10-05.json
+  96f1fdcb50b4c8fe9d5fa5edc42af5817be3633f01355a1e81d39277a25c73a7       99122  fills/fills_2026-10-06.json
+  8925900986b38932f4303abb6a5e9fbbd6355d4ac3154379b47cefbe56a32c35      100909  fills/fills_2026-10-07.json
+  1cc311588b782e9f86e1788e366258d7824a41f043217568d99f0ee7c659b9b1      102595  fills/fills_2026-10-08.json
+  c5db76ab3d68769fb940724756a597db6b842b46f58bb2dadf266cb147e5ff77      103668  fills/fills_2026-10-09.json
+  d0f46c5ed6c33f58533beac82ee4d8293d035b0d724634748552b4c16bcf2590      102939  fills/fills_2026-10-10.json
+  2ee4261095182cc0699b17ceb51c506d5263849784e5828cfed172f0c66961c4      103422  fills/fills_2026-10-11.json
+  2ee4261095182cc0699b17ceb51c506d5263849784e5828cfed172f0c66961c4      103422  fills/fills_2026-10-12.json
+  af6812b57d9433c9bf82097ee0bed803be5155a04f39b302eaad68af6fa2d6e4      105083  fills/fills_2026-10-13.json
+  80eef5117a94fbc379233b2d002e50715ef3ddfae827440a4a2870b9e27105a0      106243  fills/fills_2026-10-14.json
+  40dbf0449812e56d0f2ae382752c98cb796553da8cd9f023f822d8728d0331c8      107940  fills/fills_2026-10-15.json
+  9d1b43803f7fa472a0ed7f91e15f380113121ae07bfc32d1e81ce567c66fe3ac      108140  fills/fills_2026-10-16.json
+  391612c6c6ed6ff87a413aec9830c66d4ec3f2ecee8ad25413bc542eecdb1ca1      109682  fills/fills_2026-10-17.json
+  d52ae246735af483e7fec704f1c1cb4657a185afeda84f2d72a9fa860b634c78      111159  fills/fills_2026-10-18.json
+  c82f1ca630da1edd630ce462c24b30c585b1a778d650b8ccccf5412492ab3cb6      112906  fills/fills_2026-10-19.json
+  54eb03cf3647fbbbc96b43cf615a72872b9d440e5d77b4e651ddf23cb160641d      116289  fills/fills_2026-10-20.json
+  b98932e76ffc29d1206e1fdd9523f5ad62fe21360b8bdacbbb922f4c4160cee6      119651  fills/fills_2026-10-21.json
+  aef327a3e33bbbf9d4d430d867a89208828e4fa449c735e80f65e8a08b5e39ef      124178  fills/fills_2026-10-22.json
+  05de0dfbaf5bdb74f13fdcda5116fadeb81ea8553263829c74a38ce52fde3b23      129369  fills/fills_2026-10-23.json
+  e23c922cd53ca63276191315d83696665b8d7696b70891c5a66ca5e2a69cadab      134213  fills/fills_2026-10-24.json
+  8799e50c09d1ea9a8a5dd662299de5aac948b61ac8a2cf314ee853c4ffc3488a      135801  fills/fills_2026-10-25.json
+  68ea0d7027feeee2881bbd89c82cddb708f4a6bb9c663364893e50b0cf638b65      138884  fills/fills_2026-10-26.json
+  32e089309eee2443f6881901b4d2437dd6753d0008ad012c3325cea102e7b81d      144927  fills/fills_2026-10-27.json
+  b4eba2b228a363cba145601c5d5461f61c7c452bbd203f32bbabef462e7948b4      151508  fills/fills_2026-10-28.json
+  1a31ac240e9909dc3549302b1a8c5a80e685805b7da0c7832c888974b5234ba7      154621  fills/fills_2026-10-29.json
+  3ab38bf0a452cbcc5de8f3eb930e15aefcca3fd0f4c92ff821328752e4872b60      162662  fills/fills_2026-10-30.json
+  092ff6994c5d77e4635ef3fa91b310c3b7906b662399f4b0ed8f55204568333a      168702  fills/fills_2026-10-31.json
+  c308c9c4f05156eec1addcbca38774bb616c395612984315b82e1c2011a39336      171417  fills/fills_2026-11-01.json
+  986e822559b1f658c4bff76853be6812a1f9d59f0a30e9d92c43a202b7aff0b8      171564  fills/fills_2026-11-02.json
+  2b81e9fffbcae54bc1e3fef1caef77687dc0ad618248018a727b9fefc7f1f107      174572  fills/fills_2026-11-03.json
+  f5d7e37638bb9d21ee94e3a03c054acc064b534342317c78f3579689bd363166      174034  fills/fills_2026-11-04.json

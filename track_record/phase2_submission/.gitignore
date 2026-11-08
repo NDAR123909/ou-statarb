@@ -1,0 +1,4 @@
+# Written by deploy/reasoning_log.py. Too large to publish through the
+# droplet's nightly `git add track_record/`. Delivered separately and
+# pinned by its SHA-256 in MANIFEST.txt.
+ai_deep_review.jsonl.gz
